@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { KnowledgeNote } from "@research-copilot/types";
-import NoteTitleList from "../../../features/knowledge/notes/NoteTitleList";
+import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
+import NotesSidebar from "../../../features/knowledge/notes/NotesSidebar";
 
 const notes: KnowledgeNote[] = [
   {
@@ -15,15 +15,27 @@ const notes: KnowledgeNote[] = [
   },
 ];
 
-describe("NoteTitleList", () => {
+const interests: ResearchInterest[] = [{
+  id: "interest-1",
+  topic: "检索增强生成",
+  keywords: [],
+  status: "active",
+  created_at: "2026-09-01T00:00:00Z",
+}];
+
+describe("NotesSidebar", () => {
   it("笔记行只展示标题并保持整行可选", () => {
     const onSelect = vi.fn();
     render(
-      <NoteTitleList
+      <NotesSidebar
         notes={notes}
+        interests={[]}
+        scope="all"
         selectedId="note-1"
         search=""
         loading={false}
+        showScopeFilter
+        onScopeChange={vi.fn()}
         onSearchChange={vi.fn()}
         onSelect={onSelect}
         onCreate={vi.fn()}
@@ -39,5 +51,29 @@ describe("NoteTitleList", () => {
 
     fireEvent.click(row);
     expect(onSelect).toHaveBeenCalledWith(notes[0]);
+  });
+
+  it("在同一栏内切换全部、未归档和研究主题范围", () => {
+    const onScopeChange = vi.fn();
+    render(
+      <NotesSidebar
+        notes={notes}
+        interests={interests}
+        scope="all"
+        selectedId={null}
+        search=""
+        loading={false}
+        showScopeFilter
+        onScopeChange={onScopeChange}
+        onSearchChange={vi.fn()}
+        onSelect={vi.fn()}
+        onCreate={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "筛选笔记范围" }));
+    fireEvent.click(screen.getByRole("option", { name: "研究主题 · 检索增强生成" }));
+
+    expect(onScopeChange).toHaveBeenCalledWith("interest:interest-1");
   });
 });

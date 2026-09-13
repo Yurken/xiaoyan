@@ -97,7 +97,7 @@ export default function Knowledge({
             onChange={(nextView) => setView(nextView as KnowledgeView)}
           />
 
-          {view === "notes" && graphController.snapshot && !researchInterestId ? (
+          {view === "graph" && graphController.snapshot && !researchInterestId ? (
             <Select
               className="w-full lg:w-[260px]"
               prefix="聚焦："
@@ -119,7 +119,7 @@ export default function Knowledge({
         ) : (
           <NotesPanel
             hideFolders={hideFolders}
-            researchInterestId={researchInterestId ?? graphController.activeInterestId ?? undefined}
+            researchInterestId={researchInterestId}
             initialNotes={initialNotes}
             initialInterests={initialInterests}
             linkedNoteClaimCounts={linkedNoteClaimCounts}
