@@ -7,6 +7,8 @@ import { knowledgeApi, formatErrorMessage } from "../lib/client";
 import MarkdownSplitEditor from "../features/knowledge/MarkdownSplitEditor";
 import { sourceLabel } from "../features/knowledge/notesShared";
 import { interestFolderName } from "../lib/interestUtils";
+import { AssistantSourceMetadataPanel } from "../features/desktop-assistant/components";
+import { useAssistantSourceMetadata } from "../features/desktop-assistant/hooks";
 
 function buildInterestOptions(interests: ResearchInterest[], emptyLabel: string) {
   const list = [{ value: "", label: emptyLabel }];
@@ -48,6 +50,11 @@ export default function NoteReader() {
 
   const interest = locationState?.interest ?? null;
   const linkedClaimCount = locationState?.linkedClaimCount ?? 0;
+  const sourceController = useAssistantSourceMetadata(
+    "note",
+    note?.id,
+    Boolean(note && ["assistant", "assistant_file"].includes(note.source_type)),
+  );
 
   // ── Interests ────────────────────────────────────────────
   const [interests, setInterests] = useState<ResearchInterest[]>([]);
@@ -69,9 +76,8 @@ export default function NoteReader() {
     let cancelled = false;
     (async () => {
       try {
-        const notes = await knowledgeApi.listNotes();
+        const found = await knowledgeApi.getNote(id);
         if (cancelled) return;
-        const found = notes.find((n) => n.id === id) ?? null;
         if (found) {
           setNote(found);
           setTitle(found.title);
@@ -114,11 +120,11 @@ export default function NoteReader() {
         });
       } else {
         if (!note || !id) return;
-        await knowledgeApi.updateNote(id, { title: title.trim(), content });
-        // Move note if topic changed
-        if (researchInterestId !== (note.research_interest_id ?? "")) {
-          await knowledgeApi.moveNote(id, researchInterestId || undefined);
-        }
+        await knowledgeApi.updateNote(id, {
+          title: title.trim(),
+          content,
+          research_interest_id: researchInterestId,
+        });
         setNote((prev) => prev ? { ...prev, title: title.trim(), content, research_interest_id: researchInterestId || undefined } : prev);
         setDirty(false);
         flashToast("已保存");
@@ -235,6 +241,8 @@ export default function NoteReader() {
         </div>
       </div>
 
+      <AssistantSourceMetadataPanel controller={sourceController} />
+
       {/* ── Editor ──────────────────────────────────────────── */}
       <div className="min-h-0 flex-1 p-5">
         <MarkdownSplitEditor
@@ -260,7 +268,7 @@ export default function NoteReader() {
       <ConfirmDialog
         open={pendingDelete}
         title="删除笔记"
-        description={note ? `确认删除「${note.title}」？此操作不可撤销。` : ""}
+        description={note ? `确认删除「${note.title}」？${sourceController.metadata?.attachments.length ? "关联的原始截图附件也会同步清理。" : "此操作不可撤销。"}` : ""}
         confirmLabel="删除"
         tone="danger"
         loading={deleting}

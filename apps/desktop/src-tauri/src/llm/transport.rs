@@ -3,15 +3,62 @@ use reqwest::{Response, StatusCode};
 use serde_json::Value;
 use std::error::Error;
 
-use super::shared::compact_preview;
+use super::shared::{compact_preview, safe_endpoint_for_diagnostics};
+
+fn safe_error_token(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty()
+        || value.chars().count() > 80
+        || !value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || "._:-".contains(character))
+    {
+        return None;
+    }
+    Some(value.to_string())
+}
+
+fn safe_upstream_error_detail(body: &str) -> Option<String> {
+    let lower = body.to_ascii_lowercase();
+    let category = if lower.contains("no endpoints found that support image input")
+        || lower.contains("does not support image input")
+        || lower.contains("image input is not supported")
+    {
+        Some("当前模型或路由不支持图片输入".to_string())
+    } else if lower.contains("context length") || lower.contains("too many tokens") {
+        Some("请求内容超过模型上下文限制".to_string())
+    } else if lower.contains("rate limit") || lower.contains("too many requests") {
+        Some("上游请求频率或额度受限".to_string())
+    } else if lower.contains("invalid api key") || lower.contains("unauthorized") {
+        Some("上游认证失败，请检查 API Key".to_string())
+    } else {
+        None
+    };
+    if category.is_some() {
+        return category;
+    }
+
+    let json = serde_json::from_str::<Value>(body).ok()?;
+    let candidates = [
+        json.pointer("/error/type"),
+        json.pointer("/error/code"),
+        json.get("type"),
+        json.get("code"),
+    ];
+    let tokens = candidates
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .filter_map(safe_error_token)
+        .collect::<Vec<_>>();
+    (!tokens.is_empty()).then(|| format!("上游错误类型：{}", tokens.join(" / ")))
+}
 
 pub(super) fn format_http_error(status: StatusCode, body: &str, label: &str) -> String {
-    let preview = compact_preview(body.trim(), 240);
-    if preview.is_empty() {
-        format!("{}: HTTP {}", label, status.as_u16())
-    } else {
-        format!("{}: HTTP {} {}", label, status.as_u16(), preview)
-    }
+    let detail = safe_upstream_error_detail(body)
+        .map(|value| format!("，{value}"))
+        .unwrap_or_default();
+    format!("{}: HTTP {}{}", label, status.as_u16(), detail)
 }
 
 pub(super) fn format_openai_http_error(
@@ -29,7 +76,7 @@ pub(super) fn format_openai_http_error(
             "{}: HTTP {}，服务返回了 HTML 页面。请检查 base_url 是否指向 OpenAI 兼容 API 根地址（通常应以 /v1 结尾），而不是网站首页或文档页。当前 base_url: {}",
             label,
             status.as_u16(),
-            base_url.trim_end_matches('/'),
+            safe_endpoint_for_diagnostics(base_url).trim_end_matches('/'),
         );
     }
 
@@ -45,11 +92,19 @@ where
         return Ok(resp);
     }
 
+    let content_length = resp.content_length();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
     let text = resp.text().await?;
     crate::append_diagnostic_log(&format!(
-        "[llm][http_error] status={} body_preview={}",
+        "[llm][http_error] status={} content_type={} content_length={:?}",
         status.as_u16(),
-        compact_preview(&text, 800)
+        content_type,
+        content_length
     ));
     Err(anyhow!(format_error(status, &text)))
 }
@@ -95,26 +150,58 @@ pub(super) async fn parse_json_response(resp: Response, label: &str) -> Result<V
     })?;
     let text = String::from_utf8_lossy(&bytes);
     serde_json::from_str::<Value>(&text).map_err(|error| {
-        let preview = compact_preview(text.trim(), 1200);
         crate::append_diagnostic_log(&format!(
-            "[llm][{}] JSON解析失败: status={} content_type={} error={} 响应预览: {}",
+            "[llm][{}] JSON解析失败: status={} content_type={} content_length={:?} error={}",
             label,
             status.as_u16(),
             content_type,
-            error,
-            preview
+            content_length,
+            error
         ));
-        if preview.is_empty() {
+        if text.trim().is_empty() {
             anyhow!("{}：响应为空，无法解析为 JSON（{}）", label, error)
         } else {
-            anyhow!(
-                "{}：响应不是合法 JSON（{}）。响应预览：{}",
-                label,
-                error,
-                compact_preview(text.trim(), 320)
-            )
+            anyhow!("{}：响应不是合法 JSON（{}）", label, error)
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{format_http_error, format_openai_http_error};
+    use reqwest::StatusCode;
+
+    #[test]
+    fn http_errors_never_echo_prompt_or_credentials() {
+        let body = r#"{"error":{"message":"echo: private prompt researcher@example.com sk-live-secret","type":"invalid_request_error","code":"bad_request"}}"#;
+        let error = format_http_error(StatusCode::BAD_REQUEST, body, "LLM API error");
+        assert!(error.contains("invalid_request_error"));
+        assert!(!error.contains("private prompt"));
+        assert!(!error.contains("researcher@example.com"));
+        assert!(!error.contains("sk-live-secret"));
+    }
+
+    #[test]
+    fn openai_html_error_hides_endpoint_credentials() {
+        let error = format_openai_http_error(
+            StatusCode::NOT_FOUND,
+            "<!doctype html><html>secret response</html>",
+            "https://user:password@example.com/v1?api_key=secret#token",
+            "LLM API error",
+        );
+        assert!(error.contains("https://example.com/v1"));
+        assert!(!error.contains("password"));
+        assert!(!error.contains("api_key"));
+        assert!(!error.contains("secret response"));
+    }
+
+    #[test]
+    fn unsupported_image_error_keeps_only_an_actionable_category() {
+        let body = "No endpoints found that support image input; echoed prompt: private-data";
+        let error = format_http_error(StatusCode::BAD_REQUEST, body, "Vision API error");
+        assert!(error.contains("不支持图片输入"));
+        assert!(!error.contains("private-data"));
+    }
 }
 
 pub(super) fn append_sse_chunk(buf: &mut String, bytes: &[u8]) {

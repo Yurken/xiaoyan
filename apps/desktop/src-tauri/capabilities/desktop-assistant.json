@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop-assistant-capability",
+  "description": "Restricted capability for the desktop assistant windows",
+  "windows": ["assistant-dock", "assistant-panel", "assistant-capture-overlay-*"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-outer-position",
+    "core:window:allow-set-size",
+    "core:window:allow-current-monitor"
+  ]
+}

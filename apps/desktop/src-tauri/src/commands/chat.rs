@@ -333,7 +333,7 @@ pub async fn chat_get_session(
     .ok_or("未找到对应会话。")?;
 
     let msgs = sqlx::query(
-        "SELECT id, role, content, sources, images, status, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
+        "SELECT id, role, content, sources, images, artifacts, status, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC",
     )
     .bind(&id)
     .fetch_all(&state.db)

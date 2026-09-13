@@ -1,4 +1,5 @@
-import { View, ViewStyle, StyleSheet } from "react-native";
+import { View, type ViewStyle, StyleSheet } from "react-native";
+import { colors } from "../features/theme";
 
 interface NmCardProps {
   children: React.ReactNode;
@@ -26,34 +27,34 @@ const styles = StyleSheet.create({
   base: {
     borderRadius: 20,
     padding: 16,
-    backgroundColor: "#141A23",
+    backgroundColor: colors.bgCard,
   },
   raised: {
-    shadowColor: "#000000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.45,
+    shadowOpacity: 0.72,
     shadowRadius: 12,
     elevation: 5,
     borderWidth: 1,
-    borderColor: "rgba(60,74,92,0.7)",
+    borderColor: colors.highlight,
   },
   flat: {
-    shadowColor: "#000000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.58,
     shadowRadius: 7,
     elevation: 3,
     borderWidth: 1,
-    borderColor: "rgba(60,74,92,0.55)",
+    borderColor: colors.highlightBorder,
   },
   inset: {
-    backgroundColor: "#0F141C",
-    shadowColor: "#000000",
+    backgroundColor: colors.bgCardInset,
+    shadowColor: colors.shadow,
     shadowOffset: { width: -2, height: -2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 0,
     borderWidth: 1,
-    borderColor: "rgba(36,45,58,0.8)",
+    borderColor: colors.border,
   },
 });

@@ -14,5 +14,8 @@
   <!-- Network access for API calls -->
   <key>com.apple.security.network.client</key>
   <true/>
+  <!-- Required for user-triggered System Events accessibility queries. -->
+  <key>com.apple.security.automation.apple-events</key>
+  <true/>
 </dict>
 </plist>

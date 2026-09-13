@@ -14,7 +14,7 @@ on:
         required: true
         default: "preview"
         type: choice
-        options: [development, preview]
+        options: [development, preview, production]
 
 permissions:
   contents: read
@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Check whether EXPO_TOKEN is configured; downstream jobs depend on this output
+  # Check whether EXPO_TOKEN and EXPO_PROJECT_ID are configured
   check-token:
     name: Check EXPO_TOKEN
     runs-on: ubuntu-latest
@@ -34,13 +34,18 @@ jobs:
       - id: check
         env:
           TOKEN: ${{ secrets.EXPO_TOKEN }}
+          PROJECT_ID: ${{ secrets.EXPO_PROJECT_ID }}
         run: |
-          if [ -n "$TOKEN" ]; then
-            echo "configured=true" >> $GITHUB_OUTPUT
-          else
-            echo "configured=false" >> $GITHUB_OUTPUT
+          configured=true
+          if [ -z "$TOKEN" ]; then
+            configured=false
             echo "::warning::EXPO_TOKEN is not set — skipping EAS build"
           fi
+          if [ -z "$PROJECT_ID" ]; then
+            configured=false
+            echo "::warning::EXPO_PROJECT_ID is not set — skipping EAS build"
+          fi
+          echo "configured=$configured" >> $GITHUB_OUTPUT
 
   build:
     name: EAS Build
@@ -72,6 +77,8 @@ jobs:
 
       - name: Build (manual dispatch)
         working-directory: apps/mobile
+        env:
+          EXPO_PROJECT_ID: ${{ secrets.EXPO_PROJECT_ID }}
         run: |
           eas build \
             --platform ${{ inputs.platform }} \

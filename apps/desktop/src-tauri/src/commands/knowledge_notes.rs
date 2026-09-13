@@ -5,6 +5,10 @@ use crate::commands::memory::{
 };
 use crate::llm::LlmClient;
 use crate::rag::serialize_embedding;
+use crate::services::desktop_assistant::note_attachment_service::NoteAttachmentService;
+use crate::services::knowledge_notes_service::{
+    get_knowledge_note, note_row_to_json, update_knowledge_note, UpdateKnowledgeNoteInput,
+};
 use crate::state::AppState;
 use regex::Regex;
 use serde_json::json;
@@ -39,23 +43,6 @@ fn spawn_note_embedding_refresh(
             }
         }
     });
-}
-
-pub fn note_row_to_json(r: &sqlx::sqlite::SqliteRow) -> serde_json::Value {
-    let tags_str: String = r
-        .get::<Option<String>, _>("tags")
-        .unwrap_or_else(|| "[]".into());
-    json!({
-        "id": r.get::<String, _>("id"),
-        "title": r.get::<String, _>("title"),
-        "content": r.get::<String, _>("content"),
-        "source_type": r.get::<String, _>("source_type"),
-        "source_id": r.get::<Option<String>, _>("source_id"),
-        "tags": serde_json::from_str::<serde_json::Value>(&tags_str).unwrap_or(json!([])),
-        "research_interest_id": r.get::<Option<String>, _>("research_interest_id"),
-        "created_at": r.get::<String, _>("created_at"),
-        "updated_at": r.get::<String, _>("updated_at"),
-    })
 }
 
 #[tauri::command]
@@ -110,6 +97,14 @@ pub async fn knowledge_list_notes(
     .await
     .map_err(|e| e.to_string())?;
     Ok(json!(rows.iter().map(note_row_to_json).collect::<Vec<_>>()))
+}
+
+#[tauri::command]
+pub async fn knowledge_get_note(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    get_knowledge_note(&state.db, &id).await
 }
 
 #[tauri::command]
@@ -245,70 +240,30 @@ pub async fn knowledge_update_note(
     title: Option<String>,
     content: Option<String>,
     tags: Option<Vec<String>>,
+    move_interest: Option<bool>,
+    research_interest_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let existing = sqlx::query(
-        "SELECT id, title, content, source_type, source_id, tags, research_interest_id, created_at, updated_at FROM knowledge_notes WHERE id = ?",
+    let updated = update_knowledge_note(
+        &state.db,
+        &id,
+        UpdateKnowledgeNoteInput {
+            title,
+            content,
+            tags,
+            move_interest: move_interest.unwrap_or(false),
+            research_interest_id,
+        },
     )
-    .bind(&id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| e.to_string())?
-    .ok_or("未找到对应笔记。")?;
-
-    let now = chrono::Utc::now().to_rfc3339();
-    if let Some(next_title) = &title {
-        sqlx::query("UPDATE knowledge_notes SET title = ?, updated_at = ? WHERE id = ?")
-            .bind(next_title)
-            .bind(&now)
-            .bind(&id)
-            .execute(&state.db)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-    if let Some(next_content) = &content {
-        sqlx::query("UPDATE knowledge_notes SET content = ?, updated_at = ? WHERE id = ?")
-            .bind(next_content)
-            .bind(&now)
-            .bind(&id)
-            .execute(&state.db)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-    if let Some(next_tags) = &tags {
-        let tags_json = serde_json::to_string(next_tags).unwrap_or_else(|_| "[]".into());
-        sqlx::query("UPDATE knowledge_notes SET tags = ?, updated_at = ? WHERE id = ?")
-            .bind(&tags_json)
-            .bind(&now)
-            .bind(&id)
-            .execute(&state.db)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-
-    let row = sqlx::query(
-        "SELECT id, title, content, source_type, source_id, tags, research_interest_id, created_at, updated_at FROM knowledge_notes WHERE id = ?",
-    )
-    .bind(&id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| e.to_string())?
-    .ok_or("未找到对应笔记。")?;
-
-    let final_title = row.get::<String, _>("title");
-    let final_content = row.get::<String, _>("content");
-    let final_interest_id = row.get::<Option<String>, _>("research_interest_id");
+    .await?;
     let settings = state.settings.read().await.clone();
 
-    let title_changed = title.is_some() && final_title != existing.get::<String, _>("title");
-    let content_changed =
-        content.is_some() && final_content != existing.get::<String, _>("content");
-    if title_changed || content_changed {
+    if updated.title_changed || updated.content_changed {
         spawn_note_embedding_refresh(
             state.db.clone(),
             settings.clone(),
             id.clone(),
-            final_title.clone(),
-            final_content.clone(),
+            updated.title.clone(),
+            updated.content.clone(),
         );
     }
 
@@ -316,14 +271,14 @@ pub async fn knowledge_update_note(
         let _ = record_knowledge_note_updated_event(
             &state.db,
             &id,
-            &final_title,
-            &final_content,
-            final_interest_id.as_deref(),
+            &updated.title,
+            &updated.content,
+            updated.research_interest_id.as_deref(),
         )
         .await;
     }
 
-    Ok(note_row_to_json(&row))
+    Ok(updated.value)
 }
 
 #[tauri::command]
@@ -386,20 +341,18 @@ pub async fn knowledge_move_note(
 }
 
 #[tauri::command]
-pub async fn knowledge_delete_note(state: State<'_, AppState>, id: String) -> Result<(), String> {
-    let existing = sqlx::query("SELECT title FROM knowledge_notes WHERE id = ?")
-        .bind(&id)
-        .fetch_optional(&state.db)
+pub async fn knowledge_delete_note(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    let title = NoteAttachmentService::delete_note_with_attachments(&state.db, &app_data_dir, &id)
         .await
-        .map_err(|e| e.to_string())?
-        .ok_or("未找到对应笔记。")?;
-
-    let title = existing.get::<String, _>("title");
-    sqlx::query("DELETE FROM knowledge_notes WHERE id = ?")
-        .bind(&id)
-        .execute(&state.db)
-        .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|error| error.to_string())?;
 
     let settings = state.settings.read().await.clone();
     if is_long_term_memory_enabled(&settings) {

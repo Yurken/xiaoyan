@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   stage: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: 14, overflow: "hidden" },
   stageHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12 },
   stageBadge: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
-  stageBadgeText: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
+  stageBadgeText: { fontSize: 13, fontWeight: "700", color: colors.highlight },
   stageTitle: { fontSize: 14, fontWeight: "600", color: colors.textPrimary },
   stageDuration: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
   stageBody: { paddingHorizontal: 12, paddingBottom: 12, paddingTop: 2, gap: 12 },

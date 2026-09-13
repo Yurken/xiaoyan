@@ -7,7 +7,6 @@ use crate::commands::knowledge_hypothesis::{
     prompt_context as hypothesis_to_prompt_context, stored_card, validate_card,
     ResearchHypothesisCardPayload,
 };
-use crate::commands::knowledge_notes::note_row_to_json;
 use crate::commands::knowledge_plan_status::{
     ensure_interest_not_planning, mark_interest_plan_planned, mark_interest_plan_running,
     restore_interest_plan_status,
@@ -15,6 +14,7 @@ use crate::commands::knowledge_plan_status::{
 use crate::commands::memory::{is_long_term_memory_enabled, record_knowledge_note_created_event};
 use crate::links::paper_search_url;
 use crate::llm::{resolve_model, resolve_temperature, LlmClient, LlmMessage};
+use crate::services::knowledge_notes_service::note_row_to_json;
 use crate::services::memory_checkpoint_service::{
     record_research_asset_checkpoint, research_interest_asset_snapshot,
     ResearchAssetCheckpointInput,

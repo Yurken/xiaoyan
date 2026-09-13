@@ -1,3 +1,4 @@
+import { colors } from "../theme";
 import {
   View, Text, ScrollView, StyleSheet,
   ActivityIndicator, TouchableOpacity,
@@ -8,49 +9,50 @@ import { router } from "expo-router";
 import { NmCard } from "../../components/NmCard";
 import { NmButton } from "../../components/NmButton";
 import type { Paper } from "@research-copilot/types";
+import type { PaperDetailSource } from "./usePaperDetail";
 
 const STATUS_CONFIG = {
-  analyzed:  { icon: "checkmark-circle" as const, color: "#34C759", label: "已分析" },
-  analyzing: { icon: "hourglass"         as const, color: "#007AFF", label: "处理中" },
-  failed:    { icon: "close-circle"      as const, color: "#FF3B30", label: "失败"   },
-  pending:   { icon: "ellipse-outline"   as const, color: "#5F6B7A", label: "待分析" },
+  analyzed:  { icon: "checkmark-circle" as const, color: colors.success, label: "已分析" },
+  analyzing: { icon: "hourglass"         as const, color: colors.accent, label: "处理中" },
+  failed:    { icon: "close-circle"      as const, color: colors.danger, label: "失败"   },
+  pending:   { icon: "ellipse-outline"   as const, color: colors.textMuted, label: "待分析" },
 };
 
 const CCF_COLORS: Record<string, { bg: string; text: string }> = {
-  A: { bg: "#FFE8E8", text: "#D93025" },
-  B: { bg: "#FFF3E0", text: "#E65100" },
-  C: { bg: "#F3F0FF", text: "#6741D9" },
+  A: colors.tagA,
+  B: colors.tagB,
+  C: colors.tagC,
 };
 
 function buildTags(paper: Paper) {
   const tags: Array<{ label: string; bg: string; text: string }> = [];
   if (paper.ccf_rating) {
-    const c = CCF_COLORS[paper.ccf_rating] ?? { bg: "#E8F0FE", text: "#1A73E8" };
+    const c = CCF_COLORS[paper.ccf_rating] ?? colors.tagCasQ;
     tags.push({ label: `CCF ${paper.ccf_rating}`, bg: c.bg, text: c.text });
   }
   if (paper.wos_indexes) {
     for (const idx of paper.wos_indexes) {
       if (idx === "SCI" || idx === "SSCI" || idx === "EI") {
-        tags.push({ label: idx, bg: "#E6F4EA", text: "#137333" });
+        tags.push({ label: idx, ...colors.tagSCI });
       }
     }
   }
   if (paper.jcr_quartile) {
-    tags.push({ label: paper.jcr_quartile, bg: "#EDE7F6", text: "#5E35B1" });
+    tags.push({ label: paper.jcr_quartile, ...colors.tagQuartile });
   }
   if (paper.cas_quartile) {
-    tags.push({ label: `中科院${paper.cas_quartile}`, bg: "#E3F2FD", text: "#1565C0" });
+    tags.push({ label: `中科院${paper.cas_quartile}`, ...colors.tagCasQ });
   }
   if (paper.cas_top) {
-    tags.push({ label: "顶刊", bg: "#FCE4EC", text: "#C62828" });
+    tags.push({ label: "顶刊", ...colors.tagTop });
   }
   return tags;
 }
 
-function SectionHeader({ title, icon }: { title: string; icon: string }) {
+function SectionHeader({ title, icon }: { title: string; icon: keyof typeof Ionicons.glyphMap }) {
   return (
     <View style={styles.sectionHeader}>
-      <Ionicons name={icon as any} size={18} color="#007AFF" />
+      <Ionicons name={icon} size={18} color={colors.accent} />
       <Text style={styles.sectionTitle}>{title}</Text>
     </View>
   );
@@ -70,21 +72,27 @@ export function PaperDetailView({
   paper,
   loading,
   error,
+  source,
+  analyzing,
+  canAnalyze,
   onReload,
   onAnalyze,
 }: {
   paper: Paper | null;
   loading: boolean;
   error: string | null;
-  onReload: () => void;
-  onAnalyze: () => void;
+  source: PaperDetailSource;
+  analyzing: boolean;
+  canAnalyze: boolean;
+  onReload: () => void | Promise<void>;
+  onAnalyze: () => void | Promise<void>;
 }) {
   if (loading) {
     return (
       <SafeAreaView style={styles.screen}>
         <Header />
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </SafeAreaView>
     );
@@ -96,11 +104,11 @@ export function PaperDetailView({
         <Header />
         <View style={styles.center}>
           <View style={styles.emptyIcon}>
-            <Ionicons name="alert-circle-outline" size={40} color="#FF3B30" />
+            <Ionicons name="alert-circle-outline" size={40} color={colors.danger} />
           </View>
           <Text style={styles.emptyTitle}>加载失败</Text>
           <Text style={styles.emptyText}>{error ?? "未找到该论文"}</Text>
-          <NmButton variant="secondary" size="sm" onPress={onReload}>
+          <NmButton variant="secondary" size="sm" onPress={() => { void onReload(); }}>
             重试
           </NmButton>
         </View>
@@ -122,6 +130,12 @@ export function PaperDetailView({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {source === "synced" ? (
+          <View style={styles.syncedBanner}>
+            <Text style={styles.syncedText}>WebDAV 同步副本 · 只读</Text>
+          </View>
+        ) : null}
+
         {/* Meta */}
         <NmCard style={styles.metaCard}>
           <Text style={styles.paperTitle}>{paper.title}</Text>
@@ -157,14 +171,15 @@ export function PaperDetailView({
               variant="primary"
               size="md"
               style={{ marginTop: 12 }}
-              onPress={onAnalyze}
+              disabled={!canAnalyze || analyzing}
+              onPress={() => { void onAnalyze(); }}
             >
-              小妍分析
+              {!canAnalyze ? "只读" : analyzing ? "分析中…" : "小妍分析"}
             </NmButton>
           )}
           {paper.status === "analyzing" && (
             <View style={styles.analyzingHint}>
-              <ActivityIndicator size="small" color="#007AFF" />
+              <ActivityIndicator size="small" color={colors.accent} />
               <Text style={styles.analyzingText}>分析中…</Text>
             </View>
           )}
@@ -211,7 +226,7 @@ export function PaperDetailView({
         {paper.status === "pending" || paper.status === "failed" ? (
           <NmCard style={styles.sectionCard}>
             <View style={styles.emptySection}>
-              <Ionicons name="sparkles-outline" size={32} color="#5F6B7A" />
+              <Ionicons name="sparkles-outline" size={32} color={colors.textMuted} />
               <Text style={styles.emptySectionTitle}>
                 {paper.status === "failed" ? "分析失败" : "暂未分析"}
               </Text>
@@ -234,7 +249,7 @@ function Header() {
   return (
     <View style={styles.header}>
       <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-        <Ionicons name="chevron-back" size={22} color="#007AFF" />
+        <Ionicons name="chevron-back" size={22} color={colors.accent} />
         <Text style={styles.backText}>论文库</Text>
       </TouchableOpacity>
     </View>
@@ -242,7 +257,7 @@ function Header() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#090B10" },
+  screen: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -251,27 +266,37 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   backBtn: { flexDirection: "row", alignItems: "center", gap: 2 },
-  backText: { fontSize: 16, color: "#007AFF", fontWeight: "500" },
+  backText: { fontSize: 16, color: colors.accent, fontWeight: "500" },
 
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20 },
   bottomSpacer: { height: 40 },
 
+  syncedBanner: {
+    marginTop: 4,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.accentSoft,
+  },
+  syncedText: { fontSize: 13, color: colors.accentStrong, fontWeight: "500" },
+
   metaCard: { marginTop: 4, padding: 16, gap: 10 },
-  paperTitle: { fontSize: 20, fontWeight: "700", color: "#F5F7FA", lineHeight: 28 },
+  paperTitle: { fontSize: 20, fontWeight: "700", color: colors.textPrimary, lineHeight: 28 },
 
   tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   tag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   tagText: { fontSize: 11, fontWeight: "600" },
 
   metaRow: { flexDirection: "row", flexWrap: "wrap" },
-  metaText: { fontSize: 14, color: "#9AA7B8", lineHeight: 20 },
+  metaText: { fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
 
   statusRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   statusText: { fontSize: 13, fontWeight: "500" },
 
   analyzingHint: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
-  analyzingText: { fontSize: 14, color: "#007AFF" },
+  analyzingText: { fontSize: 14, color: colors.accent },
 
   sectionCard: { marginTop: 12, padding: 16, gap: 14 },
 
@@ -281,24 +306,24 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingBottom: 2,
   },
-  sectionTitle: { fontSize: 16, fontWeight: "600", color: "#F5F7FA" },
+  sectionTitle: { fontSize: 16, fontWeight: "600", color: colors.textPrimary },
 
-  bodyText: { fontSize: 15, lineHeight: 23, color: "#9AA7B8" },
+  bodyText: { fontSize: 15, lineHeight: 23, color: colors.textSecondary },
 
   analysisBlock: { gap: 3 },
-  analysisLabel: { fontSize: 13, fontWeight: "600", color: "#007AFF" },
-  analysisContent: { fontSize: 14, lineHeight: 21, color: "#9AA7B8" },
+  analysisLabel: { fontSize: 13, fontWeight: "600", color: colors.accent },
+  analysisContent: { fontSize: 14, lineHeight: 21, color: colors.textSecondary },
 
   emptySection: { alignItems: "center", gap: 8, paddingVertical: 20 },
-  emptySectionTitle: { fontSize: 16, fontWeight: "600", color: "#9AA7B8" },
-  emptySectionText: { fontSize: 14, color: "#5F6B7A", textAlign: "center", paddingHorizontal: 20 },
+  emptySectionTitle: { fontSize: 16, fontWeight: "600", color: colors.textSecondary },
+  emptySectionText: { fontSize: 14, color: colors.textMuted, textAlign: "center", paddingHorizontal: 20 },
 
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
   emptyIcon: {
-    width: 72, height: 72, borderRadius: 24, backgroundColor: "#141A23",
+    width: 72, height: 72, borderRadius: 24, backgroundColor: colors.bgCard,
     alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: "rgba(60,74,92,0.5)",
+    borderWidth: 1, borderColor: colors.border,
   },
-  emptyTitle: { fontSize: 17, fontWeight: "600", color: "#9AA7B8" },
-  emptyText: { fontSize: 14, color: "#5F6B7A", textAlign: "center", paddingHorizontal: 40 },
+  emptyTitle: { fontSize: 17, fontWeight: "600", color: colors.textSecondary },
+  emptyText: { fontSize: 14, color: colors.textMuted, textAlign: "center", paddingHorizontal: 40 },
 });
