@@ -374,6 +374,37 @@ fn point_in_monitor(point: (i32, i32), monitor: &tauri::Monitor) -> bool {
         && point.1 < position.y + size.height as i32
 }
 
+fn frame_inside_monitor_work_area(frame: (i32, i32, i32, i32), monitor: &tauri::Monitor) -> bool {
+    let work_area = monitor.work_area();
+    let right = work_area.position.x + work_area.size.width as i32;
+    let bottom = work_area.position.y + work_area.size.height as i32;
+    frame.0 >= work_area.position.x
+        && frame.1 >= work_area.position.y
+        && frame.0 + frame.2 <= right
+        && frame.1 + frame.3 <= bottom
+}
+
+fn clamp_window_position(
+    preferred: (i32, i32),
+    area: (i32, i32, i32, i32),
+    window: (i32, i32),
+) -> (i32, i32) {
+    let max_x = area.0 + area.2 - window.0;
+    let max_y = area.1 + area.3 - window.1;
+    (
+        if max_x < area.0 {
+            area.0
+        } else {
+            preferred.0.clamp(area.0, max_x)
+        },
+        if max_y < area.1 {
+            area.1
+        } else {
+            preferred.1.clamp(area.1, max_y)
+        },
+    )
+}
+
 /// 把动作面板定位到触发它所在的显示器：
 /// 桌面小妍可见时以它为锚点，否则以全局光标为锚点（快捷键触发场景）。
 fn position_assistant_panel(app: &AppHandle) {
@@ -413,15 +444,14 @@ fn position_assistant_panel(app: &AppHandle) {
     let Some(monitor) = monitor else {
         return;
     };
-    let origin = monitor.position();
-    let size = monitor.size();
+    let work_area = monitor.work_area();
     let (x, y) = panel_position_near_anchor(
         anchor,
         (
-            origin.x,
-            origin.y,
-            size.width as i32,
-            size.height as i32,
+            work_area.position.x,
+            work_area.position.y,
+            work_area.size.width as i32,
+            work_area.size.height as i32,
         ),
         (panel_size.width as i32, panel_size.height as i32),
         PANEL_ANCHOR_GAP,
@@ -458,29 +488,30 @@ fn position_dock(app: &AppHandle) {
     let Some(monitor) = monitor else {
         return;
     };
-    let origin = monitor.position();
-    let size = monitor.size();
+    let work_area = monitor.work_area();
 
     let (preferred_x, preferred_y) = main_window
         .and_then(|main| Some((main.outer_position().ok()?, main.outer_size().ok()?)))
         .map(|(position, main_size)| {
             (
                 position.x + main_size.width as i32 - 48,
-                position.y + main_size.height as i32 - ASSISTANT_DOCK_HEIGHT,
+                position.y + main_size.height as i32 - ASSISTANT_DOCK_HEIGHT - 20,
             )
         })
         .unwrap_or((
-            origin.x + size.width as i32 - ASSISTANT_DOCK_WIDTH - 16,
-            origin.y + size.height as i32 - ASSISTANT_DOCK_HEIGHT - 20,
+            work_area.position.x + work_area.size.width as i32 - ASSISTANT_DOCK_WIDTH - 16,
+            work_area.position.y + work_area.size.height as i32 - ASSISTANT_DOCK_HEIGHT - 20,
         ));
 
-    let x = preferred_x.clamp(
-        origin.x,
-        origin.x + size.width as i32 - ASSISTANT_DOCK_WIDTH,
-    );
-    let y = preferred_y.clamp(
-        origin.y,
-        origin.y + size.height as i32 - ASSISTANT_DOCK_HEIGHT,
+    let (x, y) = clamp_window_position(
+        (preferred_x, preferred_y),
+        (
+            work_area.position.x,
+            work_area.position.y,
+            work_area.size.width as i32,
+            work_area.size.height as i32,
+        ),
+        (ASSISTANT_DOCK_WIDTH, ASSISTANT_DOCK_HEIGHT),
     );
     let _ = window.set_position(PhysicalPosition::new(x, y));
 }
@@ -611,31 +642,32 @@ pub fn reset_assistant_dock_position(app: &AppHandle) {
     position_dock(app);
 }
 
-/// 桌面小妍当前是否仍在某台显示器的可见范围内（以窗口中心判定）。
-fn dock_on_any_monitor(app: &AppHandle) -> bool {
+/// 桌面小妍当前是否完整位于某台显示器的可用区域内。
+fn dock_inside_any_work_area(app: &AppHandle) -> bool {
     let Some(window) = app.get_webview_window("assistant-dock") else {
         return false;
     };
     let (Ok(position), Ok(size)) = (window.outer_position(), window.outer_size()) else {
         return false;
     };
-    let center = (
-        position.x + size.width as i32 / 2,
-        position.y + size.height as i32 / 2,
+    let frame = (
+        position.x,
+        position.y,
+        size.width as i32,
+        size.height as i32,
     );
     app.available_monitors()
         .map(|monitors| {
             monitors
                 .iter()
-                .any(|monitor| point_in_monitor(center, monitor))
+                .any(|monitor| frame_inside_monitor_work_area(frame, monitor))
         })
         .unwrap_or(false)
 }
 
-/// 安全恢复：仅当桌面小妍已不在任何显示器内（如显示器断开）时才迁移回默认位置，
-/// 不打乱用户已持久化的站位。
+/// 安全恢复：当显示器断开或系统 Dock / 菜单栏变化导致站位越界时，迁移回默认位置。
 fn ensure_dock_on_screen(app: &AppHandle) {
-    if !dock_on_any_monitor(app) {
+    if !dock_inside_any_work_area(app) {
         position_dock(app);
     }
 }
@@ -854,7 +886,8 @@ mod tests {
     use std::collections::HashMap;
 
     use super::{
-        conflicting_direct_action, normalize_assistant_shortcut, panel_position_near_anchor,
+        clamp_window_position, conflicting_direct_action, normalize_assistant_shortcut,
+        panel_position_near_anchor,
     };
 
     #[test]
@@ -888,6 +921,14 @@ mod tests {
     const MONITOR: (i32, i32, i32, i32) = (0, 0, 2560, 1440);
     const PANEL: (i32, i32) = (400, 360);
     const DOCK: (i32, i32) = (128, 136);
+
+    #[test]
+    fn dock_position_stays_inside_the_monitor_work_area() {
+        // 该显示器底部 96px 被系统 Dock 占用，可用区域在 y=48..1344。
+        let work_area = (0, 48, 2560, 1296);
+        let position = clamp_window_position((2600, 1400), work_area, DOCK);
+        assert_eq!(position, (2560 - DOCK.0, 1344 - DOCK.1));
+    }
 
     #[test]
     fn panel_flips_left_when_anchor_is_near_the_right_edge() {

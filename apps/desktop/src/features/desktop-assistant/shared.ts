@@ -738,6 +738,10 @@ export interface AssistantMonitorInfo {
   y: number
   width: number
   height: number
+  work_x: number
+  work_y: number
+  work_width: number
+  work_height: number
   scale_factor: number
   is_primary: boolean
 }
@@ -779,20 +783,20 @@ export function assistantMonitorForPoint(
   return containing ?? monitors.find((monitor) => monitor.is_primary) ?? monitors[0] ?? null
 }
 
-/** 把窗口矩形夹取到显示器范围内，保证不会完全移出可见区域。 */
+/** 把窗口矩形夹取到显示器可用区域内，避开系统菜单栏与 Dock。 */
 export function clampFrameToMonitor(
   frame: AssistantWindowFrame,
   monitor: AssistantMonitorInfo,
 ): AssistantWindowFrame {
-  const maxX = monitor.x + monitor.width - frame.width
-  const maxY = monitor.y + monitor.height - frame.height
+  const maxX = monitor.work_x + monitor.work_width - frame.width
+  const maxY = monitor.work_y + monitor.work_height - frame.height
   // 窗口比显示器还大时钉在显示器原点，保证左上角可见。
   const clamp = (value: number, min: number, max: number) =>
     max < min ? min : Math.min(Math.max(value, min), max)
   return {
     ...frame,
-    x: Math.round(clamp(frame.x, monitor.x, maxX)),
-    y: Math.round(clamp(frame.y, monitor.y, maxY)),
+    x: Math.round(clamp(frame.x, monitor.work_x, maxX)),
+    y: Math.round(clamp(frame.y, monitor.work_y, maxY)),
   }
 }
 
@@ -802,10 +806,10 @@ export function dockPlacementFromFrame(
   monitor: AssistantMonitorInfo,
 ): AssistantDockPlacement {
   const distances: ReadonlyArray<[AssistantDockEdge, number]> = [
-    ['left', frame.x - monitor.x],
-    ['right', monitor.x + monitor.width - (frame.x + frame.width)],
-    ['top', frame.y - monitor.y],
-    ['bottom', monitor.y + monitor.height - (frame.y + frame.height)],
+    ['left', frame.x - monitor.work_x],
+    ['right', monitor.work_x + monitor.work_width - (frame.x + frame.width)],
+    ['top', frame.y - monitor.work_y],
+    ['bottom', monitor.work_y + monitor.work_height - (frame.y + frame.height)],
   ]
   let edge: AssistantDockEdge = distances[0][0]
   let nearest = distances[0][1]
@@ -835,20 +839,20 @@ export function frameFromDockPlacement(
   let y: number
   switch (placement.edge) {
     case 'left':
-      x = monitor.x
+      x = monitor.work_x
       y = monitor.y + placement.offset
       break
     case 'right':
-      x = monitor.x + monitor.width - size.width
+      x = monitor.work_x + monitor.work_width - size.width
       y = monitor.y + placement.offset
       break
     case 'top':
       x = monitor.x + placement.offset
-      y = monitor.y
+      y = monitor.work_y
       break
     case 'bottom':
       x = monitor.x + placement.offset
-      y = monitor.y + monitor.height - size.height
+      y = monitor.work_y + monitor.work_height - size.height
       break
   }
   return clampFrameToMonitor({ x, y, width: size.width, height: size.height }, monitor)
@@ -874,8 +878,8 @@ export function resolveDockFrame(
   if (!placement) {
     return clampFrameToMonitor(
       {
-        x: monitor.x + monitor.width - size.width - 16,
-        y: monitor.y + monitor.height - size.height - 20,
+        x: monitor.work_x + monitor.work_width - size.width - 16,
+        y: monitor.work_y + monitor.work_height - size.height - 20,
         width: size.width,
         height: size.height,
       },
