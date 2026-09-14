@@ -51,14 +51,14 @@
     "@babel/core": "^7.25.0",
     "@types/react": "~19.1.17",
     "@types/react-dom": "~19.1.0",
-    "@typescript-eslint/parser": "^8.65.0",
+    "@typescript-eslint/parser": "^8.70.0",
     "babel-preset-expo": "~54.0.12",
     "eas-cli": "^20.1.0",
     "eslint": "^9",
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^14.0.0",
     "typescript": "^5.3.3",
-    "typescript-eslint": "^8.65.0",
+    "typescript-eslint": "^8.70.0",
     "vitest": "^4.1.10"
   }
 }
