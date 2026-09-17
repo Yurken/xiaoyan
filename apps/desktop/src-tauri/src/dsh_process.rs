@@ -1,4 +1,5 @@
 use crate::dsh::{DshRuntimeConfig, DshRuntimeMode};
+use crate::platform::process_env::apply_augmented_path;
 use std::{
     path::{Path, PathBuf},
     process::Stdio,
@@ -53,7 +54,7 @@ fn is_runnable(path: &Path) -> bool {
     }
 }
 
-fn extra_bin_dirs() -> Vec<PathBuf> {
+pub(crate) fn extra_bin_dirs() -> Vec<PathBuf> {
     let mut directories = Vec::new();
     if let Some(home) = home_dir() {
         directories.extend([
@@ -156,32 +157,37 @@ pub fn launch_command(
     workspace: PathBuf,
     data_home: PathBuf,
 ) -> Result<Command, String> {
-    let mut command = match config.mode {
-        DshRuntimeMode::Auto => {
-            if let Some(executable) = find_dsh() {
-                let mut command = Command::new(executable);
+    let (mut command, executable) = match config.mode {
+        DshRuntimeMode::Auto => match find_dsh() {
+            Some(executable) => {
+                let mut command = Command::new(&executable);
                 #[cfg(windows)]
                 command.creation_flags(CREATE_NO_WINDOW);
                 command.stdin(Stdio::null()).kill_on_drop(true);
-                command
-            } else {
-                bundled_command(managed_runtime)?
+                (command, Some(executable))
             }
-        }
-        DshRuntimeMode::Bundled => bundled_command(managed_runtime)?,
+            None => (bundled_command(managed_runtime)?, None),
+        },
+        DshRuntimeMode::Bundled => (bundled_command(managed_runtime)?, None),
         DshRuntimeMode::External => {
-            let mut command = Command::new(
+            let executable = PathBuf::from(
                 config
                     .external_executable
                     .as_deref()
                     .expect("validated external executable"),
             );
+            let mut command = Command::new(&executable);
             #[cfg(windows)]
             command.creation_flags(CREATE_NO_WINDOW);
             command.stdin(Stdio::null()).kill_on_drop(true);
-            command
+            (command, Some(executable))
         }
     };
+
+    // `dsh` 在本机安装形态下是 `#!/usr/bin/env node` 脚本。GUI 启动的进程只继承
+    // 最小 PATH，必须把解释器目录注入子进程环境，否则进程会以 127 退出并报
+    // `env: node: No such file or directory`。
+    apply_augmented_path(&mut command, &extra_bin_dirs(), executable.as_deref());
 
     if config.profile == "web" {
         command.arg("web");
@@ -258,5 +264,33 @@ mod tests {
         let paths = extra_bin_dirs();
         assert!(paths.iter().any(|path| path.ends_with(".local/bin")));
         assert!(paths.iter().any(|path| path == Path::new("/usr/local/bin")));
+    }
+
+    // `dsh` 是 `#!/usr/bin/env node` 脚本：只找到可执行文件并不够，还必须让子进程
+    // 能在 PATH 中找到 node，否则启动会以 127 退出。
+    #[test]
+    fn passes_the_executable_directory_to_the_child_path() {
+        let config = DshRuntimeConfig {
+            mode: DshRuntimeMode::External,
+            external_executable: Some("/tmp/xiaoyan-dsh-bin/dsh".to_string()),
+            ..Default::default()
+        };
+        let command = launch_command(
+            Path::new("/tmp/xiaoyan-managed-runtime"),
+            &config,
+            PathBuf::from("/tmp/xiaoyan-workspace"),
+            PathBuf::from("/tmp/xiaoyan-data-home"),
+        )
+        .expect("外部模式应能构造启动命令");
+
+        let path = command
+            .as_std()
+            .get_envs()
+            .find(|(key, _)| *key == "PATH")
+            .and_then(|(_, value)| value)
+            .map(|value| value.to_string_lossy().to_string())
+            .expect("必须显式设置子进程 PATH");
+
+        assert!(path.contains("/tmp/xiaoyan-dsh-bin"));
     }
 }

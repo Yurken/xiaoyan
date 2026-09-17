@@ -3,8 +3,10 @@ use crate::dsh_api_config::{
     fetch_available_models, resolve_xiaoyan_api, write_dsh_api_configuration, DshApiImportResult,
 };
 use crate::dsh_process::{
-    bundled_available, find_dsh, format_exit_error, launch_command, path_available, stop_child,
+    bundled_available, extra_bin_dirs, find_dsh, format_exit_error, launch_command,
+    path_available, stop_child,
 };
+use crate::platform::process_env::apply_augmented_path;
 use crate::runtime_installer::{managed_runtime_dir, ManagedRuntimeProvider};
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -511,13 +513,15 @@ pub async fn dsh_runtime_validate_external(executable: String) -> Result<String,
     if executable.is_empty() {
         return Err("请先选择自定义 dsh 可执行文件".to_string());
     }
-    let output = timeout(
-        Duration::from_secs(8),
-        Command::new(executable).arg("--version").output(),
-    )
-    .await
-    .map_err(|_| "本机 DSH 版本检查超时".to_string())?
-    .map_err(|error| format!("无法执行本机 DSH：{error}"))?;
+    let mut command = Command::new(executable);
+    command.arg("--version");
+    // DSH 在本机安装形态下是 `#!/usr/bin/env node` 脚本，版本探测同样需要
+    // 子进程 PATH 中存在 node，否则会以 127 退出。
+    apply_augmented_path(&mut command, &extra_bin_dirs(), Some(Path::new(executable)));
+    let output = timeout(Duration::from_secs(8), command.output())
+        .await
+        .map_err(|_| "本机 DSH 版本检查超时".to_string())?
+        .map_err(|error| format!("无法执行本机 DSH：{error}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(if stderr.is_empty() {

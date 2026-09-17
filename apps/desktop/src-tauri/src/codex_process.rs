@@ -1,4 +1,5 @@
 use crate::codex::{CodexRuntimeConfig, CodexRuntimeMode};
+use crate::platform::process_env::apply_augmented_path;
 use std::{
     net::TcpListener,
     path::{Path, PathBuf},
@@ -318,6 +319,8 @@ pub fn launch_app_server(
 ) -> Command {
     let mut command = Command::new(executable);
     command.args(app_server_args(listen_url, xiaoyan_model, xiaoyan_base_url));
+    // 通过 npm 安装的 codex 是包装脚本，需要子进程 PATH 中能找到解释器。
+    apply_augmented_path(&mut command, &extra_bin_dirs(), Some(executable));
     apply_common_env(&mut command, &workspace, &data_home, api_key);
     command
 }
