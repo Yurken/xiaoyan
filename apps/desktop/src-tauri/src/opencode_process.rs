@@ -1,4 +1,5 @@
 use crate::opencode::{OpenCodeRuntimeConfig, OpenCodeRuntimeMode};
+use crate::platform::process_env::apply_augmented_path;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use std::{
     net::TcpListener,
@@ -112,13 +113,14 @@ fn parse_version(value: &str) -> Option<(u64, u64, u64)> {
 }
 
 pub async fn validate_secure_version(executable: &Path) -> Result<String, String> {
-    let output = timeout(
-        Duration::from_secs(8),
-        Command::new(executable).arg("--version").output(),
-    )
-    .await
-    .map_err(|_| "OpenCode 版本检查超时".to_string())?
-    .map_err(|error| format!("无法执行 OpenCode：{error}"))?;
+    let mut command = Command::new(executable);
+    command.arg("--version");
+    // 版本探测同样是子进程执行，npm 安装形态下同样依赖 PATH 中的 node。
+    apply_augmented_path(&mut command, &extra_bin_dirs(), Some(executable));
+    let output = timeout(Duration::from_secs(8), command.output())
+        .await
+        .map_err(|_| "OpenCode 版本检查超时".to_string())?
+        .map_err(|error| format!("无法执行 OpenCode：{error}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(if stderr.is_empty() {
@@ -186,6 +188,9 @@ pub fn web_page_url(port: u16, workspace: &Path) -> String {
 
 pub fn launch_web(executable: &Path, workspace: &Path, port: u16) -> Command {
     let mut command = Command::new(executable);
+    // OpenCode 通过 npm 安装时是 `#!/usr/bin/env node` 脚本，GUI 启动的进程只有
+    // 最小 PATH，必须显式注入解释器目录，否则会以 127 退出。
+    apply_augmented_path(&mut command, &extra_bin_dirs(), Some(executable));
     command
         .args(web_server_args(port))
         .current_dir(workspace)

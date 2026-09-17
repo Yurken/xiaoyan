@@ -1,4 +1,5 @@
 use crate::pi_web::{PiWebRuntimeConfig, PiWebRuntimeMode};
+use crate::platform::process_env::apply_augmented_path;
 use std::{
     net::TcpListener,
     path::{Path, PathBuf},
@@ -201,6 +202,9 @@ pub fn launch_web(
     port: u16,
 ) -> Command {
     let mut command = command_for(&spec.program);
+    // Pi 的启动入口可能是 `#!/usr/bin/env node` 脚本，GUI 启动的进程只有最小 PATH，
+    // 必须显式注入解释器目录，否则会以 127 退出。
+    apply_augmented_path(&mut command, &extra_bin_dirs(), Some(&spec.program));
     command
         .args(&spec.prefix_args)
         .args([
