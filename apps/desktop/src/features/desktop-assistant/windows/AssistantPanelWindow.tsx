@@ -9,7 +9,6 @@ import {
   useAssistantPanelAutoSize,
   useAssistantKnowledge,
   useAssistantImport,
-  useAssistantPrivateDataClearSignal,
   useAssistantWindow,
   useAssistantExtractText,
   useAssistantFreeChat,
@@ -27,12 +26,11 @@ import {
 import {
   CONTEXT_SOURCES,
   limitAssistantContent,
-  type AssistantAction,
-  type AssistantActionOptions,
-  type ContextSourceType,
 } from '../shared'
 import { defaultImportRetentionPolicy } from '../importShared'
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
+import { useAssistantPanelActions } from '../hooks/useAssistantPanelActions'
+import { useAssistantInputScope } from '../hooks/useAssistantInputScope'
 import { FileUp } from 'lucide-react'
 
 export default function AssistantPanelWindow() {
@@ -46,117 +44,32 @@ export default function AssistantPanelWindow() {
   const files = useAssistantFileCandidates()
   const knowledge = useAssistantKnowledge()
   const assistantImport = useAssistantImport()
+  const extractText = useAssistantExtractText()
+  const freeChat = useAssistantFreeChat()
+  const { inputGeneration, resetPendingInput } = useAssistantInputScope(extractText.reset, freeChat.reset)
+  const { reset: resetActionStream } = actionStream
+  const { setError: setOverlayError } = overlay
+  const handleCaptureStart = useCallback(() => {
+    resetPendingInput()
+    resetActionStream()
+    setOverlayError(null)
+  }, [resetActionStream, setOverlayError, resetPendingInput])
   const capture = useCaptureSession(
     dataPolicy.loading || dataPolicy.policy.preview_required,
     !onboarding.loading && onboarding.onboarding.permission_guide_completed,
+    handleCaptureStart,
   )
-  const extractText = useAssistantExtractText()
-  const freeChat = useAssistantFreeChat()
-  const clearPrivateState = useCallback(() => {
-    files.clearTemporaryState()
-    actionStream.reset()
-    overlay.reset()
-    capture.clearSession()
-    assistantImport.close()
-  }, [actionStream, assistantImport, capture, files, overlay])
-  useAssistantPrivateDataClearSignal(clearPrivateState)
+  const {
+    handleAction, handleImportSuccess, handlePasteFallback, handleSourceChange,
+    handleExtractText, handleFreeQuestion, handleClose, handlePermissionGuideFinish,
+  } = useAssistantPanelActions({
+    capture, actionStream, overlay, assistantImport, files, windowManager,
+    extractText, freeChat, knowledge, onboarding, resetPendingInput, inputGeneration,
+  })
   const fileDialogOpen = Boolean(
     files.inspection || files.confirmedCandidates || files.error,
   )
   const panelContentRef = useAssistantPanelAutoSize(assistantImport.open || fileDialogOpen ? 560 : 0)
-
-  const handleAction = async (
-    action: AssistantAction,
-    options?: AssistantActionOptions,
-  ) => {
-    if (!capture.session?.content) return
-    if (action === 'import') {
-      assistantImport.show()
-      return
-    }
-    const actionContent = limitAssistantContent(action, capture.session.content).content
-
-    overlay.setError(null)
-    await actionStream.start({
-      action,
-      sessionId: capture.session.id,
-      content: actionContent,
-      question:
-        action === 'chat'
-          ? options?.question || '请详细解释这段内容'
-          : options?.question,
-      interpretMode: options?.interpretMode,
-      targetLang: options?.targetLanguage,
-      terminologyStyle: options?.terminologyStyle,
-      localKnowledgeEnabled: options?.localKnowledgeEnabled,
-      knowledgeThemeId: options?.knowledgeThemeId,
-    })
-  }
-
-  const handleImportSuccess = async () => {
-    actionStream.reset()
-    overlay.reset()
-    capture.clearSession()
-    await windowManager.hidePanel()
-  }
-
-  const handlePasteFallback = () => {
-    capture.clearSession()
-    void capture.startCapture('paste')
-  }
-
-  const handleSourceChange = (sourceType: ContextSourceType) => {
-    actionStream.reset()
-    overlay.setError(null)
-    void capture.startCapture(sourceType)
-  }
-
-  // 截图识字：OCR 文本进入可编辑预览，用户确认前不会发送给模型。
-  const handleExtractText = async () => {
-    const session = capture.session
-    if (!session?.content?.startsWith('data:image/')) return
-    overlay.setError(null)
-    const text = await extractText.extractText(session.id, session.content)
-    if (text) capture.applyExtractedText(text)
-  }
-
-  // 自由输入（P1-3）：无采集内容时直接开启 chat 临时会话；
-  // 建会话、脱敏确认、总开关与指标打点均复用现有命令管线。
-  const handleFreeQuestion = async (question: string) => {
-    if (actionStream.status === 'streaming') return
-    overlay.setError(null)
-    const input = await freeChat.startFreeChat({
-      question,
-      localKnowledgeEnabled: knowledge.enabled,
-      knowledgeThemeId: knowledge.enabled ? knowledge.selectedThemeId : undefined,
-    })
-    if (!input) return
-    await actionStream.start(input)
-  }
-
-  const handleClose = async () => {
-    if (assistantImport.saving) return
-    if (files.inspection) await files.cancel()
-    files.clearConfirmation()
-    actionStream.reset()
-    overlay.reset()
-    capture.clearSession()
-    assistantImport.close()
-    await windowManager.hidePanel()
-  }
-
-  const handlePermissionGuideFinish = async () => {
-    const completed = await onboarding.completePermissionGuide()
-    if (completed) void capture.startCapture('selection')
-  }
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') void handleClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  })
 
   const isLoading =
     capture.status === 'capturing'
@@ -289,6 +202,7 @@ export default function AssistantPanelWindow() {
         <CapturePreview
           session={capture.session}
           privacyError={capture.privacyError}
+          confirming={capture.confirming}
           extractedFromImage={capture.extractedFromImage}
           pendingAction={capture.pendingAction}
           onConfirm={capture.confirmCapture}

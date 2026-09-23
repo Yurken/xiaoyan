@@ -203,6 +203,73 @@ describe('AssistantPanelWindow', () => {
     })
   })
 
+  it.each(['close', 'clear', 'close-after-confirm'])(
+    'does not start a pending free question after %s', async (transition) => {
+      let resolveConfirmation!: (value: unknown) => void
+      const confirmation = new Promise((resolve) => { resolveConfirmation = resolve })
+      const originalInvoke = invokeMock.getMockImplementation()
+      invokeMock.mockImplementation((command: string, args?: Record<string, unknown>) => {
+        if (command === 'assistant_confirm_capture') return confirmation
+        return originalInvoke?.(command, args)
+      })
+      const user = userEvent.setup()
+      render(<AssistantPanelWindow />)
+      await user.type(await screen.findByRole('textbox', { name: '输入问题，直接开始对话' }), '尚未发送的问题')
+      await user.click(screen.getByRole('button', { name: '直接提问' }))
+      await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('assistant_confirm_capture', expect.anything()))
+      const confirmed = {
+        confirmed: true, content: '尚未发送的问题', reason: null, privacy_check: { allowed: true },
+      }
+      await act(async () => {
+        if (transition === 'close-after-confirm') {
+          resolveConfirmation(confirmed)
+          // Let the preflight produce its input, then close before the caller consumes it.
+          await Promise.resolve()
+        }
+        if (transition === 'clear') {
+          eventHandlers.get('assistant://private-data-cleared')?.({ payload: {} })
+        } else {
+          window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+        }
+        if (transition !== 'close-after-confirm') resolveConfirmation(confirmed)
+      })
+      await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('assistant_discard_capture', { sessionId: 'free-session' }))
+      expect(invokeMock.mock.calls.some(([command]) => command === 'assistant_stream_action')).toBe(false)
+      expect(screen.queryByText('Model explanation')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '直接提问' })).not.toHaveAttribute('aria-busy', 'true')
+    },
+  )
+
+  it('ignores OCR text after a shortcut starts a different capture', async () => {
+    previewRequired = false
+    let resolveOcr!: (value: unknown) => void
+    const ocr = new Promise((resolve) => { resolveOcr = resolve })
+    const originalInvoke = invokeMock.getMockImplementation()
+    invokeMock.mockImplementation((command: string, args?: Record<string, unknown>) => {
+      if (command === 'assistant_capture_screen_overlay') return {
+        session_id: 'screenshot-session', content: 'data:image/png;base64,abc',
+        sanitized_content: null, source_app: 'Preview', source_app_bundle_id: 'com.apple.Preview',
+        window_title: null, status: 'ready', privacy_check: { allowed: true },
+      }
+      if (command === 'assistant_extract_text') return ocr
+      return originalInvoke?.(command, args)
+    })
+    const user = userEvent.setup()
+    render(<AssistantPanelWindow />)
+    await user.click(screen.getByRole('button', { name: '截图' }))
+    await user.click(await screen.findByRole('button', { name: '提取文字（截图识字）' }))
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('assistant_extract_text', expect.anything()))
+    act(() => { eventHandlers.get('assistant://capture-request')?.({ payload: 'selection' }) })
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('assistant_confirm_capture', {
+      sessionId: 'session-1', content: capturedContent,
+    }))
+    await act(async () => { resolveOcr({ content: '上一张截图的过期文字' }) })
+    expect(screen.queryByText('上一张截图的过期文字')).not.toBeInTheDocument()
+    expect(screen.queryByDisplayValue('上一张截图的过期文字')).not.toBeInTheDocument()
+    expect(screen.queryByText(/识别可能有误/)).not.toBeInTheDocument()
+    expect(screen.getByText('选择动作')).toBeInTheDocument()
+  })
+
   it('drops capture and temporary conversation state after the privacy clear event', async () => {
     const user = userEvent.setup()
     render(<AssistantPanelWindow />)
