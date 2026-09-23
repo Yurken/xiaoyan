@@ -8,7 +8,7 @@
  *   再次校验总开关并复用现有 chat 指标打点。
  */
 import { invoke } from '@tauri-apps/api/core'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { StartAssistantActionInput } from './useAssistantActionStream'
 
 interface CreatePasteSessionResponse {
@@ -37,6 +37,8 @@ export interface UseAssistantFreeChat {
     options: StartFreeChatOptions,
   ) => Promise<StartAssistantActionInput | null>
   clearError: () => void
+  /** 清空状态并使未完成的会话准备失效。 */
+  reset: () => void
 }
 
 async function discardSession(sessionId: string): Promise<void> {
@@ -50,6 +52,22 @@ async function discardSession(sessionId: string): Promise<void> {
 export function useAssistantFreeChat(): UseAssistantFreeChat {
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const activeRequestRef = useRef<object | null>(null)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      activeRequestRef.current = null
+    }
+  }, [])
+
+  const reset = useCallback(() => {
+    activeRequestRef.current = null
+    setStarting(false)
+    setError(null)
+  }, [])
 
   const startFreeChat = useCallback(async ({
     question,
@@ -57,23 +75,28 @@ export function useAssistantFreeChat(): UseAssistantFreeChat {
     knowledgeThemeId,
   }: StartFreeChatOptions): Promise<StartAssistantActionInput | null> => {
     const trimmed = question.trim()
-    if (!trimmed || starting) return null
+    if (!trimmed || !mountedRef.current || activeRequestRef.current) return null
+    const request = {}
+    activeRequestRef.current = request
+    const isCurrent = () => mountedRef.current && activeRequestRef.current === request
     setStarting(true)
     setError(null)
     let sessionId: string | null = null
+    let handedOff = false
     try {
       const created = await invoke<CreatePasteSessionResponse>(
         'assistant_create_paste_session',
       )
       sessionId = created.session_id
+      if (!isCurrent()) return null
       // 问题文本即待发送内容，先走与采集内容一致的脱敏确认。
       let confirmation = await invoke<FreeChatConfirmationResponse>(
         'assistant_confirm_capture',
         { sessionId, content: trimmed },
       )
+      if (!isCurrent()) return null
       if (!confirmation.privacy_check.allowed) {
         setError(confirmation.reason || '问题包含不可发送的敏感字段，请修改后重试')
-        await discardSession(sessionId)
         return null
       }
       let question = trimmed
@@ -86,19 +109,19 @@ export function useAssistantFreeChat(): UseAssistantFreeChat {
             'assistant_confirm_capture',
             { sessionId, content: redacted },
           )
+          if (!isCurrent()) return null
           if (confirmation.privacy_check.allowed && confirmation.confirmed) {
             question = redacted
           } else {
             setError(confirmation.reason || '问题包含不可发送的敏感字段，请修改后重试')
-            await discardSession(sessionId)
             return null
           }
         } else {
           setError(confirmation.reason || '问题包含不可发送的敏感字段，请修改后重试')
-          await discardSession(sessionId)
           return null
         }
       }
+      handedOff = true
       return {
         action: 'chat',
         sessionId,
@@ -109,15 +132,20 @@ export function useAssistantFreeChat(): UseAssistantFreeChat {
         includeCaptureContext: false,
       }
     } catch (startError) {
-      if (sessionId) await discardSession(sessionId)
-      setError(startError instanceof Error ? startError.message : String(startError))
+      if (isCurrent()) {
+        setError(startError instanceof Error ? startError.message : String(startError))
+      }
       return null
     } finally {
-      setStarting(false)
+      if (sessionId && !handedOff) await discardSession(sessionId)
+      if (isCurrent()) {
+        activeRequestRef.current = null
+        setStarting(false)
+      }
     }
-  }, [starting])
+  }, [])
 
   const clearError = useCallback(() => setError(null), [])
 
-  return { starting, error, startFreeChat, clearError }
+  return { starting, error, startFreeChat, clearError, reset }
 }

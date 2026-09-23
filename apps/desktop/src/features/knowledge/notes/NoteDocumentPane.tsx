@@ -8,6 +8,7 @@ import { useResolvedNoteContent } from "../useResolvedNoteContent";
 import { buildInterestOptions, sourceLabel } from "../notesShared";
 import { formatNoteUpdatedAt, type NoteDraft, type NoteSaveState } from "./shared";
 import { useNoteEditorSession } from "./useNoteEditorSession";
+import NoteDraftRecoveryPanel from "./NoteDraftRecoveryPanel";
 
 const SAVE_LABELS: Record<NoteSaveState, string> = {
   clean: "",
@@ -15,6 +16,7 @@ const SAVE_LABELS: Record<NoteSaveState, string> = {
   saving: "保存中…",
   saved: "已保存",
   error: "保存失败，草稿已保留",
+  conflict: "有其他修改，需处理",
 };
 
 export default function NoteDocumentPane({
@@ -42,7 +44,10 @@ export default function NoteDocumentPane({
 }) {
   const [editing, setEditing] = useState(creating || initialEditing);
   const [showDetails, setShowDetails] = useState(false);
-  const { draft, updateDraft, dirty, saveState, saveError, saveNow } = useNoteEditorSession({
+  const {
+    draft, updateDraft, dirty, saveState, saveError, saveNow,
+    draftPersisted, persistenceError, conflictingNote, saveAsCopy, discardDraft, retryDraftPersistence,
+  } = useNoteEditorSession({
     note,
     creating,
     defaultInterestId,
@@ -66,7 +71,10 @@ export default function NoteDocumentPane({
     );
   }
 
-  const statusText = saveState === "clean" && note ? formatNoteUpdatedAt(note.updated_at) : SAVE_LABELS[saveState];
+  const statusText = saveState === "clean" && note ? formatNoteUpdatedAt(note.updated_at)
+    : saveState === "draft" && !draftPersisted ? "有未保存修改"
+      : saveState === "error" && !draftPersisted ? "保存失败，草稿仅在当前窗口"
+        : SAVE_LABELS[saveState];
 
   return (
     <section className="flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-3xl border" style={{
@@ -87,7 +95,7 @@ export default function NoteDocumentPane({
         ) : null}
         {editing ? (
           <>
-            <Button size="sm" variant="secondary" disabled={!dirty || saveState === "saving"} onClick={() => void saveNow()}>
+            <Button size="sm" variant="secondary" disabled={!dirty || saveState === "saving" || Boolean(conflictingNote)} onClick={() => void saveNow()}>
               <Save className="h-3.5 w-3.5" />保存
             </Button>
             <Button size="sm" onClick={() => { void saveNow(); setEditing(false); }}>
@@ -101,7 +109,15 @@ export default function NoteDocumentPane({
         )}
       </header>
 
-      {saveError ? <div className="mx-5 mt-4 rounded-2xl px-4 py-2 text-xs text-apple-red" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>{saveError}</div> : null}
+      <NoteDraftRecoveryPanel
+        persistenceError={persistenceError}
+        saveError={saveError}
+        conflictingNote={conflictingNote}
+        saving={saveState === "saving"}
+        onRetryPersistence={retryDraftPersistence}
+        onSaveAsCopy={saveAsCopy}
+        onDiscardDraft={discardDraft}
+      />
 
       <div className="grid min-h-0 flex-1 xl:grid-cols-[minmax(0,1fr)_auto]">
         <article className="min-w-0 overflow-y-auto px-6 py-7 sm:px-8 lg:px-10">

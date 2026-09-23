@@ -15,6 +15,16 @@ const screenshotCapture = {
   privacy_check: null,
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: Error) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 describe('useAssistantExtractText', () => {
   beforeEach(() => resetInvokeMock())
 
@@ -102,6 +112,90 @@ describe('useAssistantExtractText', () => {
 
     expect(text).toBeNull()
     expect(result.current.error).toContain('视觉模型')
+  })
+
+  it('does not issue duplicate OCR requests before the busy state renders', async () => {
+    const recognition = deferred<{ content: string }>()
+    getInvokeMock().mockReturnValue(recognition.promise)
+    const { result } = renderHook(() => useAssistantExtractText())
+    let first!: Promise<string | null>
+    let duplicate!: Promise<string | null>
+    act(() => {
+      first = result.current.extractText('screenshot-session', screenshotCapture.content)
+      duplicate = result.current.extractText('screenshot-session', screenshotCapture.content)
+    })
+    await expect(duplicate).resolves.toBeNull()
+    await waitFor(() => expect(getInvokeMock()).toHaveBeenCalledTimes(1))
+    await act(async () => {
+      recognition.resolve({ content: '只识别一次' })
+      await expect(first).resolves.toBe('只识别一次')
+    })
+  })
+
+  it('skips the backend call when reset before the native API becomes ready', async () => {
+    const { result } = renderHook(() => useAssistantExtractText())
+    let pending!: Promise<string | null>
+    act(() => {
+      pending = result.current.extractText('screenshot-session', screenshotCapture.content)
+      result.current.reset()
+    })
+    await act(async () => { await expect(pending).resolves.toBeNull() })
+    expect(getInvokeMock()).not.toHaveBeenCalled()
+    expect(result.current.extracting).toBe(false)
+  })
+
+  it.each(['resolve', 'reject'] as const)(
+    'isolates a new OCR request when an abandoned request %ss',
+    async (outcome) => {
+      const oldRecognition = deferred<{ content: string }>()
+      const newRecognition = deferred<{ content: string }>()
+      getInvokeMock().mockImplementation(async (_command: string, args?: { sessionId?: string }) => (
+        args?.sessionId === 'old-session' ? oldRecognition.promise : newRecognition.promise
+      ))
+      const { result } = renderHook(() => useAssistantExtractText())
+      let oldPending!: Promise<string | null>
+      let newPending!: Promise<string | null>
+      act(() => { oldPending = result.current.extractText('old-session', screenshotCapture.content) })
+      await waitFor(() => expect(getInvokeMock()).toHaveBeenCalledTimes(1))
+      act(() => {
+        result.current.reset()
+        newPending = result.current.extractText('new-session', screenshotCapture.content)
+      })
+      await waitFor(() => expect(getInvokeMock()).toHaveBeenCalledTimes(2))
+      await act(async () => {
+        if (outcome === 'resolve') oldRecognition.resolve({ content: '旧截图文字' })
+        else oldRecognition.reject(new Error('旧截图识别失败'))
+        await expect(oldPending).resolves.toBeNull()
+      })
+      expect(result.current.extracting).toBe(true)
+      expect(result.current.error).toBeNull()
+      await act(async () => {
+        newRecognition.resolve({ content: '新截图文字' })
+        await expect(newPending).resolves.toBe('新截图文字')
+      })
+      expect(result.current.extracting).toBe(false)
+    },
+  )
+
+  it('returns no extracted text after the preview unmounts', async () => {
+    const recognition = deferred<{ content: string }>()
+    getInvokeMock().mockReturnValue(recognition.promise)
+    const { result, unmount } = renderHook(() => useAssistantExtractText())
+    let pending!: Promise<string | null>
+    act(() => { pending = result.current.extractText('screenshot-session', screenshotCapture.content) })
+    await waitFor(() => expect(getInvokeMock()).toHaveBeenCalledTimes(1))
+    unmount()
+    recognition.resolve({ content: '已关闭预览的文字' })
+    await expect(pending).resolves.toBeNull()
+  })
+
+  it('clears a previous extraction error when reset', async () => {
+    const { result } = renderHook(() => useAssistantExtractText())
+    await act(async () => { await result.current.extractText('session', 'plain text') })
+    expect(result.current.error).not.toBeNull()
+    act(() => result.current.reset())
+    expect(result.current.error).toBeNull()
+    expect(result.current.extracting).toBe(false)
   })
 })
 

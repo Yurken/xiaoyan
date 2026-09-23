@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import type { KnowledgeNote } from "@research-copilot/types";
-import { deriveNoteTitle, type NoteDraft, type NoteSaveState } from "./shared";
-
-interface StoredDraft extends NoteDraft {
-  baseUpdatedAt?: string;
-}
+import {
+  deriveNoteTitle, noteDraftKey, noteToDraft,
+  type NoteDraft, type NoteSaveState,
+} from "./shared";
+import {
+  getNoteDraftCleanupKey, linkNoteDraftCleanup, ownsNoteDraft,
+  readNoteDraft, removeNoteDraft, writeNoteDraft,
+} from "./noteDraftStorage";
 
 interface NoteEditorSessionOptions {
   note: KnowledgeNote | null;
@@ -15,156 +18,202 @@ interface NoteEditorSessionOptions {
   onCreated: (note: KnowledgeNote) => void;
 }
 
-function draftKey(note: KnowledgeNote | null, creating: boolean) {
-  return `rc:knowledge:note-draft:${creating ? "new" : note?.id ?? "none"}`;
+function createSession(key: string, note: KnowledgeNote | null, defaultInterestId?: string) {
+  const pending = savingSessions.get(key);
+  if (pending) return pending;
+  return buildSession(key, note, defaultInterestId);
 }
 
-function readStoredDraft(key: string, note: KnowledgeNote | null): NoteDraft | null {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return null;
-    const stored = JSON.parse(raw) as StoredDraft;
-    if (note && stored.baseUpdatedAt && stored.baseUpdatedAt < note.updated_at) return null;
-    if (typeof stored.title !== "string" || typeof stored.content !== "string") return null;
-    return {
+function buildSession(key: string, note: KnowledgeNote | null, defaultInterestId?: string) {
+  const { draft: stored, persisted } = readNoteDraft(key);
+  const conflict = Boolean(stored?.baseUpdatedAt && note && stored.baseUpdatedAt !== note.updated_at);
+  return {
+    key, note, token: crypto.randomUUID(),
+    notify: null as (() => void) | null,
+    onCreated: null as ((saved: KnowledgeNote) => void) | null,
+    draft: stored ? {
       title: stored.title,
       content: stored.content,
       research_interest_id: stored.research_interest_id ?? "",
-    };
-  } catch {
-    return null;
-  }
+    } : noteToDraft(note, defaultInterestId),
+    baseUpdatedAt: stored?.baseUpdatedAt ?? note?.updated_at,
+    dirty: Boolean(stored), persisted, conflict,
+    saveState: (conflict ? "conflict" : stored ? "draft" : "clean") as NoteSaveState,
+    saveError: "", sequence: 0, saving: false,
+    cleanupKey: getNoteDraftCleanupKey(key),
+    refreshDuringSave: null as KnowledgeNote | null,
+  };
+}
+
+type EditorSession = ReturnType<typeof buildSession>;
+// Keep one request per draft alive across selection changes within this window.
+const savingSessions = new Map<string, EditorSession>();
+
+function persistSession(session: EditorSession) {
+  session.persisted = writeNoteDraft(session.key, {
+    ...session.draft, baseUpdatedAt: session.baseUpdatedAt, token: session.token,
+  });
+  // A fresh edit replaces the abandoned draft; a later cleanup must not erase it.
+  if (session.cleanupKey === session.key) session.cleanupKey = null;
+}
+
+function cleanupDraft(session: EditorSession, key: string) {
+  session.cleanupKey = removeNoteDraft(key, session.token) ? null : key;
+  if (session.cleanupKey) linkNoteDraftCleanup(session.key, key);
 }
 
 export function useNoteEditorSession({
-  note,
-  creating,
-  defaultInterestId,
-  onCreate,
-  onSave,
-  onCreated,
+  note, creating, defaultInterestId, onCreate, onSave, onCreated,
 }: NoteEditorSessionOptions) {
-  const key = draftKey(note, creating);
-  const buildInitialDraft = (): NoteDraft => ({
-    title: creating ? "" : note?.title ?? "",
-    content: creating ? "" : note?.content ?? "",
-    research_interest_id: creating
-      ? defaultInterestId ?? ""
-      : note?.research_interest_id ?? "",
-  });
-  const restoredOnMount = readStoredDraft(key, note);
-  const [draft, setDraft] = useState<NoteDraft>(() => restoredOnMount ?? buildInitialDraft());
-  const [dirty, setDirty] = useState(Boolean(restoredOnMount));
-  const [saveState, setSaveState] = useState<NoteSaveState>(dirty ? "draft" : "clean");
-  const [saveError, setSaveError] = useState("");
-  const latestDraft = useRef(draft);
-  const editSequence = useRef(0);
-  const saving = useRef(false);
-  const pendingSave = useRef(false);
-  const [retryToken, setRetryToken] = useState(0);
-
-  useEffect(() => {
-    const restored = readStoredDraft(key, note);
-    setDraft(restored ?? buildInitialDraft());
-    latestDraft.current = restored ?? buildInitialDraft();
-    setDirty(Boolean(restored));
-    setSaveState(restored ? "draft" : "clean");
-    setSaveError("");
-    editSequence.current = 0;
-    // The key changes only when the selected note or create session changes.
+  const key = noteDraftKey(note, creating, defaultInterestId);
+  // A response owns the object it started with, even after another document is selected.
+  const session = useMemo(
+    () => createSession(key, creating ? null : note, defaultInterestId),
+    // Same-document refreshes are reconciled below without replacing dirty content.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-
-  const updateDraft = useCallback((update: Partial<NoteDraft>) => {
-    editSequence.current += 1;
-    setDraft((current) => {
-      const next = { ...current, ...update };
-      latestDraft.current = next;
-      return next;
-    });
-    setDirty(true);
-    setSaveState("draft");
-    setSaveError("");
-  }, []);
+    [key],
+  );
+  const current = useRef(session);
+  current.current = session;
+  const createdCallback = useRef(onCreated);
+  createdCallback.current = onCreated;
+  const [revision, render] = useReducer((value: number) => value + 1, 0);
+  const publish = useCallback(() => {
+    session.notify?.();
+  }, [session]);
 
   useEffect(() => {
-    if (!dirty) return;
-    try {
-      const stored: StoredDraft = { ...draft, baseUpdatedAt: note?.updated_at };
-      window.localStorage.setItem(key, JSON.stringify(stored));
-    } catch {
-      // The database save remains available when local draft storage is unavailable.
-    }
-  }, [dirty, draft, key, note?.updated_at]);
+    const notify = () => { if (current.current === session) render(); };
+    session.notify = notify;
+    session.onCreated = (saved) => {
+      if (current.current === session) createdCallback.current(saved);
+    };
+    if (session.dirty) persistSession(session);
+    publish();
+    return () => {
+      if (session.notify === notify) {
+        session.notify = null;
+        session.onCreated = null;
+      }
+    };
+  }, [publish, session]);
 
-  const saveNow = useCallback(async () => {
-    if (!dirty) return;
-    if (saving.current) {
-      pendingSave.current = true;
+  useEffect(() => {
+    if (!note || creating) return;
+    if (session.saving) {
+      if (session.note && Date.parse(note.updated_at) > Date.parse(session.note.updated_at)) {
+        session.refreshDuringSave = note;
+      }
       return;
     }
-    if (!draft.title.trim() && !draft.content.trim()) return;
+    const deferredRefresh = session.refreshDuringSave;
+    session.refreshDuringSave = null;
+    const refreshedNote = deferredRefresh && Date.parse(deferredRefresh.updated_at) > Date.parse(note.updated_at)
+      ? deferredRefresh : note;
+    if (session.note?.updated_at === refreshedNote.updated_at) return;
+    if (session.note && Date.parse(refreshedNote.updated_at) < Date.parse(session.note.updated_at)) return;
+    session.note = refreshedNote;
+    if (session.dirty || deferredRefresh?.updated_at === refreshedNote.updated_at) {
+      session.dirty = true;
+      session.conflict = true;
+      session.saveState = "conflict";
+      persistSession(session);
+    } else {
+      session.draft = noteToDraft(refreshedNote);
+      session.baseUpdatedAt = refreshedNote.updated_at;
+      session.saveState = "clean";
+    }
+    publish();
+  }, [creating, note, publish, revision, session]);
 
-    saving.current = true;
-    setSaveState("saving");
-    const submittedSequence = editSequence.current;
+  const updateDraft = useCallback((update: Partial<NoteDraft>) => {
+    session.sequence += 1;
+    session.draft = { ...session.draft, ...update };
+    session.dirty = true;
+    session.saveState = session.saving ? "saving" : session.conflict ? "conflict" : "draft";
+    session.saveError = "";
+    persistSession(session);
+    publish();
+  }, [publish, session]);
+
+  const save = useCallback(async (asCopy = false) => {
+    if (!session.dirty || session.saving || (session.conflict && !asCopy)) return;
+    if (!session.note && !session.draft.title.trim() && !session.draft.content.trim()) return;
+
+    session.saving = true;
+    session.saveState = "saving";
+    session.saveError = "";
+    publish();
+    const submittedSequence = session.sequence;
+    const sourceKey = session.key;
+    savingSessions.set(sourceKey, session);
+    const originalNote = session.note;
+    const isCreation = !originalNote || asCopy;
     const submittedDraft = {
-      ...draft,
-      title: draft.title.trim() || deriveNoteTitle(draft.content),
+      ...session.draft,
+      title: session.draft.title.trim() || deriveNoteTitle(session.draft.content),
     };
 
     try {
-      const saved = creating
-        ? await onCreate(submittedDraft)
-        : note
-          ? await onSave(note.id, submittedDraft)
-          : null;
-      if (!saved) return;
-
-      if (submittedSequence === editSequence.current) {
-        const nextDraft = {
-          title: saved.title,
-          content: saved.content,
-          research_interest_id: saved.research_interest_id ?? "",
-        };
-        latestDraft.current = nextDraft;
-        setDraft(nextDraft);
-        setDirty(false);
-        setSaveState("saved");
-        try { window.localStorage.removeItem(key); } catch { /* noop */ }
+      const saved = originalNote && !asCopy
+        ? await onSave(originalNote.id, submittedDraft)
+        : await onCreate(submittedDraft);
+      // Another editor may have taken over the stored draft while this request ran.
+      const ownsDraft = ownsNoteDraft(sourceKey, session.token);
+      session.note = saved;
+      session.baseUpdatedAt = saved.updated_at;
+      session.conflict = false;
+      session.key = noteDraftKey(saved, false);
+      if (submittedSequence === session.sequence) {
+        session.draft = noteToDraft(saved);
+        session.dirty = false;
+        session.saveState = "saved";
+        if (ownsDraft) cleanupDraft(session, sourceKey);
       } else {
-        setSaveState("draft");
-        if (creating) {
-          const savedKey = draftKey(saved, false);
-          try {
-            const stored: StoredDraft = {
-              ...latestDraft.current,
-              baseUpdatedAt: saved.updated_at,
-            };
-            window.localStorage.setItem(savedKey, JSON.stringify(stored));
-          } catch {
-            // The pending save still retries after the create session becomes a saved note.
-          }
+        session.saveState = "draft";
+        if (ownsDraft) {
+          // Rebase the remaining edits before a remount can see the new database version.
+          persistSession(session);
+          if (sourceKey !== session.key) cleanupDraft(session, sourceKey);
         }
       }
-      if (creating) onCreated(saved);
+      if (isCreation) session.onCreated?.(saved);
     } catch (error) {
-      setSaveState("error");
-      setSaveError(error instanceof Error ? error.message : String(error));
+      session.saveState = session.conflict ? "conflict" : "error";
+      session.saveError = error instanceof Error ? error.message : String(error);
     } finally {
-      saving.current = false;
-      if (pendingSave.current) {
-        pendingSave.current = false;
-        setRetryToken((value) => value + 1);
-      }
+      session.saving = false;
+      if (savingSessions.get(sourceKey) === session) savingSessions.delete(sourceKey);
+      publish();
     }
-  }, [creating, dirty, draft, key, note, onCreate, onCreated, onSave]);
+  }, [onCreate, onSave, publish, session]);
+
+  const saveNow = useCallback(() => save(), [save]);
+  const saveAsCopy = useCallback(() => save(true), [save]);
+
+  const discardDraft = useCallback(() => {
+    if (session.saving) return;
+    cleanupDraft(session, session.key);
+    session.draft = noteToDraft(session.note, defaultInterestId);
+    session.baseUpdatedAt = session.note?.updated_at;
+    session.dirty = false;
+    session.conflict = false;
+    session.saveState = "clean";
+    session.saveError = "";
+    publish();
+  }, [defaultInterestId, publish, session]);
+
+  const retryDraftPersistence = useCallback(() => {
+    if (session.dirty) persistSession(session);
+    if (session.cleanupKey) cleanupDraft(session, session.cleanupKey);
+    publish();
+  }, [publish, session]);
 
   useEffect(() => {
-    if (!dirty) return;
+    if (!session.dirty || session.saving || session.conflict || session.saveState === "error") return;
     const timer = window.setTimeout(() => void saveNow(), 900);
     return () => window.clearTimeout(timer);
-  }, [dirty, draft, retryToken, saveNow]);
+  }, [revision, saveNow, session]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -173,9 +222,28 @@ export function useNoteEditorSession({
         void saveNow();
       }
     };
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (session.dirty && !session.persisted) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [saveNow]);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [saveNow, session]);
 
-  return { draft, updateDraft, dirty, saveState, saveError, saveNow };
+  return {
+    draft: session.draft, updateDraft, dirty: session.dirty,
+    saveState: session.saveState, saveError: session.saveError,
+    draftPersisted: session.persisted,
+    persistenceError: session.dirty && !session.persisted
+      ? "本机草稿写入失败，修改暂留在当前窗口。关闭应用前请重试或保存笔记。"
+      : session.cleanupKey ? "本机草稿清理失败，当前窗口已忽略旧草稿。请重试，避免重启后再次恢复。" : "",
+    conflictingNote: session.conflict ? session.note : null,
+    saveNow, saveAsCopy, discardDraft, retryDraftPersistence,
+  };
 }

@@ -18,6 +18,7 @@ import {
 interface CapturePreviewProps {
   session: CaptureSession
   privacyError: string | null
+  confirming?: boolean
   /** 文本来自截图 OCR 时展示「识别可能有误」标注并允许编辑（PRD §7.2 F3） */
   extractedFromImage?: boolean
   /** 直达快捷键（P1-1）预设的动作；存在时提示确认后将跳过动作选择直接执行 */
@@ -32,6 +33,7 @@ interface CapturePreviewProps {
 export function CapturePreview({
   session,
   privacyError,
+  confirming = false,
   extractedFromImage = false,
   pendingAction = null,
   onConfirm,
@@ -243,11 +245,13 @@ export function CapturePreview({
                 variant="primary"
                 size="sm"
                 onClick={onConfirm}
-                disabled={!canConfirm}
+                disabled={!canConfirm || confirming}
+                loading={confirming}
+                aria-busy={confirming}
                 className="flex-1"
               >
                 <Check size={14} />
-                {hasSensitiveRedactions
+                {confirming ? '正在确认…' : hasSensitiveRedactions
                   ? session.sensitiveConfirmationArmed
                     ? '确认发送遮盖内容'
                     : '检查后继续'
