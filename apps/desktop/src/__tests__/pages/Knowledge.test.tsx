@@ -1,5 +1,6 @@
+import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { renderWithRouter } from "../helpers/render";
 import { resetInvokeMock } from "../mocks/tauri";
 import Knowledge from "../../pages/Knowledge";
@@ -34,7 +35,12 @@ vi.mock("../../features/knowledge/KnowledgeGraphWorkspace", () => ({
 }));
 
 vi.mock("../../features/knowledge/NotesPanel", () => ({
-  default: () => <div data-testid="notes-panel">笔记面板</div>,
+  default: ({ toolbarStart }: { toolbarStart?: ReactNode }) => (
+    <div data-testid="notes-panel">
+      {toolbarStart}
+      笔记面板
+    </div>
+  ),
 }));
 
 // Mock Select component
@@ -68,7 +74,11 @@ describe("Knowledge 页面", () => {
 
   it("应显示知识笔记视图", () => {
     renderWithRouter(<Knowledge />);
-    expect(screen.getByText("知识笔记")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "知识笔记" }));
+
+    expect(screen.getByTestId("notes-panel")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "知识图谱" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "知识笔记" })).toBeInTheDocument();
   });
 
   it("不应暴露小妍的内部 Wiki 入口", () => {

@@ -8,7 +8,34 @@ export interface NoteDraft {
   research_interest_id: string;
 }
 
-export type NoteSaveState = "clean" | "draft" | "saving" | "saved" | "error";
+export type NoteSaveState = "clean" | "draft" | "saving" | "saved" | "error" | "conflict";
+
+export interface StoredNoteDraft extends NoteDraft {
+  baseUpdatedAt?: string;
+  token?: string;
+}
+
+export function noteDraftKey(note: KnowledgeNote | null, creating: boolean, defaultInterestId?: string): string {
+  const newKey = defaultInterestId ? `new:${defaultInterestId}` : "new";
+  return `rc:knowledge:note-draft:${creating ? newKey : note?.id ?? "none"}`;
+}
+
+export function noteToDraft(note: KnowledgeNote | null, defaultInterestId = ""): NoteDraft {
+  return {
+    title: note?.title ?? "",
+    content: note?.content ?? "",
+    research_interest_id: note?.research_interest_id ?? defaultInterestId,
+  };
+}
+
+export function isNoteDraft(value: unknown): value is StoredNoteDraft {
+  if (!value || typeof value !== "object") return false;
+  const draft = value as Partial<StoredNoteDraft>;
+  return typeof draft.title === "string" && typeof draft.content === "string"
+    && (draft.research_interest_id == null || typeof draft.research_interest_id === "string")
+    && (draft.baseUpdatedAt == null || typeof draft.baseUpdatedAt === "string")
+    && (draft.token == null || typeof draft.token === "string");
+}
 
 export function compareNotesByUpdatedAt(left: KnowledgeNote, right: KnowledgeNote): number {
   return new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState, type ReactNode } from "react";
 import { AlertCircle, Download, Globe } from "lucide-react";
 import { Button, ConfirmDialog } from "@research-copilot/ui";
 import type { KnowledgeNote, ResearchInterest } from "@research-copilot/types";
@@ -8,9 +8,11 @@ import { useKnowledgeNotesWorkspace } from "../useKnowledgeNotesWorkspace";
 import { useNotesExport } from "../useNotesExport";
 import NoteDocumentPane from "./NoteDocumentPane";
 import NotesSidebar from "./NotesSidebar";
-import { compareNotesByUpdatedAt, type NoteDraft, type NotesScope } from "./shared";
+import type { NoteDraft } from "./shared";
+import { useNotesSelection } from "./useNotesSelection";
 
 interface NotesWorkspaceProps {
+  toolbarStart?: ReactNode;
   hideFolders?: boolean;
   researchInterestId?: string;
   initialNotes?: KnowledgeNote[];
@@ -20,6 +22,7 @@ interface NotesWorkspaceProps {
 }
 
 export default function NotesWorkspace({
+  toolbarStart,
   hideFolders = false,
   researchInterestId,
   initialNotes,
@@ -38,64 +41,34 @@ export default function NotesWorkspace({
     scopedNotes,
     interestMap,
     createNote,
+    acceptCreatedNote,
     saveNote,
     deleteNote,
     clipWebPage,
     importZip,
   } = useKnowledgeNotesWorkspace({ researchInterestId, initialNotes, initialInterests, onNotesChanged });
-  const [scope, setScope] = useState<NotesScope>(researchInterestId ? `interest:${researchInterestId}` : "all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [continueEditingId, setContinueEditingId] = useState<string | null>(null);
+  const {
+    scope,
+    visibleNotes,
+    selectedNote,
+    selectedId,
+    creating,
+    continueEditingId,
+    currentInterestId,
+    selectedOutsideFilter,
+    changeScope,
+    selectNote,
+    startCreate,
+    selectCreatedNote,
+  } = useNotesSelection({ notes, scopedNotes, interestMap, researchInterestId, setSearch });
   const [showWebClip, setShowWebClip] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<KnowledgeNote | null>(null);
   const [deleting, setDeleting] = useState(false);
   const { exporting, exportError, exportMarkdown } = useNotesExport();
 
-  useEffect(() => {
-    if (researchInterestId) setScope(`interest:${researchInterestId}`);
-  }, [researchInterestId]);
-
-  const visibleNotes = useMemo(() => scopedNotes
-    .filter((note) => {
-      if (researchInterestId) return true;
-      if (scope === "unfiled") return !note.research_interest_id || !interestMap[note.research_interest_id];
-      if (scope.startsWith("interest:")) return note.research_interest_id === scope.slice("interest:".length);
-      return true;
-    })
-    .sort(compareNotesByUpdatedAt), [interestMap, researchInterestId, scope, scopedNotes]);
-
-  const selectedNote = useMemo(
-    () => notes.find((note) => note.id === selectedId) ?? null,
-    [notes, selectedId],
-  );
-
-  useEffect(() => {
-    if (creating) return;
-    if (selectedNote && visibleNotes.some((note) => note.id === selectedNote.id)) return;
-    setSelectedId(visibleNotes[0]?.id ?? null);
-  }, [creating, selectedNote, visibleNotes]);
-
-  const currentInterestId = scope.startsWith("interest:") ? scope.slice("interest:".length) : researchInterestId;
-
-  const handleSelect = (note: KnowledgeNote) => {
-    setCreating(false);
-    setContinueEditingId(null);
-    setSelectedId(note.id);
-  };
-
   const handleCreate = () => {
     clearError();
-    setSearch("");
-    setSelectedId(null);
-    setContinueEditingId(null);
-    setCreating(true);
-  };
-
-  const handleCreated = (note: KnowledgeNote) => {
-    setCreating(false);
-    setContinueEditingId(note.id);
-    setSelectedId(note.id);
+    startCreate();
   };
 
   const handleDelete = async () => {
@@ -103,7 +76,6 @@ export default function NotesWorkspace({
     setDeleting(true);
     try {
       await deleteNote(pendingDelete.id);
-      if (selectedId === pendingDelete.id) setSelectedId(null);
       setPendingDelete(null);
     } catch {
       // The workspace hook exposes the error and keeps the dialog open for retry.
@@ -120,10 +92,7 @@ export default function NotesWorkspace({
   return (
     <div className="min-w-0">
       <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-base font-semibold text-ink-primary">知识笔记</h1>
-          <p className="mt-1 text-xs text-ink-tertiary">阅读、编辑和整理研究过程中的笔记。</p>
-        </div>
+        {toolbarStart ? <div className="min-w-0">{toolbarStart}</div> : <span />}
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="secondary" disabled={!selectedNote || exporting} loading={exporting} onClick={() => { if (selectedNote) void exportMarkdown([selectedNote], interestMap); }}>
             <Download className="h-3.5 w-3.5" />导出当前笔记
@@ -151,25 +120,32 @@ export default function NotesWorkspace({
           search={search}
           loading={loading}
           showScopeFilter={!hideFolders && !researchInterestId}
-          onScopeChange={(nextScope) => { setScope(nextScope); setSearch(""); }}
+          onScopeChange={changeScope}
           onSearchChange={setSearch}
-          onSelect={handleSelect}
+          onSelect={selectNote}
           onCreate={handleCreate}
         />
 
-        <NoteDocumentPane
-          key={creating ? "new" : selectedNote?.id ?? "empty"}
-          note={selectedNote}
-          creating={creating}
-          initialEditing={selectedNote?.id === continueEditingId}
-          defaultInterestId={currentInterestId}
-          interests={interests}
-          linkedClaimCount={selectedNote ? linkedNoteClaimCounts?.[selectedNote.id] ?? 0 : 0}
-          onCreate={createFromDraft}
-          onSave={saveNote}
-          onCreated={handleCreated}
-          onDelete={setPendingDelete}
-        />
+        <div className="min-w-0 space-y-3">
+          {selectedOutsideFilter ? (
+            <p role="status" className="rounded-2xl px-4 py-3 text-sm text-ink-secondary" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
+              当前笔记不在筛选结果中
+            </p>
+          ) : null}
+          <NoteDocumentPane
+            key={creating ? "new" : selectedNote?.id ?? "empty"}
+            note={selectedNote}
+            creating={creating}
+            initialEditing={selectedNote?.id === continueEditingId}
+            defaultInterestId={currentInterestId}
+            interests={interests}
+            linkedClaimCount={selectedNote ? linkedNoteClaimCounts?.[selectedNote.id] ?? 0 : 0}
+            onCreate={createFromDraft}
+            onSave={saveNote}
+            onCreated={(note) => { acceptCreatedNote(note); selectCreatedNote(note); }}
+            onDelete={setPendingDelete}
+          />
+        </div>
       </div>
 
       <ConfirmDialog
@@ -189,7 +165,7 @@ export default function NotesWorkspace({
           defaultInterestId={currentInterestId ?? ""}
           lockInterest={Boolean(researchInterestId)}
           onClip={clipWebPage}
-          onClipped={(note) => { setShowWebClip(false); handleSelect(note); }}
+          onClipped={(note) => { setShowWebClip(false); selectNote(note); }}
           onClose={() => setShowWebClip(false)}
         />
       ) : null}

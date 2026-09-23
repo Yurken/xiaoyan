@@ -83,34 +83,34 @@ export default function Knowledge({
 
   return (
     <div className={clsx("rc-app-page flex h-full min-w-0 flex-col", hideFolders && "rc-knowledge-focus-page")}>
-      <div className="min-w-0 space-y-4">
-        {/* {!hideFolders ? (
-          <header>
-            <h1 className="text-2xl font-semibold tracking-[-0.025em]" style={{ color: "var(--rc-text)" }}>知识库</h1>
-            <p className="mt-1 text-sm" style={{ color: "var(--rc-text-muted)" }}>不只是记笔记：把材料沉淀为可追溯、可连接、可审阅的研究知识。</p>
-          </header>
-        ) : null} */}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <CapsuleTabs
-            options={KNOWLEDGE_VIEW_TABS}
-            value={view}
-            onChange={(nextView) => setView(nextView as KnowledgeView)}
-          />
-
-          {view === "graph" && graphController.snapshot && !researchInterestId ? (
-            <Select
-              className="w-full lg:w-[260px]"
-              prefix="聚焦："
-              value={graphController.activeInterestId ?? ""}
-              onChange={(value) => graphController.setActiveInterestId(value || null)}
-              options={interestOptions}
-              placeholder="全部研究主题"
+      {view === "graph" ? (
+        <div className="min-w-0 space-y-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <CapsuleTabs
+              options={KNOWLEDGE_VIEW_TABS}
+              value={view}
+              onChange={(nextView) => setView(nextView as KnowledgeView)}
             />
-          ) : null}
-        </div>
-      </div>
 
-      <div key={view} className="mt-3 min-w-0" style={{ animation: "rc-view-enter 0.28s ease-out" }}>
+            {graphController.snapshot && !researchInterestId ? (
+              <Select
+                className="w-full lg:w-[260px]"
+                prefix="聚焦："
+                value={graphController.activeInterestId ?? ""}
+                onChange={(value) => graphController.setActiveInterestId(value || null)}
+                options={interestOptions}
+                placeholder="全部研究主题"
+              />
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <div
+        key={view}
+        className={clsx("min-w-0", view === "graph" && "mt-3")}
+        style={{ animation: "rc-view-enter 0.28s ease-out" }}
+      >
         {view === "graph" ? (
           <KnowledgeGraphWorkspace
             controller={graphController}
@@ -118,6 +118,13 @@ export default function Knowledge({
           />
         ) : (
           <NotesPanel
+            toolbarStart={(
+              <CapsuleTabs
+                options={KNOWLEDGE_VIEW_TABS}
+                value={view}
+                onChange={(nextView) => setView(nextView as KnowledgeView)}
+              />
+            )}
             hideFolders={hideFolders}
             researchInterestId={researchInterestId}
             initialNotes={initialNotes}

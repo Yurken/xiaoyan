@@ -49,6 +49,11 @@ export function useKnowledgeNotesWorkspace({
 
   const clearError = useCallback(() => setError(""), []);
 
+  const acceptCreatedNote = useCallback((note: KnowledgeNote) => {
+    // A create request may have started in a previous workspace mount.
+    setNotes((current) => current.some((item) => item.id === note.id) ? current : [note, ...current]);
+  }, []);
+
   useEffect(() => {
     if (!initialInterests) return;
     setInterests(initialInterests);
@@ -206,6 +211,7 @@ export function useKnowledgeNotesWorkspace({
     interestMap,
     scopedNotes,
     createNote,
+    acceptCreatedNote,
     deleteNote,
     saveNote,
     clipWebPage,
