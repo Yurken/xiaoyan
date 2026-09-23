@@ -14,6 +14,42 @@ const emptyCapture = {
   privacy_check: null,
 }
 
+const blockedConfirmation = {
+  confirmed: false,
+  content: null,
+  reason: '旧内容包含敏感字段',
+  privacy_check: {
+    allowed: false,
+    content_sensitive: true,
+    content_redacted: false,
+    redaction_kinds: [],
+  },
+}
+
+function mockPendingConfirmation() {
+  let resolve!: (value: unknown) => void
+  let reject!: (reason: Error) => void
+  const response = new Promise<unknown>((resolveResponse, rejectResponse) => {
+    resolve = resolveResponse
+    reject = rejectResponse
+  })
+  let captures = 0
+  let confirmations = 0
+  getInvokeMock().mockImplementation(async (command: string) => {
+    if (command === 'assistant_get_clipboard') {
+      captures += 1
+      return { ...emptyCapture, session_id: `capture-${captures}`, content: `content ${captures}` }
+    }
+    if (command === 'assistant_confirm_capture') {
+      confirmations += 1
+      return confirmations === 1 ? response : undefined
+    }
+    if (command === 'assistant_discard_capture') return undefined
+    throw new Error(`Unmocked invoke: ${command}`)
+  })
+  return { resolve, reject }
+}
+
 describe('useCaptureSession', () => {
   beforeEach(() => resetInvokeMock())
 
@@ -72,6 +108,56 @@ describe('useCaptureSession', () => {
     await waitFor(() => {
       expect(result.current.session?.content).toBe('manually entered text')
     })
+  })
+
+  it('discards a cancelled selection without reading the clipboard fallback', async () => {
+    let resolveSelection!: (capture: typeof emptyCapture) => void
+    const selection = new Promise<typeof emptyCapture>((resolve) => { resolveSelection = resolve })
+    getInvokeMock().mockImplementation(async (command: string) => {
+      if (command === 'assistant_get_selection') return selection
+      if (command === 'assistant_get_clipboard') return { ...emptyCapture, session_id: 'clipboard-session' }
+      if (command === 'assistant_create_paste_session') return { ...emptyCapture, session_id: 'paste-session' }
+      if (command === 'assistant_discard_capture') return undefined
+      throw new Error(`Unmocked invoke: ${command}`)
+    })
+    const { result } = renderHook(() => useCaptureSession())
+    let capture!: Promise<void>
+    act(() => { capture = result.current.startCapture('selection') })
+    await waitFor(() => expect(getInvokeMock()).toHaveBeenCalledWith('assistant_get_selection', undefined))
+    act(() => result.current.cancelCapture())
+
+    await act(async () => {
+      resolveSelection(emptyCapture)
+      await capture
+    })
+    expect(getInvokeMock()).toHaveBeenCalledWith('assistant_discard_capture', { sessionId: 'selection-session' })
+    expect(getInvokeMock().mock.calls.map(([command]) => command)).toEqual([
+      'assistant_get_selection', 'assistant_discard_capture',
+    ])
+    expect(result.current.session).toBeNull()
+    expect(result.current.status).toBe('idle')
+    expect(result.current.privacyError).toBeNull()
+  })
+
+  it('reads the clipboard only once before paste when the selection request fails', async () => {
+    getInvokeMock().mockImplementation(async (command: string) => {
+      if (command === 'assistant_get_selection') throw new Error('Selection unavailable')
+      if (command === 'assistant_get_clipboard') return { ...emptyCapture, session_id: 'clipboard-session' }
+      if (command === 'assistant_create_paste_session') return { ...emptyCapture, session_id: 'paste-session' }
+      if (command === 'assistant_discard_capture') return undefined
+      throw new Error(`Unmocked invoke: ${command}`)
+    })
+    const { result } = renderHook(() => useCaptureSession())
+    await act(async () => { await result.current.startCapture('selection') })
+
+    expect(getInvokeMock().mock.calls.map(([command]) => command)).toEqual([
+      'assistant_get_selection', 'assistant_get_clipboard',
+      'assistant_discard_capture', 'assistant_create_paste_session',
+    ])
+    expect(result.current.session).toMatchObject({
+      id: 'paste-session', sourceType: 'paste', status: 'ready', userConfirmed: false,
+    })
+    expect(result.current.privacyError).toBeNull()
   })
 
   it('uses the sanitized preview returned by the backend', async () => {
@@ -331,5 +417,137 @@ describe('useCaptureSession', () => {
     expect(result.current.session?.status).toBe('error')
     expect(result.current.privacyError).toBe('内容包含敏感字段')
     expect(result.current.session?.userConfirmed).toBe(false)
+  })
+
+  it.each(['rejected', 'blocked'] as const)(
+    'ignores a %s confirmation after another capture replaces the session',
+    async (outcome) => {
+      const pending = mockPendingConfirmation()
+      const { result } = renderHook(() => useCaptureSession())
+      await act(async () => { await result.current.startCapture('clipboard') })
+      let confirmation!: Promise<void>
+      act(() => { confirmation = result.current.confirmCapture() })
+      await waitFor(() => expect(getInvokeMock()).toHaveBeenCalledWith(
+        'assistant_confirm_capture', { sessionId: 'capture-1', content: 'content 1' },
+      ))
+      await act(async () => { await result.current.startCapture('clipboard') })
+
+      await act(async () => {
+        if (outcome === 'rejected') pending.reject(new Error('旧确认请求失败'))
+        else pending.resolve(blockedConfirmation)
+        await confirmation
+      })
+
+      expect(result.current.session).toMatchObject({
+        id: 'capture-2', content: 'content 2', status: 'ready', userConfirmed: false,
+      })
+      expect(result.current.status).toBe('ready')
+      expect(result.current.privacyError).toBeNull()
+      expect(result.current.confirming).toBe(false)
+    },
+  )
+
+  it('requires a fresh confirmation of edited content after an older confirmation succeeds', async () => {
+    const pending = mockPendingConfirmation()
+    const { result } = renderHook(() => useCaptureSession())
+    await act(async () => { await result.current.startCapture('clipboard') })
+    let confirmation!: Promise<void>
+    act(() => { confirmation = result.current.confirmCapture() })
+    await waitFor(() => expect(getInvokeMock()).toHaveBeenCalledWith(
+      'assistant_confirm_capture', { sessionId: 'capture-1', content: 'content 1' },
+    ))
+
+    act(() => result.current.updateContent('edited content'))
+    await act(async () => {
+      pending.resolve(undefined)
+      await confirmation
+    })
+    expect(result.current.session).toMatchObject({
+      content: 'edited content', userConfirmed: false, status: 'ready',
+    })
+    expect(result.current.confirming).toBe(false)
+
+    await act(async () => { await result.current.confirmCapture() })
+    expect(getInvokeMock()).toHaveBeenLastCalledWith('assistant_confirm_capture', {
+      sessionId: 'capture-1', content: 'edited content',
+    })
+    expect(result.current.session?.userConfirmed).toBe(true)
+  })
+
+  it.each([
+    ['cancelCapture', 'resolved'], ['cancelCapture', 'rejected'], ['cancelCapture', 'blocked'],
+    ['clearSession', 'resolved'], ['clearSession', 'rejected'], ['clearSession', 'blocked'],
+  ] as const)('keeps %s idle when a pending confirmation is %s', async (clear, outcome) => {
+    const pending = mockPendingConfirmation()
+    const { result } = renderHook(() => useCaptureSession())
+    await act(async () => { await result.current.startCapture('clipboard') })
+    let confirmation!: Promise<void>
+    act(() => { confirmation = result.current.confirmCapture() })
+    await waitFor(() => expect(getInvokeMock()).toHaveBeenCalledWith(
+      'assistant_confirm_capture', { sessionId: 'capture-1', content: 'content 1' },
+    ))
+    act(() => result.current[clear]())
+
+    await act(async () => {
+      if (outcome === 'rejected') pending.reject(new Error('已关闭会话的确认失败'))
+      else pending.resolve(outcome === 'blocked' ? blockedConfirmation : undefined)
+      await confirmation
+    })
+    expect(result.current.session).toBeNull()
+    expect(result.current.status).toBe('idle')
+    expect(result.current.privacyError).toBeNull()
+    expect(result.current.confirming).not.toBe(true)
+  })
+
+  it.each(['resolved', 'rejected', 'blocked'] as const)(
+    'does not resume a capture after unmount when its confirmation is %s',
+    async (outcome) => {
+      const pending = mockPendingConfirmation()
+      let renders = 0
+      const { result, unmount } = renderHook(() => {
+        renders += 1
+        return useCaptureSession()
+      })
+      await act(async () => { await result.current.startCapture('clipboard') })
+      let confirmation!: Promise<void>
+      act(() => { confirmation = result.current.confirmCapture() })
+      await waitFor(() => expect(getInvokeMock()).toHaveBeenCalledWith(
+        'assistant_confirm_capture', { sessionId: 'capture-1', content: 'content 1' },
+      ))
+      unmount()
+      const rendersAtUnmount = renders
+      const callsAtUnmount = getInvokeMock().mock.calls.length
+
+      await act(async () => {
+        if (outcome === 'rejected') pending.reject(new Error('已卸载会话的确认失败'))
+        else pending.resolve(outcome === 'blocked' ? blockedConfirmation : undefined)
+        await confirmation
+      })
+      expect(renders).toBe(rendersAtUnmount)
+      expect(getInvokeMock()).toHaveBeenCalledTimes(callsAtUnmount)
+    },
+  )
+
+  it('submits once for two confirmations in the same tick and exposes pending state', async () => {
+    const pending = mockPendingConfirmation()
+    const { result } = renderHook(() => useCaptureSession())
+    await act(async () => { await result.current.startCapture('clipboard') })
+    let confirmations!: Promise<void>[]
+    await act(async () => {
+      confirmations = [result.current.confirmCapture(), result.current.confirmCapture()]
+      await confirmations[1]
+    })
+    expect(getInvokeMock().mock.calls.filter(
+      ([command]) => command === 'assistant_confirm_capture',
+    )).toHaveLength(1)
+    expect(result.current.confirming).toBe(true)
+    expect(result.current.session?.userConfirmed).toBe(false)
+
+    await act(async () => {
+      pending.resolve(undefined)
+      await Promise.all(confirmations)
+    })
+    expect(result.current.session?.userConfirmed).toBe(true)
+    expect(result.current.confirming).toBe(false)
   })
 })

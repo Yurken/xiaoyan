@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { CapturePreview } from '../components/CapturePreview'
 import type { CaptureSession } from '../shared'
@@ -34,6 +34,26 @@ function renderPreview(session: CaptureSession) {
 }
 
 describe('CapturePreview', () => {
+  it('shows confirmation progress while keeping cancel and editing available', () => {
+    const onConfirm = vi.fn()
+    const onCancel = vi.fn()
+    const onEdit = vi.fn()
+    render(<CapturePreview
+      session={baseSession} privacyError={null} confirming
+      onConfirm={onConfirm} onCancel={onCancel} onEdit={onEdit}
+      onRetry={vi.fn()} onPasteFallback={vi.fn()}
+    />)
+    const confirm = screen.getByRole('button', { name: '正在确认…' })
+    expect(confirm).toBeDisabled()
+    expect(confirm).toHaveAttribute('aria-busy', 'true')
+    fireEvent.click(confirm)
+    expect(onConfirm).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByRole('textbox', { name: '预览内容（可编辑）' }), { target: { value: '更新的预览' } })
+    expect(onEdit).toHaveBeenCalledWith('更新的预览')
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    expect(onCancel).toHaveBeenCalledOnce()
+  })
+
   it('explains default redaction without rendering the original value', () => {
     renderPreview(baseSession)
     expect(screen.getByRole('alert')).toHaveTextContent('检测到：邮箱')
