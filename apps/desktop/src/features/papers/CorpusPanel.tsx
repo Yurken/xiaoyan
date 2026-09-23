@@ -246,19 +246,19 @@ export default function CorpusPanel() {
                   <button
                     type="button"
                     onClick={() => navigate(`/papers/${entry.paper_id}/reader`)}
-                    className="flex min-w-0 items-center gap-1 transition-colors hover:text-apple-blue"
+                    className="flex min-w-0 flex-1 items-center gap-1 transition-colors hover:text-apple-blue"
                     title="回到论文批注阅读"
                   >
                     <FileText className="h-3.5 w-3.5 shrink-0" />
-                    <span className="max-w-[260px] truncate">{entry.paper_title || "未知论文"}</span>
+                    <span className="min-w-0 truncate">{entry.paper_title || "未知论文"}</span>
                   </button>
                 ) : (
-                  <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5" />未关联论文</span>
+                  <span className="flex min-w-0 flex-1 items-center gap-1"><FileText className="h-3.5 w-3.5" />未关联论文</span>
                 )}
-                {entry.page ? <span>第 {entry.page} 页</span> : null}
-                <span>{formatDate(entry.created_at)}</span>
+                {entry.page ? <span className="shrink-0">第 {entry.page} 页</span> : null}
+                <span className="shrink-0">{formatDate(entry.created_at)}</span>
 
-                <div className="ml-auto flex items-center gap-1">
+                <div className="ml-auto flex shrink-0 items-center gap-1">
                   <button
                     type="button"
                     onClick={() => void translate(entry.id, entry.text)}
