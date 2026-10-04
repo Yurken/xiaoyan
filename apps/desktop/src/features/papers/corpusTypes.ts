@@ -1,5 +1,13 @@
 /** 论文语料库类型定义 */
 
+export interface CreateCorpusInput {
+  paperId?: string;
+  text: string;
+  note?: string;
+  page?: number;
+  tags?: string[];
+}
+
 export interface CorpusEntry {
   id: string;
   paper_id?: string | null;
