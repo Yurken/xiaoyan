@@ -20,6 +20,7 @@ import { useReaderProgress } from "../features/reader/useReaderProgress";
 import { useReaderQuestionAnswer } from "../features/reader/useReaderQuestionAnswer";
 import { useReaderPdf } from "../features/reader/useReaderPdf";
 import { useReaderPdfDocument } from "../features/reader/useReaderPdfDocument";
+import { useReaderCorpusCapture } from "../features/reader/useReaderCorpusCapture";
 import {
   isShapeStyle,
   isTextStyle,
@@ -31,7 +32,6 @@ import {
   type ReaderMode,
   type ReaderSelection,
 } from "../features/reader/readerTypes";
-import { useCorpus } from "../features/papers/useCorpus";
 import { useResizableWidth } from "../hooks/useResizableWidth";
 
 export default function PaperReader() {
@@ -46,7 +46,6 @@ export default function PaperReader() {
   const { scale, renderScale, zoomByFactor, zoomStep, setScale } = useSmoothReaderZoom(1.4);
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
   const [editing, setEditing] = useState<{ note: PaperNote; x: number; y: number } | null>(null);
-  const [toast, setToast] = useState("");
 
   // 可拖拽宽度
   const leftPanel = useResizableWidth({ initialWidth: 256, minWidth: 180, maxWidth: 400 });
@@ -64,15 +63,9 @@ export default function PaperReader() {
 
   const { notes, error: notesError, createAnnotation, updateColor, updateFill, updateContent, moveAnnotation, deleteAnnotation, undo } = useReaderNotes(id);
   const translation = useReaderTranslation();
-  const corpus = useCorpus(id);
   const navigation = useReaderDocumentNavigation(pdfDoc, searchQuery);
   const readerProgress = useReaderProgress(id);
   const qa = useReaderQuestionAnswer(id, paper?.title ?? "", navigation.pages);
-
-  const flashToast = useCallback((message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(""), 1800);
-  }, []);
 
   useEffect(() => {
     setSelection(null);
@@ -84,6 +77,9 @@ export default function PaperReader() {
     setSelection(null);
     window.getSelection()?.removeAllRanges();
   }, []);
+  const { toast, flashToast, saveSelection: handleSaveCorpus, error: corpusError } = useReaderCorpusCapture({
+    paperId: id, selection, clearSelection,
+  });
 
   // Cmd(mac)/Ctrl(win)+Z 撤销最近一次批注；在输入框内则交还给浏览器做文本撤销。
   useEffect(() => {
@@ -173,16 +169,6 @@ export default function PaperReader() {
     [selection, createAnnotation, clearSelection],
   );
 
-  const handleSaveCorpus = useCallback(
-    (note?: string) => {
-      if (!selection || !id) return;
-      void corpus.addEntry({ paperId: id, text: selection.text, page: selection.page, note });
-      clearSelection();
-      flashToast("已收入语料库");
-    },
-    [selection, id, corpus, clearSelection, flashToast],
-  );
-
   const handleTranslate = useCallback(() => {
     if (!selection) return;
     setRightPanel("translation");
@@ -261,8 +247,8 @@ export default function PaperReader() {
         onOpenExternal={id ? () => void papersApi.openFile(id) : undefined}
       />
 
-      {notesError ? (
-        <div className="shrink-0 bg-apple-red/10 px-4 py-1.5 text-xs text-apple-red">{notesError}</div>
+      {notesError || corpusError ? (
+        <div className="shrink-0 bg-apple-red/10 px-4 py-1.5 text-xs text-apple-red">{[notesError, corpusError].filter(Boolean).join("；")}</div>
       ) : null}
 
       <div className="flex min-h-0 flex-1">
