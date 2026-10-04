@@ -100,7 +100,7 @@ export function useDataBackup({ onImported }: UseDataBackupOptions = {}) {
         void apiClient.memory.add({
           type: "auto",
           action: "data_backup.export",
-          summary: "导出了加密全量数据备份",
+          summary: "导出了加密数据备份",
         });
         return;
       }
@@ -111,7 +111,7 @@ export function useDataBackup({ onImported }: UseDataBackupOptions = {}) {
       void apiClient.memory.add({
         type: "auto",
         action: "data_backup.import",
-        summary: "导入了加密全量数据备份",
+        summary: "导入了加密数据备份",
       });
     } catch (nextError) {
       setError(formatErrorMessage(nextError));

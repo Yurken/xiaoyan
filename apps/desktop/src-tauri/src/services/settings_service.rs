@@ -627,6 +627,12 @@ pub async fn import_all_data(
 
     let mut tx = state.db.begin().await.map_err(|e| e.to_string())?;
 
+    super::settings_backup_import_guard::ensure_backup_import_preserves_unlisted_assets(
+        &mut *tx,
+        BACKUP_TABLES,
+    )
+    .await?;
+
     // Clear all tables in reverse dependency order
     for table in BACKUP_TABLES.iter().rev() {
         sqlx::query(&format!("DELETE FROM {table}"))

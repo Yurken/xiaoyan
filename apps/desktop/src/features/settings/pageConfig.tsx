@@ -76,7 +76,7 @@ export const SETTINGS_SECTIONS: Array<{
   {
     key: "history",
     label: "数据与配置",
-    description: "配置历史、导入导出与全量备份",
+    description: "配置历史、导入导出与数据备份",
     icon: Database,
     color: "#0A84FF",
   },

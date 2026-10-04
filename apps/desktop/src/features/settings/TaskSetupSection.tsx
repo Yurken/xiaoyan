@@ -104,7 +104,7 @@ export default function TaskSetupSection({
           <div className="rounded-3xl px-4 py-4" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
             <p className="text-sm font-semibold text-ink-primary">数据与配置</p>
             <p className="mt-1 text-xs leading-5 text-ink-secondary">
-              配置历史、配置文件和全量数据备份都在同一处。跨设备迁移前，先在这里导出一份加密备份。
+              配置历史、配置文件和数据备份都在同一处。跨设备迁移前，请先查看备份范围并导出加密备份。
             </p>
             <button
               type="button"

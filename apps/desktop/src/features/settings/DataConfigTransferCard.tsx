@@ -1,6 +1,7 @@
 import { Card } from "@research-copilot/ui";
 import { Database, Download, FileKey2, Upload } from "lucide-react";
 import { SectionIcon } from "./shared";
+import { DATA_BACKUP_EXCLUSIONS, DATA_BACKUP_IMPORT_WARNING, DATA_BACKUP_SCOPE } from "./backup/shared";
 
 interface DataConfigTransferCardProps {
   onExportSettings: () => void;
@@ -72,7 +73,7 @@ export default function DataConfigTransferCard({
         <div>
           <h2 className="text-base font-semibold text-ink-primary">导入与导出</h2>
           <p className="mt-0.5 text-xs text-ink-tertiary">
-            配置文件只迁移小妍设置；全部数据备份会包含配置历史、论文、会话、记忆、投稿、实验数据和托管文件。
+            配置文件迁移小妍设置；数据备份包含{DATA_BACKUP_SCOPE}。
           </p>
         </div>
       </div>
@@ -104,25 +105,27 @@ export default function DataConfigTransferCard({
         <div className="rounded-3xl px-4 py-4" style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
           <div className="mb-3 flex items-center gap-2">
             <Database className="h-4 w-4 text-[#34C759]" />
-            <p className="text-sm font-semibold text-ink-primary">全部数据</p>
+            <p className="text-sm font-semibold text-ink-primary">数据备份</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <TransferButton
               icon={Download}
-              label="导出全部数据"
+              label="导出数据备份"
               description="生成加密 .rcbak 备份。"
               onClick={onExportAllData}
               disabled={dataBusy}
             />
             <TransferButton
               icon={Upload}
-              label="导入全部数据"
-              description="覆盖本机现有数据。"
+              label="导入数据备份"
+              description="覆盖备份范围；关联数据受保护时会阻止导入。"
               onClick={onImportAllData}
               disabled={dataBusy}
               danger
             />
           </div>
+          <p className="mt-3 text-xs leading-5 text-ink-secondary">{DATA_BACKUP_EXCLUSIONS}</p>
+          <p className="mt-2 text-xs leading-5 text-apple-red">{DATA_BACKUP_IMPORT_WARNING}</p>
         </div>
       </div>
     </Card>
