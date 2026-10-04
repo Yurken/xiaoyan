@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   CornerRightUp,
   ChevronRight,
@@ -9,7 +9,8 @@ import {
   FileText,
   Loader2,
 } from "lucide-react";
-import type { DirEntry } from "./shared";
+import type { DirEntry, CodeTreeNodeState } from "./shared";
+import { useCodeFileTree } from "./useCodeFileTree";
 import type { CodeGitFile } from "../../lib/client";
 
 type GitStatusKind = "modified" | "added" | "deleted" | "untracked" | "renamed";
@@ -22,12 +23,6 @@ interface CodeFileTreeProps {
   onOpenFile: (path: string, name: string) => void;
   activePath: string | null;
   gitFiles?: CodeGitFile[];
-}
-
-interface TreeNodeState {
-  expanded: boolean;
-  loading: boolean;
-  children: DirEntry[];
 }
 
 const STATUS_PRIORITY: Record<GitStatusKind, number> = {
@@ -77,7 +72,7 @@ function resolveStatus(
   entry: DirEntry,
   statusMap: Map<string, GitStatusKind>,
   rootPath: string,
-  states: Map<string, TreeNodeState>,
+  states: Map<string, CodeTreeNodeState>,
 ): GitStatusKind | null {
   const rel = getRelativePath(entry.path, rootPath);
   const direct = statusMap.get(rel);
@@ -117,62 +112,9 @@ export default function CodeFileTree({
   activePath,
   gitFiles,
 }: CodeFileTreeProps) {
-  const [nodeStates, setNodeStates] = useState<Map<string, TreeNodeState>>(new Map());
-  const [currentPath, setCurrentPath] = useState(rootPath);
-  const [currentEntries, setCurrentEntries] = useState<DirEntry[]>(entries);
-  const [navLoading, setNavLoading] = useState(false);
-
+  const { nodeStates, currentPath, currentEntries, navLoading, getState, toggleExpand, navigateTo }
+    = useCodeFileTree(rootPath, onListDir);
   const gitStatusByPath = useMemo(() => buildStatusMap(gitFiles), [gitFiles]);
-
-  // 当 rootPath 变化时重置导航状态
-  const prevRootRef = useCallback(() => rootPath, [rootPath]);
-  if (prevRootRef() !== rootPath) {
-    setCurrentPath(rootPath);
-    setCurrentEntries(entries);
-  }
-
-  const getState = useCallback(
-    (path: string): TreeNodeState => {
-      return (
-        nodeStates.get(path) ?? {
-          expanded: false,
-          loading: false,
-          children: [],
-        }
-      );
-    },
-    [nodeStates]
-  );
-
-  const toggleExpand = useCallback(
-    async (entry: DirEntry) => {
-      if (!entry.is_dir) return;
-      const current = getState(entry.path);
-      if (current.expanded) {
-        setNodeStates((prev) => {
-          const next = new Map(prev);
-          next.set(entry.path, { ...current, expanded: false });
-          return next;
-        });
-        return;
-      }
-
-      setNodeStates((prev) => {
-        const next = new Map(prev);
-        next.set(entry.path, { ...current, loading: true, expanded: true });
-        return next;
-      });
-
-      const children = await onListDir(entry.path);
-
-      setNodeStates((prev) => {
-        const next = new Map(prev);
-        next.set(entry.path, { expanded: true, loading: false, children });
-        return next;
-      });
-    },
-    [getState, onListDir]
-  );
 
   // 获取父目录路径
   function getParentPath(p: string): string | null {
@@ -180,19 +122,6 @@ export default function CodeFileTree({
     if (parts.length <= 1) return null;
     parts.pop();
     return parts.join("/");
-  }
-
-  // 导航到指定目录（替换当前视图为该目录内容）
-  async function navigateTo(dirPath: string) {
-    setNavLoading(true);
-    try {
-      const newEntries = await onListDir(dirPath);
-      setCurrentPath(dirPath);
-      setCurrentEntries(newEntries);
-      setNodeStates(new Map());
-    } finally {
-      setNavLoading(false);
-    }
   }
 
   const parentPath = getParentPath(currentPath);
@@ -252,14 +181,14 @@ export default function CodeFileTree({
 interface TreeItemProps {
   entry: DirEntry;
   depth: number;
-  state: TreeNodeState;
+  state: CodeTreeNodeState;
   activePath: string | null;
   onToggle: (entry: DirEntry) => void;
   onNavigate: (path: string) => void;
   onOpenFile: (path: string, name: string) => void;
   onListDir: (path: string) => Promise<DirEntry[]>;
-  nodeStates: Map<string, TreeNodeState>;
-  getState: (path: string) => TreeNodeState;
+  nodeStates: Map<string, CodeTreeNodeState>;
+  getState: (path: string) => CodeTreeNodeState;
   gitStatusByPath: Map<string, GitStatusKind>;
   rootPath: string;
 }
@@ -285,6 +214,9 @@ function TreeItem({
     [entry, gitStatusByPath, rootPath, nodeStates],
   );
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+  }, []);
 
   function handleClick() {
     if (isDir) {

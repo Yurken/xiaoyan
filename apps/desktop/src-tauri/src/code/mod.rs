@@ -5,6 +5,7 @@
 
 pub mod context;
 pub mod git;
+mod model;
 mod prompt;
 pub mod store;
 pub mod tools;
@@ -155,6 +156,7 @@ pub async fn send_message_stream(
     permissions: Arc<Mutex<HashMap<String, oneshot::Sender<CodePermissionDecision>>>>,
     request_id: &str,
     user_message_id: Option<String>,
+    selected_model: Option<String>,
 ) {
     let task_started_at = Instant::now();
     let request_id = request_id.to_string();
@@ -192,14 +194,7 @@ pub async fn send_message_stream(
             return;
         }
     };
-    let model = resolve_model(
-        &settings,
-        &[
-            "code_assistant_model",
-            "copilot_simple_model",
-            "paper_analysis_model",
-        ],
-    );
+    let model = model::resolve_code_model(&settings, selected_model.as_deref());
     let temperature = resolve_temperature_chain(
         &settings,
         &["code_assistant_temperature", "copilot_simple_temperature"],

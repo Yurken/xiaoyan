@@ -30,6 +30,7 @@ function createWorkspace(overrides: Record<string, unknown> = {}) {
       entries: [],
       loading: false,
       listDir: vi.fn(),
+      readDir: vi.fn(),
       readFile: vi.fn(),
       writeFile: vi.fn(),
     },
