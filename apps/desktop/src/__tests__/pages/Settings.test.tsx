@@ -4,6 +4,8 @@ import { resetInvokeMock } from "../mocks/tauri";
 import { DEFAULT_SETTINGS } from "../../features/settings/pageConfig";
 import Settings from "../../pages/Settings";
 
+const persistenceMock = vi.hoisted(() => ({ saveState: "idle", saveError: "", retry: vi.fn() }));
+
 // Settings.tsx 内联渲染胶囊导航并直接消费 SETTINGS_SECTIONS，因此 pageConfig 不做
 // mock，让真实的分区元数据（标签/key/默认 assistant）参与渲染；下面只 mock 重型
 // section 组件与依赖后端的 feature hook，避免触发真实网络/Tauri 调用。
@@ -20,7 +22,8 @@ vi.mock("../../features/settings/useSettingsController", () => ({
     hasMixedValue: () => false,
     loading: false,
     loadError: "",
-    saveState: "idle",
+    saveState: persistenceMock.saveState,
+    saveError: persistenceMock.saveError,
     testState: "idle",
     testMsg: "",
     updateState: "idle",
@@ -29,7 +32,7 @@ vi.mock("../../features/settings/useSettingsController", () => ({
     downloadProgress: null,
     appVersion: "1.0.0",
     markSaved: vi.fn(),
-    handleSaveSettings: vi.fn(),
+    handleSaveSettings: persistenceMock.retry,
     handleTestConnection: vi.fn(),
     handleCheckUpdate: vi.fn(),
     handleInstallUpdate: vi.fn(),
@@ -162,6 +165,9 @@ describe("Settings 页面", () => {
   beforeEach(() => {
     resetInvokeMock();
     localStorage.clear();
+    persistenceMock.saveState = "idle";
+    persistenceMock.saveError = "";
+    persistenceMock.retry.mockClear();
   });
 
   it("应渲染设置页面（默认显示小妍分区）", async () => {
@@ -195,5 +201,15 @@ describe("Settings 页面", () => {
     await waitFor(() => {
       expect(screen.getByTestId("about-section")).toBeInTheDocument();
     });
+  });
+
+  it("离开小妍分区后仍显示未保存错误并允许重试", () => {
+    persistenceMock.saveState = "error";
+    persistenceMock.saveError = "数据库暂不可写";
+    render(<Settings />);
+    fireEvent.click(screen.getByText("数据与配置"));
+    expect(screen.getByRole("alert")).toHaveTextContent("保存失败，改动尚未保存");
+    fireEvent.click(screen.getByRole("button", { name: "重试保存" }));
+    expect(persistenceMock.retry).toHaveBeenCalledOnce();
   });
 });

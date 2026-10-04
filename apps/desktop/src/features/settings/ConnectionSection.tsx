@@ -10,6 +10,7 @@ import ProviderIcon from "./ProviderIcon";
 import ModelCombobox, { EndpointModelCombobox } from "./ModelCombobox";
 import WebSearchSection from "./WebSearchSection";
 import ExternalLink from "../../components/ExternalLink";
+import SettingsSaveStatus from "./SettingsSaveStatus";
 
 interface ConnectionSectionProps {
   contentUnavailable: boolean;
@@ -36,6 +37,8 @@ export interface ConnectionActions {
   testState: "idle" | "testing" | "ok" | "error";
   testMsg: string;
   saveState: "idle" | "saving" | "saved" | "error";
+  saveError?: string;
+  onRetrySave?: () => void;
   busy: boolean;
   onTest: () => void;
 }
@@ -202,14 +205,7 @@ export default function ConnectionSection({
               </span>
             ) : null}
           </div>
-          <span
-            className="flex items-center gap-1 whitespace-nowrap text-xs font-medium text-ink-tertiary"
-            style={saveState === "saved" ? { color: "#1f9d4d" } : saveState === "error" ? { color: "#D92D20" } : undefined}
-            title="设置改动会自动保存"
-          >
-            {saveState === "saving" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-            {saveState === "saving" ? "保存中…" : saveState === "saved" ? "已保存" : saveState === "error" ? "保存失败" : "自动保存"}
-          </span>
+          <SettingsSaveStatus state={saveState} error={connectionActions.saveError} onRetry={connectionActions.onRetrySave} />
           {!contentUnavailable ? (
             <ConfigHistorySwitcher {...configHistory} onManage={onManageConfigHistory} />
           ) : null}

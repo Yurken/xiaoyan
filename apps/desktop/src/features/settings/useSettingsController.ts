@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { safeListen } from "../../lib/tauriEvent";
 import type { AppSettings, AppUpdateInfo } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
-import { emitCompanionPreferenceChange, normalizeCompanionId } from "../companion/shared";
+import { useSettingsPersistence } from "./useSettingsPersistence";
+import { waitForSettingsPersistence } from "./persistence/writeCoordinator";
+export type { SaveState } from "./useSettingsPersistence";
 import type { DownloadProgress } from "../../lib/updateProgress";
 import { getUpdateStatusMessage } from "../../lib/updateProgress";
 
-export type SaveState = "idle" | "saving" | "saved" | "error";
 export type TestState = "idle" | "testing" | "ok" | "error";
 export type UpdateState = "idle" | "checking" | "ready" | "latest" | "installing" | "disabled" | "error" | "installError";
 
@@ -15,7 +16,6 @@ export function useSettingsController(defaultSettings: AppSettings) {
   const [form, setForm] = useState<AppSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [saveState, setSaveState] = useState<SaveState>("idle");
   const [testState, setTestState] = useState<TestState>("idle");
   const [testMsg, setTestMsg] = useState("");
   const [updateState, setUpdateState] = useState<UpdateState>("idle");
@@ -23,16 +23,16 @@ export function useSettingsController(defaultSettings: AppSettings) {
   const [updateMsg, setUpdateMsg] = useState("");
   const [appVersion, setAppVersion] = useState("");
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
-  // 最近一次已持久化的表单快照（JSON），用于自动保存判重，避免加载即保存或重复保存。
-  const lastSavedRef = useRef("");
+  const { saveState, saveError, markPersisted: persistenceMarkPersisted, markSaved, save: handleSaveSettings } =
+    useSettingsPersistence(form, !loading && !loadError);
 
   // markPersisted：调用方已将该配置持久化到后端（导入/应用历史/恢复备份）时置 true，
   // 同步刷新 lastSavedRef，避免随后的自动保存对同一份配置做一次多余回写。
   const replaceForm = useCallback((next: Partial<AppSettings>, markPersisted = false) => {
     const merged = { ...defaultSettings, ...next };
-    if (markPersisted) lastSavedRef.current = JSON.stringify(merged);
+    if (markPersisted) persistenceMarkPersisted(merged);
     setForm(merged);
-  }, [defaultSettings]);
+  }, [defaultSettings, persistenceMarkPersisted]);
 
   const set = (key: keyof AppSettings) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -66,11 +66,6 @@ export function useSettingsController(defaultSettings: AppSettings) {
     return new Set(values).size > 1;
   };
 
-  const markSaved = (duration = 2500) => {
-    setSaveState("saved");
-    window.setTimeout(() => setSaveState("idle"), duration);
-  };
-
   useEffect(() => {
     let cancelled = false;
 
@@ -79,10 +74,13 @@ export function useSettingsController(defaultSettings: AppSettings) {
       setLoadError("");
 
       try {
-        const [data, version] = await Promise.all([apiClient.settings.get(), getVersion()]);
+        const [data, version] = await Promise.all([
+          waitForSettingsPersistence().then(() => apiClient.settings.get()),
+          getVersion().catch(() => ""),
+        ]);
         if (!cancelled) {
           replaceForm(data);
-          lastSavedRef.current = JSON.stringify({ ...defaultSettings, ...data });
+          persistenceMarkPersisted({ ...defaultSettings, ...data });
           setAppVersion(version);
         }
       } catch (error) {
@@ -100,7 +98,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
     return () => {
       cancelled = true;
     };
-  }, [replaceForm, defaultSettings]);
+  }, [replaceForm, defaultSettings, persistenceMarkPersisted]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -123,32 +121,6 @@ export function useSettingsController(defaultSettings: AppSettings) {
       unlisten = undefined;
     };
   }, []);
-
-  const handleSaveSettings = useCallback(async () => {
-    setSaveState("saving");
-    try {
-      await apiClient.settings.update(form);
-      lastSavedRef.current = JSON.stringify(form);
-      emitCompanionPreferenceChange(normalizeCompanionId(form.xiaoyan_companion_id));
-      setSaveState("saved");
-      window.setTimeout(() => setSaveState("idle"), 2500);
-    } catch (error) {
-      setSaveState("error");
-      window.setTimeout(() => setSaveState("idle"), 3000);
-      console.error("save settings failed:", error);
-    }
-  }, [form]);
-
-  // 自动保存：表单变化后防抖 700ms 持久化（已去掉手动「保存」按钮）。
-  // 加载阶段、以及与上次已保存内容相同时都跳过，避免加载即保存或重复保存。
-  useEffect(() => {
-    if (loading) return;
-    if (JSON.stringify(form) === lastSavedRef.current) return;
-    const timer = window.setTimeout(() => {
-      void handleSaveSettings();
-    }, 700);
-    return () => window.clearTimeout(timer);
-  }, [form, loading, handleSaveSettings]);
 
   const handleTestConnection = async () => {
     setTestState("testing");
@@ -216,6 +188,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
     loading,
     loadError,
     saveState,
+    saveError,
     testState,
     testMsg,
     updateState,
