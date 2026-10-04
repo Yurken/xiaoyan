@@ -65,6 +65,8 @@ export function useAiSubmissionReview({ onError, onDiagnosisSaved }: UseAiSubmis
   const [feedbackSummary, setFeedbackSummary] = useState({ pending: 0, adopted: 0, ignored: 0, done: 0 });
   const reviewRunIdRef = useRef("");
   const activeSubmissionRef = useRef("");
+  const modalEpochRef = useRef(0);
+  const fileRequestIdRef = useRef(0);
   const resultBufferRef = useRef<MockReviewerResult[]>([]);
   const onErrorRef = useRef(onError);
   const onDiagnosisSavedRef = useRef(onDiagnosisSaved);
@@ -110,49 +112,60 @@ export function useAiSubmissionReview({ onError, onDiagnosisSaved }: UseAiSubmis
   // filePath 存在时从 PDF 提取全文作为审稿输入（与按钮提示一致）；
   // 提取完成前若已切换到其他投稿，丢弃迟到的结果，避免覆盖新输入。
   const openForSubmission = useCallback((submissionId: string, content: string, filePath?: string) => {
+    const epoch = ++modalEpochRef.current;
+    const fileRequestId = ++fileRequestIdRef.current;
     activeSubmissionRef.current = submissionId;
     setInput((current) => ({ ...current, abstract: content }));
     setFileName(null);
     reset();
-    reviewRunIdRef.current = `${submissionId}:${Date.now()}`;
+    reviewRunIdRef.current = "";
+    setLoading(false);
+    setFileExtracting(Boolean(filePath));
     setShowModal(true);
     void submissionApi.reviewFeedbackSummary(submissionId)
-      .then((summary) => setFeedbackSummary(summary.counts))
-      .catch(() => setFeedbackSummary({ pending: 0, adopted: 0, ignored: 0, done: 0 }));
+      .then((summary) => { if (epoch === modalEpochRef.current) setFeedbackSummary(summary.counts); })
+      .catch(() => { if (epoch === modalEpochRef.current) setFeedbackSummary({ pending: 0, adopted: 0, ignored: 0, done: 0 }); });
     if (filePath) {
       setFileExtracting(true);
       papersApi.extractPdfText(filePath, 8000)
         .then((text) => {
-          if (activeSubmissionRef.current !== submissionId) return;
+          if (fileRequestId !== fileRequestIdRef.current) return;
           setInput((current) => ({ ...current, abstract: text.slice(0, 5000) }));
           setFileName(filePath.split("/").pop() ?? null);
         })
         .catch((error) => {
-          if (activeSubmissionRef.current === submissionId) onErrorRef.current(error);
+          if (fileRequestId === fileRequestIdRef.current) onErrorRef.current(error);
         })
-        .finally(() => setFileExtracting(false));
+        .finally(() => { if (fileRequestId === fileRequestIdRef.current) setFileExtracting(false); });
     }
   }, [reset]);
 
   const close = useCallback(() => {
+    modalEpochRef.current += 1;
+    fileRequestIdRef.current += 1;
     setShowModal(false);
+    setLoading(false);
+    setFileExtracting(false);
     reset();
     reviewRunIdRef.current = "";
+    activeSubmissionRef.current = "";
   }, [reset]);
 
   const pickPdf = useCallback(async () => {
+    const fileRequestId = ++fileRequestIdRef.current;
     setFileExtracting(true);
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
       const selected = await open({ multiple: false, filters: [{ name: "PDF", extensions: ["pdf"] }] });
       if (typeof selected !== "string") return;
       const text = await papersApi.extractPdfText(selected, 8000);
+      if (fileRequestId !== fileRequestIdRef.current) return;
       setInput((current) => ({ ...current, abstract: text.slice(0, 5000) }));
       setFileName(selected.split("/").pop() ?? null);
     } catch (error) {
-      onErrorRef.current(error);
+      if (fileRequestId === fileRequestIdRef.current) onErrorRef.current(error);
     } finally {
-      setFileExtracting(false);
+      if (fileRequestId === fileRequestIdRef.current) setFileExtracting(false);
     }
   }, []);
 
@@ -160,15 +173,17 @@ export function useAiSubmissionReview({ onError, onDiagnosisSaved }: UseAiSubmis
     const submissionId = activeSubmissionRef.current;
     if (!submissionId || !input.abstract.trim() || loading) return;
     reset();
-    reviewRunIdRef.current = `${submissionId}:${Date.now()}`;
+    const runId = `${submissionId}:${crypto.randomUUID()}`;
+    reviewRunIdRef.current = runId;
     setLoading(true);
     submissionApi.aiReview({
       submissionId,
       content: input.abstract,
       reviewerCount: input.reviewerCount,
       strictness: input.strictness,
-      runId: reviewRunIdRef.current,
+      runId,
     }).catch((error) => {
+      if (runId !== reviewRunIdRef.current) return;
       setLoading(false);
       onErrorRef.current(error);
     });
