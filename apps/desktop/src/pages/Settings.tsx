@@ -19,6 +19,7 @@ import { DEFAULT_SETTINGS, SETTINGS_ACTIVE_SECTION_STORAGE_KEY, SETTINGS_SECTION
 import { AgentChip, SectionIcon } from "../features/settings/shared";
 import { applyProviderPreset, detectPreset, type ProviderPresetId } from "../features/settings/providerPresets";
 import { useDataBackup } from "../features/settings/useDataBackup";
+import { DATA_BACKUP_EXPORT_WARNING, DATA_BACKUP_IMPORT_WARNING } from "../features/settings/backup/shared";
 import { useSettingsController } from "../features/settings/useSettingsController";
 import SettingsSaveStatus from "../features/settings/SettingsSaveStatus";
 import { useSettingsCrypto } from "../features/settings/useSettingsCrypto";
@@ -566,10 +567,10 @@ export default function Settings() {
     {backupModal !== null && (
       <CryptoConfigModal
         modal={backupModal}
-        resourceLabel="全部数据备份"
-        exportDescription="设置一个密码保护全量数据备份，导入时需要输入同一密码。"
-        importDescription="输入导出时设置的密码解锁备份文件，导入后会覆盖本机现有数据。"
-        exportWarning="备份包含配置、配置历史、论文、会话、记忆、投稿、实验数据和托管文件，请妥善保管。"
+        resourceLabel="数据备份"
+        exportDescription="设置密码保护数据备份，导入时使用同一密码。请先确认下方备份范围。"
+        importDescription={DATA_BACKUP_IMPORT_WARNING}
+        exportWarning={DATA_BACKUP_EXPORT_WARNING}
         password={backupPassword}
         confirm={backupConfirm}
         busy={backupBusy}

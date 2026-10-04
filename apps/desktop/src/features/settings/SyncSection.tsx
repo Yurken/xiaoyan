@@ -12,17 +12,18 @@ import {
 import { SectionIcon } from "./shared";
 import { useSync } from "./useSync";
 import { apiClient, type SyncSummary } from "../../lib/client";
+import { DATA_BACKUP_EXCLUSIONS } from "./backup/shared";
 
 /** 把同步结果转成给用户看的中文说明，重点强调本地数据已保留。 */
 function describeSummary(s: SyncSummary): string {
   if (s.pulled_devices === 0) {
-    return "这是接入的第一台设备，本地数据已全部上传到云端，可放心在其它设备登录同步。";
+    return "这是接入的第一台设备，支持同步的数据已上传，可在其它设备接续同步。";
   }
   const parts = [`已与 ${s.pulled_devices} 台设备合并`];
   if (s.rows_applied > 0) parts.push(`新增/更新 ${s.rows_applied} 条记录`);
   if (s.rows_deleted > 0) parts.push(`应用 ${s.rows_deleted} 条删除`);
   if (s.assets_downloaded > 0) parts.push(`下载 ${s.assets_downloaded} 个附件`);
-  return `${parts.join("，")}；本地原有数据已保留并上传，不会被覆盖。`;
+  return `${parts.join("，")}；已按最新修改合并并上传支持同步的数据。`;
 }
 
 function formatSyncTime(value: string): string {
@@ -106,6 +107,10 @@ export default function SyncSection() {
           </span>
         )}
       </div>
+
+      <p className="text-xs leading-5 text-ink-secondary">
+        当前同步范围与数据备份一致。{DATA_BACKUP_EXCLUSIONS}
+      </p>
 
       {/* 配置区 */}
       <div
