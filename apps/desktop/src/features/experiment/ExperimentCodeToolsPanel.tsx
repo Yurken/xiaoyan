@@ -21,7 +21,7 @@ interface ExperimentCodeToolsPanelProps {
   fileSystem: {
     entries: DirEntry[];
     loading: boolean;
-    listDir: (path: string) => Promise<DirEntry[]>;
+    readDir: (path: string) => Promise<DirEntry[]>;
   };
   openFile: OpenFile | null;
   onOpenFile: (path: string, name: string) => void;
@@ -77,7 +77,7 @@ export function ExperimentCodeToolsPanel({
             rootPath={workingDir}
             entries={fileSystem.entries}
             loading={fileSystem.loading}
-            onListDir={fileSystem.listDir}
+            onListDir={fileSystem.readDir}
             onOpenFile={onOpenFile}
             activePath={openFile?.path ?? null}
             gitFiles={git.snapshot?.files}

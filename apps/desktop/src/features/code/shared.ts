@@ -1,8 +1,14 @@
 import { Bot, BrainCircuit, Compass, Globe, Search } from "lucide-react";
 import type { DirEntry } from "../../lib/client";
-import type { LlmProvider } from "@research-copilot/types";
+import type { AppSettings, LlmProvider } from "@research-copilot/types";
 
 export type { DirEntry };
+
+export interface CodeTreeNodeState {
+  expanded: boolean;
+  loading: boolean;
+  children: DirEntry[];
+}
 
 export function formatCodeTaskDuration(durationMs: number): string {
   const totalSeconds = Math.max(0, Math.floor(durationMs / 1_000));
@@ -129,6 +135,31 @@ export interface CodeModelOption {
   providerLabel: string;
   model: string;
   label: string;
+}
+
+const CODE_MODEL_PROVIDER_LABELS: Record<LlmProvider, string> = {
+  openai: "OpenAI", anthropic: "Anthropic", openai_compatible: "OpenAI-Compatible",
+};
+
+export function resolveCodeModel(settings: AppSettings): string {
+  const providerModel = settings.llm_provider === "anthropic"
+    ? settings.anthropic_chat_model
+    : settings.llm_provider === "openai_compatible"
+      ? settings.openai_compatible_chat_model : settings.openai_chat_model;
+  return [settings.multi_agent_reproduction_model, settings.paper_reproduction_model, providerModel]
+    .map((model) => model?.trim()).find(Boolean) ?? "";
+}
+
+export function buildCodeModelOptions(settings: AppSettings, remoteModels: string[] = []): CodeModelOption[] {
+  const provider = settings.llm_provider;
+  const current = resolveCodeModel(settings);
+  const providerModel = provider === "anthropic" ? settings.anthropic_chat_model
+    : provider === "openai_compatible" ? settings.openai_compatible_chat_model : settings.openai_chat_model;
+  const models = [...new Set([current, ...(remoteModels.length ? remoteModels : [providerModel])]
+    .map((model) => model?.trim()).filter((model): model is string => Boolean(model)))];
+  return models.map((model) => ({
+    id: `${provider}:${model}`, provider, providerLabel: CODE_MODEL_PROVIDER_LABELS[provider], model, label: model,
+  }));
 }
 
 /** 一个代码工具的前端展示定义。与后端 `code::tools::TOOLS` 的顺序、id 保持一致。 */

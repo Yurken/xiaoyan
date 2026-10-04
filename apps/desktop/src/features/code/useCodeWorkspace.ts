@@ -1,20 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePersistentState } from "../../hooks/usePersistentStringState";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   codeApi,
   experimentApi,
   formatErrorMessage,
   type CodeSession,
   type CodeMessage,
-  type CodePermissionRequest,
-  type CodeToolCall,
-  type CodeToolResult,
 } from "../../lib/client";
 import { useCodeFileSystem } from "./useCodeFileSystem";
 import { useCodeAttachments } from "./useCodeAttachments";
 import { useCodeContextPack } from "./useCodeContextPack";
 import { useCodeModelOptions } from "./useCodeModelOptions";
+import { useCodeRequest } from "./useCodeRequest";
 import type { CodeAgentMode, OpenFile } from "./shared";
 import { buildCodePromptContent } from "./codeMessageContent";
 
@@ -24,43 +21,6 @@ function generateMessageId(): string {
   }
   return `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
-
-interface StreamEvent {
-  session_id: string;
-  request_id: string;
-  chunk: string;
-}
-
-interface DoneEvent {
-  session_id: string;
-  request_id: string;
-  message_id: string;
-  full_content: string;
-  duration_ms: number;
-  model?: string | null;
-}
-
-interface ErrorEvent {
-  session_id: string;
-  request_id: string;
-  error: string;
-}
-
-interface ToolCallEvent {
-  session_id: string;
-  request_id: string;
-  message_id: string;
-  tool_call: CodeToolCall;
-}
-
-interface ToolResultEvent {
-  session_id: string;
-  request_id: string;
-  message_id: string;
-  result: CodeToolResult;
-}
-
-type PermissionRequestEvent = CodePermissionRequest;
 
 interface UseCodeWorkspaceOptions {
   workingDir?: string | null;
@@ -87,20 +47,10 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   const [sessions, setSessions] = useState<CodeSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [chatLoading, setChatLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [taskStartedAt, setTaskStartedAt] = useState<number | null>(null);
   const [creatingSession, setCreatingSession] = useState(false);
-  const [requestId, setRequestId] = useState<string | null>(null);
-  const [streamingContent, setStreamingContent] = useState("");
   const [input, setInput] = useState("");
   const [toast, setToast] = useState("");
   const [agentMode, setAgentMode] = useState<CodeAgentMode>("build");
-  const [permissionRequests, setPermissionRequests] = useState<CodePermissionRequest[]>([]);
-
-  const streamingRef = useRef("");
-  const unlistenersRef = useRef<UnlistenFn[]>([]);
-  const selectedIdRef = useRef<string | null>(null);
-  const requestIdRef = useRef<string | null>(null);
 
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
 
@@ -137,183 +87,11 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     onToast: showToast,
   });
 
-  // 让事件回调始终读到最新 selectedId，避免重复注册监听。
-  useEffect(() => {
-    selectedIdRef.current = selectedId;
-  }, [selectedId]);
-
-  // ── Event listeners（仅注册一次）─────────────────────────────
-  useEffect(() => {
-    let mounted = true;
-
-    async function setup() {
-      const unlistenStream = await listen<StreamEvent>("code:stream", (event) => {
-        if (!mounted || event.payload.session_id !== selectedIdRef.current) return;
-        if (!requestIdRef.current) {
-          requestIdRef.current = event.payload.request_id;
-          setRequestId(event.payload.request_id);
-        }
-        streamingRef.current += event.payload.chunk;
-        setStreamingContent(streamingRef.current);
-      });
-
-      const unlistenDone = await listen<DoneEvent>("code:done", (event) => {
-        if (!mounted || event.payload.session_id !== selectedIdRef.current) return;
-        const { session_id, message_id, full_content, duration_ms, model } = event.payload;
-
-        const assistantMsg: CodeMessage = {
-          id: message_id,
-          role: "assistant",
-          content: full_content,
-          tool_calls: undefined,
-          tool_results: undefined,
-          tool_call_id: null,
-          tool_id: null,
-          model: model ?? null,
-          duration_ms,
-          created_at: new Date().toISOString(),
-        };
-
-        setSessions((prev) =>
-          prev.map((s) =>
-            s.id === session_id
-              ? {
-                  ...s,
-                  model: model ?? s.model,
-                  messages: [...s.messages, assistantMsg],
-                  updated_at: new Date().toISOString(),
-                }
-              : s,
-          ),
-        );
-
-        streamingRef.current = "";
-        setStreamingContent("");
-        setSending(false);
-        setTaskStartedAt(null);
-        setRequestId(null);
-        requestIdRef.current = null;
-      });
-
-      const unlistenToolCall = await listen<ToolCallEvent>("code:tool_call", (event) => {
-        if (!mounted || event.payload.session_id !== selectedIdRef.current) return;
-        const { session_id, message_id, tool_call } = event.payload;
-
-        streamingRef.current = "";
-        setStreamingContent("");
-
-        setSessions((prev) =>
-          prev.map((s) => {
-            if (s.id !== session_id) return s;
-            const messages = [...s.messages];
-            const existingIndex = messages.findIndex((msg) => msg.id === message_id);
-
-            if (existingIndex >= 0) {
-              const existing = messages[existingIndex];
-              const toolCalls = existing.tool_calls ?? [];
-              const alreadyPresent = toolCalls.some((item) => item.id === tool_call.id);
-              messages[existingIndex] = {
-                ...existing,
-                tool_calls: alreadyPresent ? toolCalls : [...toolCalls, tool_call],
-              };
-            } else {
-              messages.push({
-                id: message_id,
-                role: "assistant",
-                content: "",
-                tool_calls: [tool_call],
-                tool_results: undefined,
-                tool_call_id: null,
-                tool_id: null,
-                model: null,
-                created_at: new Date().toISOString(),
-              });
-            }
-
-            return { ...s, messages, updated_at: new Date().toISOString() };
-          }),
-        );
-      });
-
-      const unlistenToolResult = await listen<ToolResultEvent>("code:tool_result", (event) => {
-        if (!mounted || event.payload.session_id !== selectedIdRef.current) return;
-        const { session_id, message_id, result } = event.payload;
-
-        const toolMsg: CodeMessage = {
-          id: message_id,
-          role: "tool",
-          content: result.output,
-          tool_calls: undefined,
-          tool_results: [result],
-          tool_call_id: result.tool_call_id,
-          tool_id: null,
-          model: null,
-          created_at: new Date().toISOString(),
-        };
-
-        setSessions((prev) =>
-          prev.map((s) =>
-            s.id === session_id
-              ? {
-                  ...s,
-                  messages: [...s.messages, toolMsg],
-                  updated_at: new Date().toISOString(),
-                }
-              : s,
-          ),
-        );
-      });
-
-      const unlistenError = await listen<ErrorEvent>("code:error", (event) => {
-        if (!mounted || event.payload.session_id !== selectedIdRef.current) return;
-        showToast(event.payload.error);
-        streamingRef.current = "";
-        setStreamingContent("");
-        setSending(false);
-        setTaskStartedAt(null);
-        setRequestId(null);
-        requestIdRef.current = null;
-      });
-
-      const unlistenPermission = await listen<PermissionRequestEvent>("code:permission_request", (event) => {
-        if (!mounted || event.payload.session_id !== selectedIdRef.current) return;
-        setPermissionRequests((prev) => {
-          if (prev.some((item) => item.id === event.payload.id)) return prev;
-          return [...prev, event.payload];
-        });
-      });
-
-      const unlistenTitle = await listen<{ session_id: string }>("code:title_changed", (_event) => {
-        if (!mounted) return;
-        void codeApi
-          .listSessions(experimentId)
-          .then((result) => {
-            if (mounted) setSessions(result.sessions ?? []);
-          })
-          .catch((err) => {
-            console.warn("Failed to load code sessions:", err);
-          });
-      });
-
-      unlistenersRef.current = [
-        unlistenStream,
-        unlistenDone,
-        unlistenToolCall,
-        unlistenToolResult,
-        unlistenError,
-        unlistenPermission,
-        unlistenTitle,
-      ];
-    }
-
-    setup();
-    return () => {
-      mounted = false;
-      cancelActiveStream();
-      unlistenersRef.current.forEach((fn) => fn());
-      unlistenersRef.current = [];
-    };
-  }, [experimentId]);
+  const request = useCodeRequest({ experimentId, setSessions, onError: showToast });
+  const {
+    sending, taskStartedAt, requestId, streamingContent, permissionRequests,
+    setPermissionRequests, cancelActiveStream,
+  } = request;
 
   // 恢复/同步工作目录：当 workingDir 变化时重新加载文件树；
   // 非受控模式下只在初始化时从 experiment 的 defaultWorkingDir 自动恢复一次。
@@ -415,6 +193,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     // 当前已选中空会话时，避免重复创建。
     if (selected?.messages.length === 0) return;
 
+    cancelActiveStream();
     setCreatingSession(true);
     try {
       const session = await codeApi.createSession(experimentId, undefined, workingDir ?? undefined);
@@ -428,6 +207,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   }
 
   async function handleDeleteSession(id: string) {
+    if (selectedId === id) cancelActiveStream();
     try {
       await codeApi.deleteSession(id);
       setSessions((prev) => prev.filter((s) => s.id !== id));
@@ -438,27 +218,13 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   }
 
   function selectSession(session: CodeSession) {
+    if (selectedId !== session.id) cancelActiveStream();
     setSelectedId(session.id);
     if (session.working_dir) {
       // Only load the session's working directory without mutating the session's
       // working_dir or reordering the project list.
       changeWorkingDir(session.working_dir);
     }
-  }
-
-  // ── Cancel ────────────────────────────────────────────────────
-  function cancelActiveStream() {
-    const rid = requestIdRef.current;
-    if (rid) {
-      requestIdRef.current = null;
-      setRequestId(null);
-      void codeApi.cancelMessage(rid);
-    }
-    setSending(false);
-    setTaskStartedAt(null);
-    setPermissionRequests([]);
-    streamingRef.current = "";
-    setStreamingContent("");
   }
 
   async function resolvePermission(permissionId: string, approved: boolean, message?: string) {
@@ -470,7 +236,7 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
     }
   }
 
-// ── Send ─────────────────────────────────────────────────────
+  // ── Send ─────────────────────────────────────────────────────
   async function handleSend(skillPrompt?: string) {
     if (!input.trim() || sending) return;
     const rawContent = input.trim();
@@ -485,8 +251,8 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
   ) {
     if (!rawContent.trim() || sending) return;
 
-    // 取消上一次请求（如果还在进行中）
-    cancelActiveStream();
+    const activeRequestId = request.begin();
+    if (!activeRequestId) return;
 
     // 没有会话时自动新建一个，保证「选目录 → 输入 → 发送」开箱即用。
     let targetId = selectedId;
@@ -494,27 +260,24 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
       try {
         const session = await codeApi.createSession(experimentId, undefined, workingDir ?? undefined);
         setSessions((prev) => [session, ...prev]);
+        if (!request.isCurrent(activeRequestId)) return;
         setSelectedId(session.id);
-        selectedIdRef.current = session.id; // 立即同步，避免流式事件被过滤掉
         targetId = session.id;
       } catch (err) {
-        showToast(formatErrorMessage(err));
+        if (request.isCurrent(activeRequestId)) {
+          request.finish();
+          showToast(formatErrorMessage(err));
+        }
         return;
       }
     }
+    if (!request.bindSession(activeRequestId, targetId)) return;
 
     const promptContent = buildCodePromptContent({
       displayContent: rawContent,
       skillPrompt: options?.skillPrompt,
       attachments: options?.skipAttachments ? [] : attachmentsController.attachments,
     });
-
-    setSending(true);
-    setTaskStartedAt(Date.now());
-    setRequestId(null);
-    requestIdRef.current = null;
-    streamingRef.current = "";
-    setStreamingContent("");
 
     const userMessageId = generateMessageId();
     const userMsg: CodeMessage = {
@@ -531,21 +294,17 @@ export function useCodeWorkspace(experimentId: string, options?: UseCodeWorkspac
       ),
     );
 
-    try {
-      await codeApi.sendMessage(
-        targetId,
-        rawContent,
-        promptContent,
-        workingDir ?? undefined,
-        openFile?.name ?? undefined,
-        agentMode,
-        userMessageId,
-      );
-    } catch (err) {
-      showToast(formatErrorMessage(err));
-      setSending(false);
-      setTaskStartedAt(null);
-    }
+    await request.send(activeRequestId, () => codeApi.sendMessage(
+      targetId,
+      rawContent,
+      promptContent,
+      workingDir ?? undefined,
+      openFile?.name ?? undefined,
+      agentMode,
+      userMessageId,
+      activeRequestId,
+      modelOptionsController.currentModel || undefined,
+    ));
   }
 
   async function handleEditAndResend(messageId: string, newText: string) {

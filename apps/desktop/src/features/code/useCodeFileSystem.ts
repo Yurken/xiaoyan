@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
 import { codeApi } from "../../lib/client";
 import type { DirEntry } from "./shared";
 
@@ -6,20 +6,38 @@ export function useCodeFileSystem() {
   const [entries, setEntries] = useState<DirEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const rootRequest = useRef(0);
+  useEffect(() => () => { rootRequest.current += 1; }, []);
+  const setRootEntries = useCallback((value: SetStateAction<DirEntry[]>) => {
+    rootRequest.current += 1;
+    setEntries(value);
+    setLoading(false);
+  }, []);
+
+  const readDir = useCallback(async (path: string) => {
+    try {
+      const result = await codeApi.listDir(path);
+      return result.entries;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return [];
+    }
+  }, []);
 
   const listDir = useCallback(async (path: string) => {
+    const request = ++rootRequest.current;
     setLoading(true);
     setError("");
     try {
       const result = await codeApi.listDir(path);
-      setEntries(result.entries);
+      if (request === rootRequest.current) setEntries(result.entries);
       return result.entries;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
+      if (request === rootRequest.current) setError(msg);
       return [];
     } finally {
-      setLoading(false);
+      if (request === rootRequest.current) setLoading(false);
     }
   }, []);
 
@@ -47,10 +65,11 @@ export function useCodeFileSystem() {
 
   return {
     entries,
-    setEntries,
+    setEntries: setRootEntries,
     loading,
     error,
     listDir,
+    readDir,
     readFile,
     writeFile,
   };

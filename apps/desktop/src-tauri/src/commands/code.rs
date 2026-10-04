@@ -170,11 +170,19 @@ pub async fn code_send_message(
     current_file: Option<String>,
     mode: Option<String>,
     user_message_id: Option<String>,
+    request_id: Option<String>,
+    model: Option<String>,
 ) -> Result<(), String> {
     if display_content.trim().is_empty() || prompt_content.trim().is_empty() {
         return Err("消息不能为空".into());
     }
 
+    let request_id = match request_id {
+        Some(id) => Uuid::parse_str(&id)
+            .map_err(|_| "请求标识无效".to_string())?
+            .to_string(),
+        None => Uuid::new_v4().to_string(),
+    };
     let db = state.db.clone();
     let settings = state.settings.read().await.clone();
 
@@ -191,11 +199,15 @@ pub async fn code_send_message(
         serde_json::json!({ "session_id": &session_id }),
     );
 
-    let request_id = Uuid::new_v4().to_string();
     let rid = request_id.clone();
     let code_handles = state.code_handles.clone();
     let code_permissions = state.code_permissions.clone();
 
+    // Register under the same lock used by cancellation before the task can complete.
+    let mut handles = state.code_handles.lock().await;
+    if handles.contains_key(&request_id) {
+        return Err("请求已经在执行".to_string());
+    }
     // fire-and-forget，流式结果走事件回传。
     let handle = tokio::spawn(async move {
         code::send_message_stream(
@@ -211,12 +223,13 @@ pub async fn code_send_message(
             code_permissions,
             &rid,
             user_message_id,
+            model,
         )
         .await;
         let _ = code_handles.lock().await.remove(&rid);
     });
 
-    state.code_handles.lock().await.insert(request_id, handle);
+    handles.insert(request_id, handle);
 
     Ok(())
 }
