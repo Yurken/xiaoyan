@@ -20,6 +20,7 @@ import { AgentChip, SectionIcon } from "../features/settings/shared";
 import { applyProviderPreset, detectPreset, type ProviderPresetId } from "../features/settings/providerPresets";
 import { useDataBackup } from "../features/settings/useDataBackup";
 import { useSettingsController } from "../features/settings/useSettingsController";
+import SettingsSaveStatus from "../features/settings/SettingsSaveStatus";
 import { useSettingsCrypto } from "../features/settings/useSettingsCrypto";
 import { useSettingsHistory } from "../features/settings/useSettingsHistory";
 import { useSettingsMemories } from "../features/settings/useSettingsMemories";
@@ -140,6 +141,7 @@ export default function Settings() {
     loading,
     loadError,
     saveState,
+    saveError,
     testState,
     testMsg,
     updateState,
@@ -148,6 +150,7 @@ export default function Settings() {
     downloadProgress,
     appVersion,
     markSaved,
+    handleSaveSettings,
     handleTestConnection,
     handleCheckUpdate,
     handleInstallUpdate,
@@ -334,6 +337,12 @@ export default function Settings() {
           </Card>
         ) : null}
 
+        {saveState === "error" && activeSection !== "assistant" ? (
+          <Card padding="md">
+            <SettingsSaveStatus state={saveState} error={saveError} onRetry={() => { void handleSaveSettings(); }} />
+          </Card>
+        ) : null}
+
         {activeSection === "desktop_assistant" ? (
           <DesktopAssistantSettingsSection />
         ) : null}
@@ -372,6 +381,8 @@ export default function Settings() {
               testState,
               testMsg,
               saveState,
+              saveError,
+              onRetrySave: () => { void handleSaveSettings(); },
               busy: loading,
               onTest: handleTestConnection,
             }}
