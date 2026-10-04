@@ -17,7 +17,6 @@ import {
   X,
 } from 'lucide-react'
 import {
-  Badge,
   Button,
   CapsuleTabs,
   Card,
@@ -25,6 +24,7 @@ import {
   CardTitle,
   IconButton,
 } from '@research-copilot/ui'
+import { AssistantCaptureSummary } from './AssistantCaptureSummary'
 import { AssistantKnowledgeControls } from './AssistantKnowledgeControls'
 import {
   ASSISTANT_ACTIONS,
@@ -34,9 +34,7 @@ import {
   ASSISTANT_TRANSLATION_LANGUAGES,
   ASSISTANT_WINDOW_CARD_STYLE,
   CONTEXT_SOURCES,
-  CAPTURE_STATUS_LABEL,
   countTextCharacters,
-  truncateText,
 } from '../shared'
 import type {
   AssistantAction,
@@ -159,15 +157,6 @@ export function AssistantPanel({
     onFreeQuestionSubmit?.(question.trim())
   }
 
-  const statusVariant =
-    session?.status === 'ready'
-      ? 'success'
-      : session?.status === 'error'
-        ? 'danger'
-        : session?.status === 'capturing'
-          ? 'warning'
-          : 'default'
-
   return (
     <Card className="w-full overflow-hidden" padding="none" style={ASSISTANT_WINDOW_CARD_STYLE}>
       {/* 标题栏 */}
@@ -200,48 +189,7 @@ export function AssistantPanel({
 
       {/* 内容区域 */}
       <div className="p-4">
-        {/* 上下文预览 */}
-        <Card variant="inset" padding="sm" className="mb-4">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-medium" style={{ color: 'var(--rc-text-muted)' }}>
-              当前内容
-            </span>
-            {session && (
-              <Badge variant={statusVariant}>{CAPTURE_STATUS_LABEL[session.status]}</Badge>
-            )}
-          </div>
-
-          {isLoading ? (
-            <div className="flex items-center gap-2">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-apple-blue border-t-transparent" />
-              <span className="text-sm" style={{ color: 'var(--rc-text-muted)' }}>
-                获取中...
-              </span>
-            </div>
-          ) : session?.content ? (
-            <>
-              <p className="line-clamp-3 text-sm" style={{ color: 'var(--rc-text)' }}>
-                {session.content}
-              </p>
-              {session.sourceApp && (
-                <p className="mt-2 text-xs" style={{ color: 'var(--rc-text-muted)' }}>
-                  来源：{session.sourceApp}
-                  {session.windowTitle && ` - ${truncateText(session.windowTitle, 50)}`}
-                </p>
-              )}
-              {!isImage && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--rc-text-muted)' }}>
-                  {contentCharacters.toLocaleString('zh-CN')} 字符
-                  {session.contentTruncated && '；采集时已按 50,000 字符上限截断'}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-sm" style={{ color: 'var(--rc-text-muted)' }}>
-              请先获取内容...
-            </p>
-          )}
-        </Card>
+        <AssistantCaptureSummary session={session} isLoading={isLoading} />
 
         {/* 来源选择 */}
         <div className="mb-4">
