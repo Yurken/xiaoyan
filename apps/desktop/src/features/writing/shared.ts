@@ -5,6 +5,7 @@ export type WritingViewMode = "split" | "editor" | "preview";
 export type WritingTemplateId = "journal" | "conference" | "thesis-note";
 export type LatexDiagnosticSeverity = "error" | "warning" | "info";
 export type WritingCompileStatus = "idle" | "compiling" | "ready" | "failed";
+export type WritingSaveStatus = "pending" | "saving" | "saved" | "error";
 export type WritingAssistantActionId = "freeform" | "polish" | "continue" | "abstract" | "review";
 export type WritingEditorSource = "main" | "bib" | `tex:${string}`;
 
@@ -26,6 +27,17 @@ export interface WritingDraft {
   imageAssets: WritingImageAsset[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface WritingPendingDraft {
+  draft: WritingDraft;
+  baseSignature?: string;
+  writerId?: string;
+}
+
+export interface WritingRecoverySummary {
+  restored: number;
+  conflicts: number;
 }
 
 export interface WritingTexFile {
@@ -187,6 +199,7 @@ export interface LatexInstallSupport {
 
 export const WRITING_STORAGE_KEY = "rc:writing:workspace:v1";
 export const WRITING_LIBRARY_STORAGE_KEY = "rc:writing:library:v1";
+export const WRITING_PENDING_DRAFTS_KEY = "rc:writing:pending-drafts:v1";
 export const WRITING_ACTIVE_DRAFT_KEY = "rc:writing:active-draft:v1";
 export const DEFAULT_PROJECT_NAME = "xiaoyan-paper";
 /** 历史版本自动记录：内容停止变化后防抖 2s，且距上次记录至少 60s（与后端节流一致）。 */
@@ -211,6 +224,51 @@ export const WRITING_ASSISTANT_ACTIONS: WritingAssistantAction[] = [
 
 export function writingDraftTitle(draft: Pick<WritingDraft, "projectName">): string {
   return draft.projectName.trim() || DEFAULT_PROJECT_NAME;
+}
+
+/** updatedAt 由编辑动作刷新，不参与正文是否已保存的比较。 */
+export function writingDraftContentSignature(draft: WritingDraft): string {
+  return JSON.stringify([
+    draft.id, draft.projectName, draft.researchInterestId ?? "", draft.templateId,
+    draft.mainTex, draft.bibtex, draft.texFiles, draft.notes, draft.imageAssets,
+  ]);
+}
+
+export function isMissingWritingRuntime(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("reading 'invoke'") || message.includes("__TAURI_INTERNALS__");
+}
+
+/** 恢复未确认稿件；后端内容已分叉时保留独立副本，避免覆盖较新的资产。 */
+export function recoverWritingPendingDrafts(savedDrafts: WritingDraft[], pending: WritingPendingDraft[]) {
+  const drafts = [...savedDrafts];
+  const summary: WritingRecoverySummary = { restored: 0, conflicts: 0 };
+  let recoveredDraftId = "";
+  for (const entry of pending) {
+    const index = drafts.findIndex((draft) => draft.id === entry.draft.id);
+    const stored = drafts[index];
+    if (stored && writingDraftContentSignature(stored) === writingDraftContentSignature(entry.draft)) continue;
+    const sameBase = stored && entry.baseSignature === writingDraftContentSignature(stored);
+    const storedAt = stored ? Date.parse(stored.updatedAt) : 0;
+    const pendingAt = Date.parse(entry.draft.updatedAt);
+    const conflict = stored && (!sameBase || !Number.isFinite(pendingAt) || storedAt > pendingAt);
+    if (conflict) {
+      const copy: WritingDraft = {
+        ...entry.draft,
+        id: crypto.randomUUID(),
+        projectName: `${entry.draft.projectName}（恢复副本）`,
+      };
+      drafts.unshift(copy);
+      recoveredDraftId ||= copy.id;
+      summary.conflicts += 1;
+    } else {
+      if (stored) drafts[index] = entry.draft;
+      else drafts.unshift(entry.draft);
+      recoveredDraftId ||= entry.draft.id;
+      summary.restored += 1;
+    }
+  }
+  return { drafts, summary, recoveredDraftId };
 }
 
 /** 版本内容的本地签名，用于在 invoke 前快速判断内容是否变化（与后端 hash 去重互补）。 */

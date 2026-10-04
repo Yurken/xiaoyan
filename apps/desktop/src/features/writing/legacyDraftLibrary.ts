@@ -176,7 +176,7 @@ function loadLegacyDraft(): WritingDraft | null {
   }
 }
 
-function normalizePersistedDraft(value: unknown): WritingDraft | null {
+export function normalizePersistedDraft(value: unknown): WritingDraft | null {
   if (!isRecord(value)) return null;
   const templateId = isWritingTemplateId(value.templateId) ? value.templateId : getDefaultWritingTemplate().id;
   const template = getWritingTemplate(templateId);

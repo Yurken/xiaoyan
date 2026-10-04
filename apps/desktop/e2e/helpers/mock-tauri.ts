@@ -118,6 +118,10 @@ const MOCK_INVOKE_RESULTS = {
   submission_list_venues: { venues: [] },
   submission_stats: { active: 0, pendingReviews: 0, upcomingDdls: [] },
 
+  // Writing
+  writing_version_list: [],
+  writing_version_record: { recorded: false, reason: "unchanged" },
+
   // Skills / Memory
   skills_list: [],
   memory_list: [],
@@ -147,8 +151,23 @@ export const TAURI_MOCK_SCRIPT = `
   try { window.localStorage.setItem("rc:onboarding:quick-start-seen", "true"); } catch (e) {}
 
   const __MOCK_INVOKE_RESULTS = ${JSON.stringify(MOCK_INVOKE_RESULTS)};
+  let __MOCK_WRITING_DRAFTS = [];
 
-  function __mockInvoke(cmd) {
+  function __mockInvoke(cmd, args) {
+    if (cmd === "writing_draft_list") return __MOCK_WRITING_DRAFTS;
+    if (cmd === "writing_draft_create") {
+      const draft = JSON.parse(JSON.stringify(args.request));
+      __MOCK_WRITING_DRAFTS.push(draft);
+      return draft;
+    }
+    if (cmd === "writing_draft_update") {
+      __MOCK_WRITING_DRAFTS = __MOCK_WRITING_DRAFTS.map((draft) => draft.id === args.request.id ? args.request : draft);
+      return null;
+    }
+    if (cmd === "writing_draft_delete") {
+      __MOCK_WRITING_DRAFTS = __MOCK_WRITING_DRAFTS.filter((draft) => draft.id !== args.id);
+      return null;
+    }
     if (Object.prototype.hasOwnProperty.call(__MOCK_INVOKE_RESULTS, cmd)) {
       return __MOCK_INVOKE_RESULTS[cmd];
     }
@@ -158,7 +177,7 @@ export const TAURI_MOCK_SCRIPT = `
   }
 
   window.__TAURI_INTERNALS__ = window.__TAURI_INTERNALS__ || {};
-  window.__TAURI_INTERNALS__.invoke = async (cmd) => __mockInvoke(cmd);
+  window.__TAURI_INTERNALS__.invoke = async (cmd, args) => __mockInvoke(cmd, args);
   window.__TAURI_INTERNALS__.transformCallback = (cb) => { return cb; };
   window.__TAURI_INTERNALS__.unregisterCallback = () => {};
   // getCurrentWindow() reads metadata.currentWindow.label synchronously.
@@ -169,7 +188,7 @@ export const TAURI_MOCK_SCRIPT = `
 
   window.__TAURI__ = {
     core: {
-      invoke: async (cmd, args) => __mockInvoke(cmd),
+      invoke: async (cmd, args) => __mockInvoke(cmd, args),
     },
     event: {
       listen: async () => () => {},

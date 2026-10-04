@@ -18,6 +18,7 @@ import WritingDraftManagerModal from "./WritingDraftManagerModal";
 import WritingEditorPanel from "./WritingEditorPanel";
 import WritingExportMenu from "./WritingExportMenu";
 import WritingLatexInstallNotice from "./WritingLatexInstallNotice";
+import WritingLibraryStatus from "./WritingLibraryStatus";
 import WritingNewDraftModal from "./WritingNewDraftModal";
 import WritingPreviewPanel from "./WritingPreviewPanel";
 import WritingSidebar from "./WritingSidebar";
@@ -65,6 +66,21 @@ export default function WritingWorkspace({
     setAssistantRequest((current) => ({ actionId, nonce: (current?.nonce ?? 0) + 1, selectedText }));
   };
 
+  const libraryStatus = (
+    <WritingLibraryStatus
+      ready={workspace.libraryReady}
+      status={workspace.saveStatus}
+      error={workspace.libraryError}
+      lastSavedAt={workspace.lastSavedAt}
+      onRetryLoad={workspace.retryLoad}
+      onRetrySave={() => { void workspace.retrySave(); }}
+    />
+  );
+
+  if (!workspace.libraryReady) {
+    return <div className="flex h-full items-center justify-center p-6 text-xs text-ink-tertiary">{libraryStatus}</div>;
+  }
+
   return (
     <div className="writing-workspace-frame">
       <div className="writing-workspace flex min-h-0 flex-1 flex-col">
@@ -77,14 +93,7 @@ export default function WritingWorkspace({
             <div className="min-w-0">
               <h1 className="truncate text-lg font-bold tracking-tight text-ink-primary">论文撰写</h1>
               <div className="flex items-center gap-2 text-xs text-ink-tertiary">
-                {workspace.lastSavedAt ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" />
-                    已自动保存 {workspace.lastSavedAt.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                ) : (
-                  <span>正在准备自动保存...</span>
-                )}
+                {libraryStatus}
               </div>
             </div>
           </div>
@@ -160,6 +169,13 @@ export default function WritingWorkspace({
           >
             {workspace.error || workspace.message}
           </div>
+        )}
+
+        {(workspace.recoverySummary.restored > 0 || workspace.recoverySummary.conflicts > 0) && (
+          <p role="status" className="mt-2 text-xs text-apple-blue">
+            已恢复 {workspace.recoverySummary.restored + workspace.recoverySummary.conflicts} 篇未保存文稿。
+            {workspace.recoverySummary.conflicts > 0 && ` ${workspace.recoverySummary.conflicts} 篇文稿与后端内容冲突，已保留为“恢复副本”，请核对后再合并。`}
+          </p>
         )}
 
         {showLatexInstallNotice ? (
