@@ -1,6 +1,7 @@
 import { Check, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { HIGHLIGHT_COLORS, type HighlightColor } from "./readerTypes";
+import { useReaderNoteSave } from "./notes/useReaderNoteSave";
 import { TEXT_ANNOTATION_INPUT_WIDTH } from "./readerTextAnnotations";
 
 interface TextAnnotationInputProps {
@@ -9,8 +10,8 @@ interface TextAnnotationInputProps {
   color: HighlightColor;
   initialContent?: string;
   onColorChange?: (color: HighlightColor) => void;
-  onDelete?: () => void;
-  onSubmit: (content: string) => void;
+  onDelete?: () => void | Promise<boolean | void>;
+  onSubmit: (content: string) => void | Promise<boolean | void>;
   onCancel: () => void;
 }
 
@@ -27,6 +28,7 @@ export default function TextAnnotationInput({
   onSubmit,
   onCancel,
 }: TextAnnotationInputProps) {
+  const { saving, status, save } = useReaderNoteSave();
   const [content, setContent] = useState(initialContent);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -36,12 +38,14 @@ export default function TextAnnotationInput({
 
   const submit = () => {
     const value = content.trim();
-    if (value) onSubmit(value);
+    if (value) void save(() => onSubmit(value));
     else onCancel();
   };
 
   return (
-    <div
+    <fieldset
+      disabled={saving}
+      aria-busy={saving}
       className="absolute z-[7] rounded-md border p-1"
       style={{
         left: `${x * 100}%`,
@@ -58,7 +62,7 @@ export default function TextAnnotationInput({
         value={content}
         onChange={(event) => setContent(event.target.value)}
         onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+          if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !event.nativeEvent.isComposing) {
             event.preventDefault();
             submit();
           }
@@ -88,7 +92,7 @@ export default function TextAnnotationInput({
         {onDelete ? (
           <button
             type="button"
-            onClick={onDelete}
+            onClick={() => { void save(() => onDelete?.()); }}
             className="ml-auto flex h-5 w-5 items-center justify-center rounded text-apple-red hover:bg-apple-red/10"
             title="删除文字"
           >
@@ -113,6 +117,7 @@ export default function TextAnnotationInput({
           <Check className="h-3 w-3" />
         </button>
       </div>
-    </div>
+      {(saving || status) ? <p role="status" className="px-1 text-xs text-ink-secondary">{saving ? "正在保存…" : status}</p> : null}
+    </fieldset>
   );
 }

@@ -23,16 +23,18 @@ export function useReaderNotesSession(paperId: string | undefined) {
     return () => { if (session.notify === notify) session.notify = null; };
   }, [session]);
 
-  const run = useCallback((task: () => Promise<void>, failureMessage: string): Promise<void> => {
-    if (!session.paperId) return Promise.resolve();
+  const run = useCallback((task: () => Promise<void>, failureMessage: string): Promise<boolean> => {
+    if (!session.paperId) return Promise.resolve(false);
     const paperId = session.paperId;
     const previous = persistenceTails.get(paperId) ?? Promise.resolve();
     const next = previous.then(async () => {
       try {
         await task();
         session.error = "";
+        return true;
       } catch (error) {
         session.error = error instanceof Error ? error.message : failureMessage;
+        return false;
       } finally {
         session.notify?.();
       }

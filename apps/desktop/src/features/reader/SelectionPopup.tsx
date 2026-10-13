@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useReaderNoteSave } from "./notes/useReaderNoteSave";
 import {
   Ban,
   BookMarked,
@@ -29,13 +30,13 @@ interface SelectionPopupProps {
   /** 编辑形状时为 true：颜色点表示边框色，并额外显示填充选择。 */
   isShape?: boolean;
   initialFill?: HighlightColor | null;
-  onAnnotate?: (color: HighlightColor, style: AnnotationStyle, note?: string) => void;
+  onAnnotate?: (color: HighlightColor, style: AnnotationStyle, note?: string) => void | Promise<boolean | void>;
   onSaveCorpus?: (note?: string) => void;
   onRecolor?: (color: HighlightColor) => void;
   onRecolorFill?: (fill: HighlightColor | null) => void;
-  onUpdateNote?: (content: string) => void;
+  onUpdateNote?: (content: string) => void | Promise<boolean | void>;
   noteContent?: string;
-  onDelete?: () => void;
+  onDelete?: () => void | Promise<boolean | void>;
   onTranslate: () => void;
   onInterpret?: () => void;
   onClose: () => void;
@@ -64,6 +65,7 @@ export default function SelectionPopup({
   onInterpret,
   onClose,
 }: SelectionPopupProps) {
+  const { saving, status, save } = useReaderNoteSave();
   const isEdit = mode === "edit";
   const [activeColor, setActiveColor] = useState<HighlightColor>(initialColor);
   const [activeFill, setActiveFill] = useState<HighlightColor | null>(initialFill);
@@ -89,9 +91,9 @@ export default function SelectionPopup({
 
   const createActions: Array<{ key: string; icon: typeof Copy; label: string; onClick: () => void; active?: boolean }> = [
     { key: "copy", icon: copied ? Check : Copy, label: copied ? "已复制" : "复制", onClick: () => void copy() },
-    { key: "highlight", icon: Highlighter, label: "高亮", onClick: () => onAnnotate?.(activeColor, "highlight") },
-    { key: "underline", icon: Underline, label: "下划线", onClick: () => onAnnotate?.(activeColor, "underline") },
-    { key: "strike", icon: Strikethrough, label: "删除线", onClick: () => onAnnotate?.(activeColor, "strike") },
+    { key: "highlight", icon: Highlighter, label: "高亮", onClick: () => { void save(() => onAnnotate?.(activeColor, "highlight")); } },
+    { key: "underline", icon: Underline, label: "下划线", onClick: () => { void save(() => onAnnotate?.(activeColor, "underline")); } },
+    { key: "strike", icon: Strikethrough, label: "删除线", onClick: () => { void save(() => onAnnotate?.(activeColor, "strike")); } },
     { key: "note", icon: StickyNote, label: "笔记", onClick: () => setPanel((p) => (p === "note" ? "none" : "note")), active: panel === "note" },
     { key: "corpus", icon: BookMarked, label: "语料", onClick: () => setPanel((p) => (p === "corpus" ? "none" : "corpus")), active: panel === "corpus" },
     { key: "interpret", icon: Sparkles, label: "解读", onClick: () => onInterpret?.() },
@@ -101,7 +103,7 @@ export default function SelectionPopup({
   const editActions: Array<{ key: string; icon: typeof Copy; label: string; onClick: () => void; danger?: boolean }> = [
     { key: "copy", icon: copied ? Check : Copy, label: copied ? "已复制" : "复制", onClick: () => void copy() },
     { key: "translate", icon: Languages, label: "翻译", onClick: onTranslate },
-    { key: "delete", icon: Trash2, label: "删除", onClick: () => onDelete?.(), danger: true },
+    { key: "delete", icon: Trash2, label: "删除", onClick: () => { void save(() => onDelete?.()); }, danger: true },
   ];
 
   return (
@@ -113,7 +115,9 @@ export default function SelectionPopup({
       }}
       onMouseDown={(event) => event.stopPropagation()}
     >
-      <div
+      <fieldset
+        disabled={saving}
+        aria-busy={saving}
         className="w-[380px] rounded-xl border p-2 shadow-2xl"
         style={{ background: "var(--rc-card-bg)", borderColor: "var(--rc-border)", boxShadow: "0 12px 36px rgba(15,23,42,0.22)" }}
       >
@@ -205,6 +209,12 @@ export default function SelectionPopup({
               value={noteText}
               onChange={(event) => setNoteText(event.target.value)}
               placeholder={panel === "note" ? "写下你的批注想法…（可留空）" : "给这条语料加点备注…（可留空）"}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  if (panel === "note") void save(() => onAnnotate?.(activeColor, "highlight", noteText.trim()));
+                }
+              }}
               rows={2}
               autoFocus
               className="rc-selectable w-full resize-none rounded-lg border px-2.5 py-1.5 text-xs leading-5 text-ink-primary outline-none"
@@ -214,7 +224,7 @@ export default function SelectionPopup({
               type="button"
               onClick={() => {
                 if (panel === "note") {
-                  onAnnotate?.(activeColor, "highlight", noteText.trim());
+                  void save(() => onAnnotate?.(activeColor, "highlight", noteText.trim()));
                 } else {
                   onSaveCorpus?.(noteText.trim() || undefined);
                 }
@@ -234,6 +244,12 @@ export default function SelectionPopup({
               value={editNoteText}
               onChange={(event) => setEditNoteText(event.target.value)}
               placeholder="写下你的批注想法…（可留空）"
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  void save(() => onUpdateNote?.(editNoteText.trim()));
+                }
+              }}
               rows={2}
               autoFocus
               className="rc-selectable w-full resize-none rounded-lg border px-2.5 py-1.5 text-xs leading-5 text-ink-primary outline-none"
@@ -241,7 +257,7 @@ export default function SelectionPopup({
             />
             <button
               type="button"
-              onClick={() => onUpdateNote?.(editNoteText.trim())}
+              onClick={() => { void save(() => onUpdateNote?.(editNoteText.trim())); }}
               className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold text-white"
               style={{ background: "var(--rc-accent)" }}
             >
@@ -250,7 +266,8 @@ export default function SelectionPopup({
             </button>
           </div>
         ) : null}
-      </div>
+        {(saving || status) ? <p role="status" className="mt-2 px-1 text-xs text-ink-secondary">{saving ? "正在保存…" : status}</p> : null}
+      </fieldset>
     </div>
   );
 }

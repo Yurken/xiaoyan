@@ -1,34 +1,18 @@
 import "./text-layer.css";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import * as pdfjsLib from "pdfjs-dist";
-import type { PDFDocumentProxy, RenderTask, TextLayer } from "pdfjs-dist";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 import {
-  boundingRect,
-  HIGHLIGHT_COLORS,
-  isShapeStyle,
-  isTextStyle,
-  mergeNormalizedRects,
-  SHAPE_BORDER_RADIUS,
-  type HighlightColor,
-  type NormalizedRect,
-  type PaperNote,
-  type ReaderImageSelection,
-  type ReaderSelection,
-  type ShapeStyle,
+  type HighlightColor, type NormalizedRect, type PaperNote,
+  type ReaderImageSelection, type ReaderSelection, type ShapeStyle,
 } from "./readerTypes";
-import PdfTextAnnotationLayer from "./PdfTextAnnotationLayer";
 import { useDevicePixelRatio } from "./useDevicePixelRatio";
 import { usePdfTextSelection } from "./usePdfTextSelection";
-import { usePdfAreaSelection } from "./usePdfAreaSelection";
+import { usePdfZoomAnchor } from "./usePdfZoomAnchor";
 import { usePdfViewportProgress } from "./usePdfViewportProgress";
-import { registerTextLayer } from "./textLayerSelection";
-import { useLineHighlightInteraction } from "./useLineHighlightInteraction";
-import { openLink } from "../../lib/links";
 
-const MAX_CANVAS_SIDE = 4096;
-const MAX_CANVAS_PIXELS = 12_000_000;
-const MIN_CANVAS_OUTPUT_SCALE = 2;
-const MAX_CANVAS_OUTPUT_SCALE = 2;
+import PdfPage from "./PdfPage";
+import { getPdfRenderQueue } from "./pdfRenderQueue";
+import { usePdfPageWindow } from "./usePdfPageWindow";
 
 interface PdfReaderViewerProps {
   pdfDoc: PDFDocumentProxy;
@@ -52,9 +36,9 @@ interface PdfReaderViewerProps {
   drawColor?: HighlightColor;
   drawFill?: HighlightColor | null;
   onShapeDrawn?: (page: number, rect: NormalizedRect) => void;
-  onTextDrawn?: (page: number, rect: NormalizedRect, content: string) => void;
-  onTextUpdate?: (note: PaperNote, content: string) => void;
-  onTextDelete?: (note: PaperNote) => void;
+  onTextDrawn?: (page: number, rect: NormalizedRect, content: string) => void | Promise<boolean | void>;
+  onTextUpdate?: (note: PaperNote, content: string) => void | Promise<boolean | void>;
+  onTextDelete?: (note: PaperNote) => void | Promise<boolean | void>;
   onTextColorChange?: (note: PaperNote, color: HighlightColor) => void;
   /** 拖动已有形状或文字批注到新位置。 */
   onAnnotationMove?: (note: PaperNote, rect: NormalizedRect) => void;
@@ -71,7 +55,8 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
-    const [renderedPages, setRenderedPages] = useState<Set<number>>(new Set());
+    const renderQueue = useMemo(() => getPdfRenderQueue(pdfDoc), [pdfDoc]);
+    const { activePages, retainedPages } = usePdfPageWindow(pdfDoc, containerRef, pageRefs, initialPage);
     const [linkMode, setLinkMode] = useState(false);
     const devicePixelRatio = useDevicePixelRatio();
     const numPages = pdfDoc.numPages;
@@ -86,11 +71,6 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
       }
       return map;
     }, [notes]);
-
-    // 文档实例由页面级 hook 统一加载；切换文档时仅重置视图状态。
-    useEffect(() => {
-      setRenderedPages(new Set());
-    }, [pdfDoc]);
 
     const scrollToPage = useCallback((page: number) => {
       const el = pageRefs.current[page - 1];
@@ -108,18 +88,7 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 
     usePdfViewportProgress({ containerRef, pageRefs, numPages, initialPage, onProgressChange });
 
-    // Cmd（mac）/ Ctrl（win）+ 滚轮缩放。必须用非 passive 原生监听才能 preventDefault。
-    useEffect(() => {
-      const container = containerRef.current;
-      if (!container) return;
-      const onWheel = (event: WheelEvent) => {
-        if (!event.ctrlKey && !event.metaKey) return;
-        event.preventDefault();
-        onZoom(Math.exp(-event.deltaY * 0.0015));
-      };
-      container.addEventListener("wheel", onWheel, { passive: false });
-      return () => container.removeEventListener("wheel", onWheel);
-    }, [onZoom, pdfDoc]);
+    usePdfZoomAnchor({ containerRef, pageRefs, scale, documentKey: pdfDoc, onZoom });
 
     // 按住 Cmd/Ctrl 时进入「超链接模式」：链接层接管点击，松开恢复划词选择。
     useEffect(() => {
@@ -137,29 +106,6 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
       };
     }, []);
 
-    // 懒渲染：只让视口附近页面参与重绘；离开视口的页面保留旧图，缩放时不抢主线程。
-    useEffect(() => {
-      const container = containerRef.current;
-      if (!container || numPages === 0) return;
-      const io = new IntersectionObserver(
-        (entries) => {
-          setRenderedPages((prev) => {
-            const next = new Set(prev);
-            entries.forEach((entry) => {
-              const pageNum = parseInt((entry.target as HTMLElement).getAttribute("data-page-num") || "0", 10);
-              if (pageNum <= 0) return;
-              if (entry.isIntersecting) next.add(pageNum);
-              else next.delete(pageNum);
-            });
-            return next;
-          });
-        },
-        { root: container, rootMargin: "600px 0px" },
-      );
-      pageRefs.current.forEach((el) => el && io.observe(el));
-      return () => io.disconnect();
-    }, [numPages, pdfDoc]);
-
     return (
       <div
         ref={containerRef}
@@ -174,7 +120,16 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
             renderScale={renderScale}
             readingAreaSelectionEnabled={readingAreaSelectionEnabled}
             devicePixelRatio={devicePixelRatio}
-            shouldRender={renderedPages.has(pageNum) || (renderedPages.size === 0 && pageNum <= 4)}
+            shouldRender={activePages.has(pageNum)}
+            retainResources={retainedPages.has(pageNum)}
+            renderQueue={renderQueue}
+            renderPriority={() => {
+              const page = pageRefs.current[pageNum - 1]?.getBoundingClientRect();
+              const viewport = containerRef.current?.getBoundingClientRect();
+              if (!page || !viewport) return pageNum;
+              const visible = page.bottom > viewport.top && page.top < viewport.bottom;
+              return (visible ? 0 : 1_000_000) + Math.abs((page.top + page.bottom - viewport.top - viewport.bottom) / 2);
+            }}
             pageNotes={notesByPage.get(pageNum) ?? []}
             onNoteClick={onNoteClick}
             onScrollToPage={scrollToPage}
@@ -201,566 +156,3 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 );
 
 export default PdfReaderViewer;
-
-function resolveCanvasOutputScale(viewport: { width: number; height: number }, devicePixelRatio: number) {
-  // WKWebView 首屏偶尔长期把 DPR 报成 1；PDF 是矢量内容，至少 2x 超采样才能避免文字发虚。
-  const preferredScale = Math.min(
-    MAX_CANVAS_OUTPUT_SCALE,
-    Math.max(MIN_CANVAS_OUTPUT_SCALE, devicePixelRatio || 1),
-  );
-  const maxSideScale = Math.min(MAX_CANVAS_SIDE / viewport.width, MAX_CANVAS_SIDE / viewport.height);
-  const maxAreaScale = Math.sqrt(MAX_CANVAS_PIXELS / Math.max(1, viewport.width * viewport.height));
-  return Math.max(1, Math.min(preferredScale, maxSideScale, maxAreaScale));
-}
-
-function isRenderingCancelled(error: unknown) {
-  return error instanceof Error && error.name === "RenderingCancelledException";
-}
-
-interface PdfLink {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  url?: string;
-  dest?: unknown;
-}
-
-interface PdfPageProps {
-  pageNum: number;
-  pdfDoc: PDFDocumentProxy;
-  scale: number;
-  renderScale: number;
-  readingAreaSelectionEnabled: boolean;
-  devicePixelRatio: number;
-  shouldRender: boolean;
-  pageNotes: PaperNote[];
-  onNoteClick: (note: PaperNote, point: { x: number; y: number }) => void;
-  onScrollToPage: (page: number) => void;
-  onAreaSelected?: (selection: ReaderImageSelection) => void;
-  onAreaSelectError?: (message: string) => void;
-  drawShape?: ShapeStyle | null;
-  drawText: boolean;
-  drawColor?: HighlightColor;
-  drawFill?: HighlightColor | null;
-  onShapeDrawn?: (page: number, rect: NormalizedRect) => void;
-  onTextDrawn?: (page: number, rect: NormalizedRect, content: string) => void;
-  onTextUpdate?: (note: PaperNote, content: string) => void;
-  onTextDelete?: (note: PaperNote) => void;
-  onTextColorChange?: (note: PaperNote, color: HighlightColor) => void;
-  onAnnotationMove?: (note: PaperNote, rect: NormalizedRect) => void;
-}
-
-const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
-  { pageNum, pdfDoc, scale, renderScale, readingAreaSelectionEnabled, devicePixelRatio, shouldRender, pageNotes, onNoteClick, onScrollToPage, onAreaSelected, onAreaSelectError, drawShape, drawText, drawColor, drawFill, onShapeDrawn, onTextDrawn, onTextUpdate, onTextDelete, onTextColorChange, onAnnotationMove },
-  ref,
-) {
-  const imageRef = useRef<HTMLImageElement>(null);
-  const textLayerRef = useRef<HTMLDivElement>(null);
-  const drawLayerRef = useRef<HTMLDivElement>(null);
-  const [draftRect, setDraftRect] = useState<NormalizedRect | null>(null);
-  const [movingShape, setMovingShape] = useState<{ id: string; rect: NormalizedRect } | null>(null);
-  const [pageSize, setPageSize] = useState<{ w: number; h: number } | null>(null);
-  const [renderedScale, setRenderedScale] = useState(renderScale);
-  const [imgSrc, setImgSrc] = useState<string | null>(null);
-  const [links, setLinks] = useState<PdfLink[]>([]);
-  const renderedSignatureRef = useRef<string | null>(null);
-  const objectUrlRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    renderedSignatureRef.current = null;
-    setPageSize(null);
-    setImgSrc(null);
-    setLinks([]);
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    }
-  }, [pdfDoc, pageNum]);
-
-  // 组件卸载时回收最后一张位图 URL。
-  useEffect(
-    () => () => {
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!shouldRender) return;
-
-    let cancelled = false;
-    let renderTask: RenderTask | null = null;
-    let textLayer: TextLayer | null = null;
-    let unregisterTextLayer: (() => void) | null = null;
-
-    // 延后到下一帧再渲染，进一步避开 WebView 首屏 DPR 抖动。
-    const raf = requestAnimationFrame(() => {
-      (async () => {
-        try {
-          const page = await pdfDoc.getPage(pageNum);
-          if (cancelled) return;
-          const viewport = page.getViewport({ scale: renderScale });
-
-          const actualDpr = window.devicePixelRatio || devicePixelRatio || 1;
-          const outputScale = resolveCanvasOutputScale(viewport, actualDpr);
-
-          const cssWidth = Math.round(viewport.width);
-          const cssHeight = Math.round(viewport.height);
-          const pixelWidth = Math.round(cssWidth * outputScale);
-          const pixelHeight = Math.round(cssHeight * outputScale);
-
-          const renderSignature = [
-            renderScale,
-            outputScale,
-            actualDpr,
-            cssWidth,
-            cssHeight,
-            pixelWidth,
-            pixelHeight,
-          ].join(":");
-
-          if (renderedSignatureRef.current === renderSignature) {
-            return;
-          }
-
-          // 离屏渲染到 buffer，再导出成位图用 <img> 显示。
-          // WKWebView 会把 live <canvas> 合成层按首屏 DPR（常误报为 1）栅格化 → 前几页发虚；
-          // <img> 则按图片自身的自然分辨率（这里是 2x）合成，首帧即清晰，无需 settle/图层重建补丁。
-          const buffer = document.createElement("canvas");
-          buffer.width = pixelWidth;
-          buffer.height = pixelHeight;
-          const bufferCtx = buffer.getContext("2d", { alpha: false });
-          if (!bufferCtx) return;
-          bufferCtx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
-
-          renderTask = page.render({
-            canvasContext: bufferCtx,
-            viewport,
-            canvas: buffer,
-            background: "white",
-          });
-          await renderTask.promise;
-          if (cancelled) return;
-
-          const blob = await new Promise<Blob | null>((resolve) => buffer.toBlob(resolve, "image/png"));
-          if (cancelled || !blob) return;
-          const url = URL.createObjectURL(blob);
-          // 替换旧图前回收上一张的 objectURL，避免内存泄漏。
-          if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-          objectUrlRef.current = url;
-
-          // 渲染成功后才锁定签名、提交位图与页面尺寸，保证“清晰就绪”后整页一次性出现。
-          renderedSignatureRef.current = renderSignature;
-          setImgSrc(url);
-          setPageSize({ w: cssWidth, h: cssHeight });
-          setRenderedScale(renderScale);
-
-          // 文本层（划词选择/批注/翻译依赖它）尽力渲染，失败不影响画布显示。
-          try {
-            const textLayerDiv = textLayerRef.current;
-            if (textLayerDiv) {
-              // 先清空旧的文本层，避免重复渲染导致选区重影（两层 span 叠加）。
-              textLayerDiv.replaceChildren();
-              const textContent = await page.getTextContent();
-              if (cancelled) {
-                textLayerDiv.replaceChildren();
-                return;
-              }
-              pdfjsLib.setLayerDimensions(textLayerDiv, viewport);
-              textLayer = new pdfjsLib.TextLayer({ textContentSource: textContent, container: textLayerDiv, viewport });
-              await textLayer.render();
-              if (cancelled) {
-                textLayer.cancel?.();
-                textLayerDiv.replaceChildren();
-                return;
-              }
-              // pdfjs-dist v5 的文本 span 不一定带 role 属性，这里兜底全部 span。
-              textLayerDiv.querySelectorAll("span").forEach((span) => {
-                const el = span as HTMLElement;
-                el.style.userSelect = "text";
-                el.style.webkitUserSelect = "text";
-                el.style.cursor = "text";
-              });
-              // 挂上 endOfContent 选区管理，消除选词（公式/跨段落）抖动。
-              unregisterTextLayer = registerTextLayer(textLayerDiv);
-            }
-          } catch (textErr) {
-            if (cancelled || isRenderingCancelled(textErr)) return;
-            console.error(`[PdfReaderViewer] 第 ${pageNum} 页文本层渲染失败`, textErr);
-          }
-
-          // 超链接层：解析页面注释里的 Link，换算成当前缩放下的 CSS 坐标。
-          try {
-            const annotations = await page.getAnnotations();
-            if (cancelled) return;
-            const linkRects: PdfLink[] = [];
-            for (const annotation of annotations) {
-              if (annotation.subtype !== "Link" || (!annotation.url && annotation.dest == null)) continue;
-              const [x1, y1, x2, y2] = viewport.convertToViewportRectangle(annotation.rect);
-              linkRects.push({
-                left: Math.min(x1, x2),
-                top: Math.min(y1, y2),
-                width: Math.abs(x2 - x1),
-                height: Math.abs(y2 - y1),
-                url: annotation.url,
-                dest: annotation.dest,
-              });
-            }
-            setLinks(linkRects);
-          } catch (annotErr) {
-            if (cancelled || isRenderingCancelled(annotErr)) return;
-            console.error(`[PdfReaderViewer] 第 ${pageNum} 页超链接解析失败`, annotErr);
-          }
-        } catch (err) {
-          if (cancelled || isRenderingCancelled(err)) return;
-          console.error(`[PdfReaderViewer] 第 ${pageNum} 页渲染失败`, err);
-        }
-      })();
-    });
-
-    return () => {
-      cancelled = true;
-      try {
-        renderTask?.cancel();
-        textLayer?.cancel();
-        unregisterTextLayer?.();
-      } catch {
-        // ignore cancelled task cleanup errors
-      }
-      cancelAnimationFrame(raf);
-    };
-  }, [shouldRender, pdfDoc, pageNum, renderScale, devicePixelRatio]);
-
-  const handleLinkClick = useCallback(
-    async (event: React.MouseEvent, link: PdfLink) => {
-      // 仅在按住 Cmd/Ctrl 时跳转，避免影响普通划词选择。
-      if (!event.metaKey && !event.ctrlKey) return;
-      event.preventDefault();
-      event.stopPropagation();
-      if (link.url) {
-        await openLink(link.url);
-        return;
-      }
-      if (link.dest == null) return;
-      try {
-        const explicit = typeof link.dest === "string" ? await pdfDoc.getDestination(link.dest) : link.dest;
-        const ref = Array.isArray(explicit) ? explicit[0] : null;
-        if (ref) {
-          const pageIndex = await pdfDoc.getPageIndex(ref);
-          onScrollToPage(pageIndex + 1);
-        }
-      } catch (err) {
-        console.error("[PdfReaderViewer] 内部链接跳转失败", err);
-      }
-    },
-    [pdfDoc, onScrollToPage],
-  );
-
-  // 形状绘制：在页面上按下并拖拽，松手得到一个归一化矩形 → 新建形状批注。
-  const startDraw = useCallback(
-    (event: React.MouseEvent) => {
-      if (!drawShape || !onShapeDrawn) return;
-      const layer = drawLayerRef.current;
-      if (!layer) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const bounds = layer.getBoundingClientRect();
-      if (bounds.width === 0 || bounds.height === 0) return;
-      const toPoint = (clientX: number, clientY: number) => ({
-        x: Math.min(1, Math.max(0, (clientX - bounds.left) / bounds.width)),
-        y: Math.min(1, Math.max(0, (clientY - bounds.top) / bounds.height)),
-      });
-      const start = toPoint(event.clientX, event.clientY);
-      const rectFrom = (cur: { x: number; y: number }): NormalizedRect => ({
-        x: Math.min(start.x, cur.x),
-        y: Math.min(start.y, cur.y),
-        w: Math.abs(cur.x - start.x),
-        h: Math.abs(cur.y - start.y),
-      });
-      setDraftRect({ x: start.x, y: start.y, w: 0, h: 0 });
-
-      const onMove = (e: MouseEvent) => setDraftRect(rectFrom(toPoint(e.clientX, e.clientY)));
-      const onUp = (e: MouseEvent) => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-        const rect = rectFrom(toPoint(e.clientX, e.clientY));
-        setDraftRect(null);
-        if (rect.w > 0.01 && rect.h > 0.01) onShapeDrawn(pageNum, rect); // 太小视为误触
-      };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-    },
-    [drawShape, onShapeDrawn, pageNum],
-  );
-
-  // 形状批注：按住拖动改位置；没怎么动（视为点击）则打开编辑浮层。
-  const startShapeMove = useCallback(
-    (event: React.MouseEvent, note: PaperNote, box: NormalizedRect) => {
-      event.stopPropagation();
-      event.preventDefault(); // 拖动时不要触发原生文字选择
-      if (!pageSize) return;
-      const startX = event.clientX;
-      const startY = event.clientY;
-      const elRect = event.currentTarget.getBoundingClientRect();
-      const pageRect = (event.currentTarget.closest("[data-page-num]") as HTMLElement | null)?.getBoundingClientRect();
-      if (!pageRect || pageRect.width === 0 || pageRect.height === 0) return;
-      let moved = false;
-      const rectAt = (clientX: number, clientY: number): NormalizedRect => ({
-        x: Math.min(1 - box.w, Math.max(0, box.x + (clientX - startX) / pageRect.width)),
-        y: Math.min(1 - box.h, Math.max(0, box.y + (clientY - startY) / pageRect.height)),
-        w: box.w,
-        h: box.h,
-      });
-      const onMove = (e: MouseEvent) => {
-        if (Math.abs(e.clientX - startX) > 3 || Math.abs(e.clientY - startY) > 3) moved = true;
-        setMovingShape({ id: note.id, rect: rectAt(e.clientX, e.clientY) });
-      };
-      const onUp = (e: MouseEvent) => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-        setMovingShape(null);
-        if (moved) onAnnotationMove?.(note, rectAt(e.clientX, e.clientY));
-        else onNoteClick(note, { x: elRect.left + elRect.width / 2, y: elRect.top });
-      };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-    },
-    [pageSize, onAnnotationMove, onNoteClick],
-  );
-
-  const {
-    hoveredNote,
-    showNoteHover,
-    scheduleHoverClear,
-    handlePageClick,
-    handlePageMouseMove,
-    handlePageMouseLeave,
-  } = useLineHighlightInteraction({ pageNotes, pageSize, onNoteClick });
-  const { draftRect: areaDraftRect, startAreaSelection } = usePdfAreaSelection({
-    enabled: readingAreaSelectionEnabled,
-    page: pageNum,
-    pageSize,
-    imageRef,
-    onAreaSelected,
-    onError: onAreaSelectError,
-    requireAltKey: true,
-  });
-
-  const visualScaleRatio = renderedScale > 0 ? scale / renderedScale : 1;
-  const containerStyle: React.CSSProperties = pageSize
-    ? ({
-        width: pageSize.w * visualScaleRatio,
-        height: pageSize.h * visualScaleRatio,
-      } as React.CSSProperties)
-    : { minHeight: 400, width: "100%" };
-  const renderLayerStyle: React.CSSProperties = pageSize
-    ? ({
-        width: pageSize.w,
-        height: pageSize.h,
-        transform: visualScaleRatio === 1 ? undefined : `scale(${visualScaleRatio})`,
-        transformOrigin: "0 0",
-        "--scale-factor": renderedScale,
-        "--user-unit": 1,
-        "--total-scale-factor": `calc(${renderedScale} * var(--user-unit))`,
-        "--scale-round-x": "1px",
-        "--scale-round-y": "1px",
-      } as React.CSSProperties)
-    : {};
-
-  return (
-    <div
-      ref={ref}
-      data-page-num={pageNum}
-      className="rc-selectable relative mx-auto select-text"
-      style={{ ...containerStyle, background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", borderRadius: 4 }}
-      onClick={handlePageClick}
-      onMouseMove={handlePageMouseMove}
-      onMouseLeave={handlePageMouseLeave}
-      onMouseDownCapture={readingAreaSelectionEnabled ? startAreaSelection : undefined}
-    >
-      <div className="absolute left-0 top-0 origin-top-left" style={renderLayerStyle}>
-        {imgSrc ? (
-          <img
-            ref={imageRef}
-            src={imgSrc}
-            alt=""
-            draggable={false}
-            className="pointer-events-none absolute left-0 top-0 block"
-            style={pageSize ? { width: pageSize.w, height: pageSize.h } : undefined}
-          />
-        ) : null}
-        <div
-          ref={textLayerRef}
-          className="textLayer rc-selectable absolute left-0 top-0"
-          style={{ zIndex: 1, width: pageSize?.w, height: pageSize?.h }}
-        />
-
-        {pageSize
-          ? pageNotes.map((note) => {
-            const color = HIGHLIGHT_COLORS[note.highlight_color];
-
-            // 形状：整段套一个外框（矩形/圆角/椭圆）。
-            if (isShapeStyle(note.style)) {
-              const stored = boundingRect(note.highlight_positions ?? []);
-              const box = movingShape?.id === note.id ? movingShape.rect : stored;
-              if (!box) return null;
-              const pad = 3; // 略微外扩，避免框线压住文字
-              const shapeStyle: React.CSSProperties = {
-                left: box.x * pageSize.w - pad,
-                top: box.y * pageSize.h - pad,
-                width: box.w * pageSize.w + pad * 2,
-                height: box.h * pageSize.h + pad * 2,
-                border: `2px solid ${color.border}`,
-                borderRadius: SHAPE_BORDER_RADIUS[note.style],
-                background: note.fill_color ? HIGHLIGHT_COLORS[note.fill_color].bg : "transparent",
-                zIndex: 2,
-                cursor: "move",
-              };
-              return (
-                <div
-                  key={note.id}
-                  className="pdf-highlight-overlay absolute"
-                  style={shapeStyle}
-                  title={note.content?.trim() ? undefined : "拖拽移动 · 点击编辑"}
-                  onMouseEnter={(event) => {
-                    showNoteHover(note, event.currentTarget.offsetLeft, event.currentTarget.offsetTop);
-                  }}
-                  onMouseLeave={scheduleHoverClear}
-                  onMouseDown={(event) => startShapeMove(event, note, stored ?? box)}
-                />
-              );
-            }
-
-            if (isTextStyle(note.style)) {
-              return null;
-            }
-
-            const positions = mergeNormalizedRects(note.highlight_positions ?? []);
-            if (positions.length === 0) return null;
-            return positions.map((pos, i) => {
-              const style: React.CSSProperties = {
-                left: pos.x * pageSize.w,
-                top: pos.y * pageSize.h,
-                width: pos.w * pageSize.w,
-                height: pos.h * pageSize.h,
-                zIndex: 2,
-                cursor: "pointer",
-              };
-              if (note.style === "underline") {
-                style.borderBottom = `2px solid ${color.border}`;
-              } else if (note.style === "strike") {
-                style.background = `linear-gradient(to bottom, transparent calc(50% - 1px), ${color.border} calc(50% - 1px), ${color.border} calc(50% + 1px), transparent calc(50% + 1px))`;
-              } else {
-                style.background = color.bg;
-                style.borderRadius = 2;
-              }
-              return (
-                <div
-                  key={`${note.id}-${i}`}
-                  className="pdf-highlight-overlay pdf-text-highlight-overlay absolute"
-                  style={style}
-                />
-              );
-            });
-          })
-          : null}
-
-        {pageSize
-          ? links.map((link, i) => (
-            <div
-              key={`link-${i}`}
-              className="pdf-link-overlay absolute"
-              style={{ left: link.left, top: link.top, width: link.width, height: link.height, zIndex: 3 }}
-              title={link.url ?? "按住 Cmd/Ctrl 点击跳转"}
-              onClick={(event) => void handleLinkClick(event, link)}
-            />
-          ))
-          : null}
-
-        {hoveredNote ? (
-          <div
-            className="pointer-events-none absolute z-10 max-w-xs rounded-lg border px-3 py-2 text-xs leading-5"
-            style={{
-              left: hoveredNote.x,
-              top: hoveredNote.y,
-              transform: "translateY(-100%)",
-              background: "var(--rc-card-bg)",
-              borderColor: "var(--rc-border)",
-              color: "var(--rc-text)",
-              boxShadow: "var(--rc-card-shadow)",
-            }}
-          >
-            {hoveredNote.note.content}
-          </div>
-        ) : null}
-
-        {pageSize ? (
-          <PdfTextAnnotationLayer
-            page={pageNum}
-            pageSize={pageSize}
-            notes={pageNotes}
-            enabled={drawText}
-            color={drawColor}
-            onCreate={onTextDrawn}
-            onUpdate={onTextUpdate}
-            onDelete={onTextDelete}
-            onColorChange={onTextColorChange}
-            onMove={onAnnotationMove}
-          />
-        ) : null}
-
-        {pageSize && drawShape ? (
-          <div
-            ref={drawLayerRef}
-            className="absolute left-0 top-0"
-            style={{ width: pageSize.w, height: pageSize.h, zIndex: 5, cursor: "crosshair" }}
-            onMouseDown={startDraw}
-          >
-            {draftRect ? (
-              <div
-                className="pointer-events-none absolute"
-                style={{
-                  left: draftRect.x * pageSize.w,
-                  top: draftRect.y * pageSize.h,
-                  width: draftRect.w * pageSize.w,
-                  height: draftRect.h * pageSize.h,
-                  border: `2px solid ${(drawColor ? HIGHLIGHT_COLORS[drawColor] : HIGHLIGHT_COLORS.yellow).border}`,
-                  borderRadius: SHAPE_BORDER_RADIUS[drawShape],
-                  background: drawFill ? HIGHLIGHT_COLORS[drawFill].bg : "transparent",
-                }}
-              />
-            ) : null}
-          </div>
-        ) : null}
-
-        {pageSize && areaDraftRect ? (
-          <div
-            className="pointer-events-none absolute left-0 top-0"
-            style={{ width: pageSize.w, height: pageSize.h, zIndex: 6 }}
-          >
-            <div
-              className="absolute rounded-sm border-2"
-              style={{
-                left: areaDraftRect.x * pageSize.w,
-                top: areaDraftRect.y * pageSize.h,
-                width: areaDraftRect.w * pageSize.w,
-                height: areaDraftRect.h * pageSize.h,
-                borderColor: "var(--rc-accent)",
-                background: "rgba(0, 122, 255, 0.12)",
-                boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.12)",
-              }}
-            />
-          </div>
-        ) : null}
-      </div>
-
-      <div
-        className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px]"
-        style={{ background: "rgba(0,0,0,0.05)", color: "rgba(0,0,0,0.35)", zIndex: 4 }}
-      >
-        {pageNum}
-      </div>
-    </div>
-  );
-});

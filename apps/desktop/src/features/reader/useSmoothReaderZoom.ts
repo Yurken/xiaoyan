@@ -17,16 +17,23 @@ export function useSmoothReaderZoom(initialScale = 1.4) {
   const [scale, setVisualScale] = useState(initialScale);
   const [renderScale, setRenderScale] = useState(initialScale);
   const scaleRef = useRef(initialScale);
+  const visualFrameRef = useRef<number | null>(null);
   const renderTimerRef = useRef<number | null>(null);
 
   const clearRenderTimer = useCallback(() => {
-    if (renderTimerRef.current) {
+    if (renderTimerRef.current !== null) {
       window.clearTimeout(renderTimerRef.current);
       renderTimerRef.current = null;
     }
   }, []);
 
-  useEffect(() => clearRenderTimer, [clearRenderTimer]);
+  const cancelPending = useCallback(() => {
+    clearRenderTimer();
+    if (visualFrameRef.current !== null) cancelAnimationFrame(visualFrameRef.current);
+    visualFrameRef.current = null;
+  }, [clearRenderTimer]);
+
+  useEffect(() => cancelPending, [cancelPending]);
 
   const scheduleRenderScale = useCallback(
     (nextScale: number) => {
@@ -41,9 +48,16 @@ export function useSmoothReaderZoom(initialScale = 1.4) {
 
   const zoomByFactor = useCallback(
     (factor: number) => {
-      const next = clampScale(roundScale(scaleRef.current * factor, 2));
+      if (!Number.isFinite(factor) || factor <= 0) return;
+      const next = clampScale(scaleRef.current * factor);
       scaleRef.current = next;
-      setVisualScale(next);
+      // Keep sub-percent trackpad deltas; publish at most once per animation frame.
+      if (visualFrameRef.current === null) {
+        visualFrameRef.current = requestAnimationFrame(() => {
+          visualFrameRef.current = null;
+          setVisualScale(scaleRef.current);
+        });
+      }
       scheduleRenderScale(next);
     },
     [scheduleRenderScale],
@@ -51,24 +65,26 @@ export function useSmoothReaderZoom(initialScale = 1.4) {
 
   const zoomStep = useCallback(
     (delta: number) => {
-      clearRenderTimer();
+      if (!Number.isFinite(delta)) return;
+      cancelPending();
       const next = clampScale(roundScale(scaleRef.current + delta, 1));
       scaleRef.current = next;
       setVisualScale(next);
       setRenderScale(next);
     },
-    [clearRenderTimer],
+    [cancelPending],
   );
 
   const setScale = useCallback(
     (requestedScale: number) => {
-      clearRenderTimer();
+      if (!Number.isFinite(requestedScale)) return;
+      cancelPending();
       const next = clampScale(roundScale(requestedScale, 2));
       scaleRef.current = next;
       setVisualScale(next);
       setRenderScale(next);
     },
-    [clearRenderTimer],
+    [cancelPending],
   );
 
   return { scale, renderScale, zoomByFactor, zoomStep, setScale };
