@@ -7,6 +7,7 @@ import {
 } from "./readerTypes";
 import { useDevicePixelRatio } from "./useDevicePixelRatio";
 import { usePdfTextSelection } from "./usePdfTextSelection";
+import { usePdfZoomAnchor } from "./usePdfZoomAnchor";
 import { usePdfViewportProgress } from "./usePdfViewportProgress";
 
 import PdfPage from "./PdfPage";
@@ -87,18 +88,7 @@ const PdfReaderViewer = forwardRef<PdfReaderViewerHandle, PdfReaderViewerProps>(
 
     usePdfViewportProgress({ containerRef, pageRefs, numPages, initialPage, onProgressChange });
 
-    // Cmd（mac）/ Ctrl（win）+ 滚轮缩放。必须用非 passive 原生监听才能 preventDefault。
-    useEffect(() => {
-      const container = containerRef.current;
-      if (!container) return;
-      const onWheel = (event: WheelEvent) => {
-        if (!event.ctrlKey && !event.metaKey) return;
-        event.preventDefault();
-        onZoom(Math.exp(-event.deltaY * 0.0015));
-      };
-      container.addEventListener("wheel", onWheel, { passive: false });
-      return () => container.removeEventListener("wheel", onWheel);
-    }, [onZoom, pdfDoc]);
+    usePdfZoomAnchor({ containerRef, pageRefs, scale, documentKey: pdfDoc, onZoom });
 
     // 按住 Cmd/Ctrl 时进入「超链接模式」：链接层接管点击，松开恢复划词选择。
     useEffect(() => {
