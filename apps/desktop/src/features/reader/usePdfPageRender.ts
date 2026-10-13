@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import type { PDFDocumentProxy, RenderTask, TextLayer } from "pdfjs-dist";
-import { registerTextLayer } from "./textLayerSelection";
 import { resolveCanvasOutputScale, type PdfLink } from "./pdfRenderingShared";
 import type { PdfRenderQueue } from "./pdfRenderQueue";
 
@@ -27,7 +26,7 @@ export function usePdfPageRender({
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [links, setLinks] = useState<PdfLink[]>([]);
   const signature = useRef("");
-  const owned = useRef<{ url: string; disposeText: () => void } | null>(null);
+  const owned = useRef<{ url: string; layer: HTMLDivElement | null; text: TextLayer | null } | null>(null);
   const priority = useRef(renderPriority);
   priority.current = renderPriority;
 
@@ -39,7 +38,7 @@ export function usePdfPageRender({
     return () => {
       if (owned.current) {
         URL.revokeObjectURL(owned.current.url);
-        owned.current.disposeText();
+        owned.current.layer?.remove();
         owned.current = null;
       }
     };
@@ -49,7 +48,7 @@ export function usePdfPageRender({
     if (retainResources || shouldRender) return;
     if (owned.current) {
       URL.revokeObjectURL(owned.current.url);
-      owned.current.disposeText();
+      owned.current.layer?.remove();
       owned.current = null;
     }
     signature.current = "";
@@ -96,12 +95,11 @@ export function usePdfPageRender({
         if (signal.aborted) return;
 
         const host = textLayerRef.current;
-        let unregister: (() => void) | undefined;
-        // Prepare the replacement without clearing selectable text from the old bitmap.
+        // Build text once per retained page; zoom updates its geometry at bitmap commit.
         try {
-          const content = await page.getTextContent();
+          const content = owned.current?.layer ? null : await page.getTextContent();
           if (signal.aborted) return;
-          if (host) {
+          if (host && content) {
             staging = document.createElement("div");
             staging.className = "textLayer rc-selectable";
             staging.style.visibility = "hidden";
@@ -139,13 +137,22 @@ export function usePdfPageRender({
           console.error(`[PDF] 第 ${pageNum} 页链接解析失败`, error);
         }
         if (signal.aborted) return;
+        const old = owned.current;
+        const reused = old?.layer ? old : null;
+        // Zoom changes geometry, not text identity: keep native Range endpoints alive.
+        if (reused?.layer) {
+          reused.layer.style.setProperty("--scale-factor", String(renderScale));
+          reused.layer.style.setProperty("--total-scale-factor", String(renderScale * viewport.userUnit));
+          pdfjsLib.setLayerDimensions(reused.layer, viewport);
+          reused.text?.update({ viewport });
+        }
         const committedLayer = staging;
         if (committedLayer) {
           committedLayer.style.visibility = "";
-          unregister = registerTextLayer(committedLayer);
         }
-        const old = owned.current;
-        owned.current = { url: nextUrl, disposeText: () => { unregister?.(); committedLayer?.remove(); } };
+        owned.current = {
+          url: nextUrl, layer: reused?.layer ?? committedLayer, text: reused?.text ?? textLayer,
+        };
         setImgSrc(nextUrl);
         setPageSize({ w: viewport.width, h: viewport.height });
         setRenderedScale(renderScale);
@@ -153,7 +160,7 @@ export function usePdfPageRender({
         signature.current = nextSignature;
         nextUrl = null;
         staging = null;
-        old?.disposeText();
+        if (!reused) old?.layer?.remove();
         if (old) URL.revokeObjectURL(old.url);
       } catch (error) {
         if (!signal.aborted) console.error(`[PDF] 第 ${pageNum} 页渲染失败`, error);

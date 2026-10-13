@@ -80,9 +80,16 @@ export function usePdfTextSelection({
   onSelectionCleared,
 }: UsePdfTextSelectionOptions) {
   const selectionStartedOnTextRef = useRef(false);
+  const callbacks = useRef({ onTextSelected, onSelectionCleared });
+  callbacks.current = { onTextSelected, onSelectionCleared };
 
   useEffect(() => {
     if (!enabled) return;
+    let pendingFrame: number | null = null;
+    const cancelPending = () => {
+      if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
+      pendingFrame = null;
+    };
 
     const isEditingTarget = (target: Element | null) =>
       Boolean(target?.closest("input, textarea, [contenteditable='true']"));
@@ -98,19 +105,17 @@ export function usePdfTextSelection({
       const startedOnText = selectionStartedOnTextRef.current;
       selectionStartedOnTextRef.current = false;
 
-      // WKWebView 会稍晚同步原生选区，延后一拍读取更稳。
-      window.setTimeout(() => {
-        if (!startedOnText) {
-          window.getSelection()?.removeAllRanges();
-          onSelectionCleared();
-          return;
-        }
+      if (!startedOnText) return;
+      cancelPending();
+      // Read after the browser has committed its native selection, once per frame.
+      pendingFrame = requestAnimationFrame(() => {
+        pendingFrame = null;
 
         const container = containerRef.current;
         const selection = window.getSelection();
         const selectedText = selection?.toString().trim() ?? "";
-        if (!container || !selection || selection.rangeCount === 0 || selection.isCollapsed || selectedText.length < 2) {
-          onSelectionCleared();
+        if (!container || !selection || selection.rangeCount === 0 || selection.isCollapsed || selectedText.length === 0) {
+          callbacks.current.onSelectionCleared();
           return;
         }
 
@@ -124,38 +129,44 @@ export function usePdfTextSelection({
 
         const positions = selectionRects(range, pageRect);
         const point = popupPoint(range, event);
-        onTextSelected({
+        callbacks.current.onTextSelected({
           text: selectedText,
           page,
           positions,
           popupX: point.x,
           popupY: point.y,
         });
-      }, 20);
+      });
     };
 
     const handleMouseDown = (event: MouseEvent) => {
+      cancelPending();
+      selectionStartedOnTextRef.current = false;
       const target = eventElement(event.target);
       if (target?.closest(".pdf-selection-popup")) return;
       if (target?.closest(".pdf-highlight-overlay")) return;
       if (isEditingTarget(target)) return;
+      if (!target || !containerRef.current?.contains(target)) return;
+      if (event.button !== 0) return;
       selectionStartedOnTextRef.current = isTextSpanTarget(target);
       if (target?.closest(".textLayer") && !selectionStartedOnTextRef.current) {
         event.preventDefault();
         window.getSelection()?.removeAllRanges();
-        onSelectionCleared();
+        callbacks.current.onSelectionCleared();
         return;
       }
       if (!target?.closest(".textLayer")) {
-        onSelectionCleared();
+        callbacks.current.onSelectionCleared();
       }
     };
 
     document.addEventListener("mouseup", handleMouseUp);
     document.addEventListener("mousedown", handleMouseDown);
     return () => {
+      cancelPending();
+      selectionStartedOnTextRef.current = false;
       document.removeEventListener("mouseup", handleMouseUp);
       document.removeEventListener("mousedown", handleMouseDown);
     };
-  }, [containerRef, enabled, onTextSelected, onSelectionCleared]);
+  }, [containerRef, enabled]);
 }
