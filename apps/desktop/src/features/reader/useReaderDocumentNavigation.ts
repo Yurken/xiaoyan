@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { PDFDocumentProxy } from "pdfjs-dist";
+import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import {
   deriveOutlineFromPages,
   searchReaderPages,
@@ -8,6 +8,8 @@ import {
   type ReaderPageContent,
   type ReaderPageLine,
 } from "./readerNavigation";
+
+import { getPdfRenderQueue, runPdfBackgroundTask } from "./pdfRenderQueue";
 
 const THUMBNAIL_PIXEL_WIDTH = 640;
 const NAVIGATION_BATCH_SIZE = 4;
@@ -81,6 +83,8 @@ export function useReaderDocumentNavigation(document: PDFDocumentProxy | null, q
       return;
     }
     let cancelled = false;
+    const controller = new AbortController();
+    const queue = getPdfRenderQueue(document);
     setLoading(true);
     setError("");
     setOutline([]);
@@ -92,6 +96,7 @@ export function useReaderDocumentNavigation(document: PDFDocumentProxy | null, q
         setNumPages(document.numPages);
         const nativeOutline = await document.getOutline();
         const resolvedOutline = await flattenOutline(document, nativeOutline);
+        if (cancelled) return;
         if (resolvedOutline.length > 0) setOutline(resolvedOutline);
         const pageContents: ReaderPageContent[] = [];
         let thumbnailBatch: Record<number, string> = {};
@@ -108,23 +113,36 @@ export function useReaderDocumentNavigation(document: PDFDocumentProxy | null, q
 
         for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
           if (cancelled) return;
-          const page = await document.getPage(pageNumber);
-          const content = await page.getTextContent();
-          const lineDetails = textLines(content.items);
-          const lines = lineDetails.map((line) => line.text);
-          pageContents.push({ page: pageNumber, lines, lineDetails, text: lines.join("\n") });
-
-          const baseViewport = page.getViewport({ scale: 1 });
-          const scale = THUMBNAIL_PIXEL_WIDTH / Math.max(1, baseViewport.width);
-          const viewport = page.getViewport({ scale });
-          const canvas = globalThis.document.createElement("canvas");
-          canvas.width = Math.max(1, Math.round(viewport.width));
-          canvas.height = Math.max(1, Math.round(viewport.height));
-          const context = canvas.getContext("2d", { alpha: false });
-          if (context) {
-            await page.render({ canvas, canvasContext: context, viewport, background: "white" }).promise;
-            if (!cancelled) thumbnailBatch[pageNumber] = canvas.toDataURL("image/webp", 0.9);
-          }
+          await runPdfBackgroundTask(queue, controller.signal, async (signal) => {
+            const page = await document.getPage(pageNumber);
+            if (signal.aborted) return;
+            const content = await page.getTextContent();
+            if (signal.aborted) return;
+            const lineDetails = textLines(content.items);
+            const lines = lineDetails.map((line) => line.text);
+            pageContents.push({ page: pageNumber, lines, lineDetails, text: lines.join("\n") });
+            const base = page.getViewport({ scale: 1 });
+            const scale = Math.min(THUMBNAIL_PIXEL_WIDTH / Math.max(1, base.width), 4096 / Math.max(1, base.height));
+            const viewport = page.getViewport({ scale });
+            const canvas = globalThis.document.createElement("canvas");
+            let task: RenderTask | null = null;
+            const cancel = () => task?.cancel();
+            signal.addEventListener("abort", cancel, { once: true });
+            try {
+              canvas.width = Math.max(1, Math.floor(viewport.width));
+              canvas.height = Math.max(1, Math.floor(viewport.height));
+              const context = canvas.getContext("2d", { alpha: false });
+              if (context) {
+                task = page.render({ canvas, canvasContext: context, viewport, background: "white" });
+                await task.promise;
+                if (!signal.aborted) thumbnailBatch[pageNumber] = canvas.toDataURL("image/webp", 0.9);
+              }
+            } finally {
+              signal.removeEventListener("abort", cancel);
+              canvas.width = 0;
+              canvas.height = 0;
+            }
+          });
           if (pageNumber % NAVIGATION_BATCH_SIZE === 0 || pageNumber === document.numPages) flushBatch();
         }
         if (!cancelled) {
@@ -140,6 +158,7 @@ export function useReaderDocumentNavigation(document: PDFDocumentProxy | null, q
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [document]);
 
