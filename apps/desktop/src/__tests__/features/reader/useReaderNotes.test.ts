@@ -71,7 +71,7 @@ describe("useReaderNotes 的持久化与论文切换", () => {
     const creation = deferred<PaperNote>();
     api.create.mockReturnValue(creation.promise);
     const { result, rerender } = await loadedHook();
-    let pending!: Promise<void>;
+    let pending!: Promise<boolean>;
     act(() => { pending = result.current.createAnnotation(input); });
     await waitFor(() => expect(api.create).toHaveBeenCalledOnce());
     api.list.mockResolvedValue([note("note-b", "paper-b")]);
@@ -125,7 +125,7 @@ describe("useReaderNotes 的持久化与论文切换", () => {
     const first = deferred<PaperNote>();
     const { result } = await loadedHook();
     api.update.mockReturnValueOnce(first.promise);
-    let operations!: Promise<void[]>;
+    let operations!: Promise<boolean[]>;
     act(() => {
       operations = Promise.all([
         result.current.updateContent("note-a", "第一次"),
@@ -165,7 +165,7 @@ describe("useReaderNotes 的持久化与论文切换", () => {
     const update = deferred<PaperNote>();
     const { result, rerender } = await loadedHook();
     api.update.mockReturnValueOnce(update.promise);
-    let pending!: Promise<void>;
+    let pending!: Promise<boolean>;
     act(() => { pending = result.current.updateContent("note-a", "新内容"); });
     await waitFor(() => expect(api.update).toHaveBeenCalledOnce());
     api.list.mockResolvedValue([note("note-b", "paper-b")]);
@@ -216,7 +216,7 @@ describe("useReaderNotes 的持久化与论文切换", () => {
     const { result } = await loadedHook();
     api.create.mockReturnValueOnce(creation.promise);
     api.list.mockResolvedValueOnce([note(), note("created")]);
-    let pending!: Promise<void[]>;
+    let pending!: Promise<boolean[]>;
     act(() => { pending = Promise.all([result.current.createAnnotation(input), result.current.reload()]); });
     await waitFor(() => expect(api.create).toHaveBeenCalledOnce());
     expect(api.list).toHaveBeenCalledOnce();
@@ -245,7 +245,7 @@ describe("useReaderNotes 的持久化与论文切换", () => {
     });
     const old = renderHook(() => useReaderNotes("paper-a"));
     await waitFor(() => expect(old.result.current.notes).toHaveLength(1));
-    let pending!: Promise<void>;
+    let pending!: Promise<boolean>;
     act(() => { pending = old.result.current.createAnnotation(input); });
     await waitFor(() => expect(api.create).toHaveBeenCalledOnce());
     old.unmount();
@@ -271,7 +271,7 @@ describe("useReaderNotes 的持久化与论文切换", () => {
       initialProps: { paperId: "paper-a" },
     });
     await waitFor(() => expect(result.current.notes).toHaveLength(1));
-    let pending!: Promise<void>;
+    let pending!: Promise<boolean>;
     act(() => { pending = result.current.updateContent("note-a", "先前编辑"); });
     await waitFor(() => expect(api.update).toHaveBeenCalledOnce());
     rerender({ paperId: "paper-b" });

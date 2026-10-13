@@ -154,19 +154,16 @@ export default function PaperReader() {
   }, [annotateTool]);
 
   const handleAnnotate = useCallback(
-    (color: HighlightColor, style: AnnotationStyle, note?: string) => {
-      if (!selection) return;
-      void createAnnotation({
-        page: selection.page,
-        highlightText: selection.text,
-        color,
-        style,
-        positions: selection.positions,
-        content: note,
+    async (color: HighlightColor, style: AnnotationStyle, note?: string) => {
+      if (!selection) return false;
+      const saved = await createAnnotation({
+        page: selection.page, highlightText: selection.text, color, style,
+        positions: selection.positions, content: note,
       });
-      clearSelection();
+      if (saved) setSelection((current) => current === selection ? null : current);
+      return saved;
     },
-    [selection, createAnnotation, clearSelection],
+    [selection, createAnnotation],
   );
 
   const handleTranslate = useCallback(() => {
@@ -200,7 +197,7 @@ export default function PaperReader() {
 
   const handleTextDrawn = useCallback(
     (page: number, rect: NormalizedRect, content: string) => {
-      void createAnnotation({
+      return createAnnotation({
         page,
         highlightText: "",
         color: annotateColor,
@@ -309,8 +306,8 @@ export default function PaperReader() {
               drawFill={annotateFill}
               onShapeDrawn={handleShapeDrawn}
               onTextDrawn={handleTextDrawn}
-              onTextUpdate={(note, content) => void updateContent(note.id, content)}
-              onTextDelete={(note) => void deleteAnnotation(note.id)}
+              onTextUpdate={(note, content) => updateContent(note.id, content)}
+              onTextDelete={(note) => deleteAnnotation(note.id)}
               onTextColorChange={(note, color) => void updateColor(note.id, color)}
               onAnnotationMove={handleAnnotationMove}
             />
@@ -404,10 +401,11 @@ export default function PaperReader() {
           noteContent={editing.note.content}
           onRecolor={(color) => void updateColor(editing.note.id, color)}
           onRecolorFill={(fill) => void updateFill(editing.note.id, fill)}
-          onUpdateNote={(content) => void updateContent(editing.note.id, content)}
-          onDelete={() => {
-            void deleteAnnotation(editing.note.id);
-            setEditing(null);
+          onUpdateNote={(content) => updateContent(editing.note.id, content)}
+          onDelete={async () => {
+            const saved = await deleteAnnotation(editing.note.id);
+            if (saved) setEditing((current) => current === editing ? null : current);
+            return saved;
           }}
           onTranslate={() => {
             void translation.translate(editing.note.highlight_text ?? "", editing.note.page);

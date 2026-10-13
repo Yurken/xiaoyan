@@ -16,9 +16,9 @@ interface PdfTextAnnotationLayerProps {
   notes: PaperNote[];
   enabled: boolean;
   color?: HighlightColor;
-  onCreate?: (page: number, rect: NormalizedRect, content: string) => void;
-  onUpdate?: (note: PaperNote, content: string) => void;
-  onDelete?: (note: PaperNote) => void;
+  onCreate?: (page: number, rect: NormalizedRect, content: string) => void | Promise<boolean | void>;
+  onUpdate?: (note: PaperNote, content: string) => void | Promise<boolean | void>;
+  onDelete?: (note: PaperNote) => void | Promise<boolean | void>;
   onColorChange?: (note: PaperNote, color: HighlightColor) => void;
   onMove?: (note: PaperNote, rect: NormalizedRect) => void;
 }
@@ -107,14 +107,16 @@ export default function PdfTextAnnotationLayer({
               color={note.highlight_color}
               initialContent={note.content}
               onColorChange={(nextColor) => onColorChange?.(note, nextColor)}
-              onDelete={() => {
-                setEditingId(null);
-                onDelete?.(note);
+              onDelete={async () => {
+                const saved = await onDelete?.(note);
+                if (saved !== false) setEditingId((current) => current === note.id ? null : current);
+                return saved;
               }}
               onCancel={() => setEditingId(null)}
-              onSubmit={(content) => {
-                setEditingId(null);
-                onUpdate?.(note, content);
+              onSubmit={async (content) => {
+                const saved = await onUpdate?.(note, content);
+                if (saved !== false) setEditingId((current) => current === note.id ? null : current);
+                return saved;
               }}
             />
           );
@@ -148,9 +150,10 @@ export default function PdfTextAnnotationLayer({
           y={draft.y}
           color={color}
           onCancel={() => setDraft(null)}
-          onSubmit={(content) => {
-            onCreate?.(page, draft, content);
-            setDraft(null);
+          onSubmit={async (content) => {
+            const saved = await onCreate?.(page, draft, content);
+            if (saved !== false) setDraft((current) => current === draft ? null : current);
+            return saved;
           }}
         />
       ) : null}
