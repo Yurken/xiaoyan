@@ -11,6 +11,7 @@ import {
 import { analyzeLatex, buildLatexPreviewBlocks, extractLatexOutline, getLatexStats } from "./latexAnalysis";
 import { buildLatexImageFigureInsert } from "./latexProject";
 import { useWritingCompiler } from "./useWritingCompiler";
+import { useWritingFeedback } from "./useWritingFeedback";
 import { useWritingDraftLibrary } from "./useWritingDraftLibrary";
 import { useWritingFileActions } from "./useWritingFileActions";
 import { useWritingVersions } from "./useWritingVersions";
@@ -57,8 +58,7 @@ export function useWritingWorkspace() {
   const imageAssets = activeDraft.imageAssets;
   const [viewMode, setViewMode] = useState<WritingViewMode>("split");
   const [activeSource, setActiveSource] = useState<WritingEditorSource>("main");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const { message, error, clearStatus, showMessage, showError } = useWritingFeedback(activeDraft.id);
 
   const outline = useMemo(() => extractLatexOutline(mainTex), [mainTex]);
   const stats = useMemo(() => getLatexStats(mainTex), [mainTex]);
@@ -71,17 +71,6 @@ export function useWritingWorkspace() {
     setActiveSource("main");
   }, [activeDraftId]);
 
-  const clearStatus = useCallback(() => {
-    setError("");
-    setMessage("");
-  }, []);
-  const showMessage = useCallback((nextMessage: string) => {
-    setMessage(nextMessage);
-    setError("");
-  }, []);
-  const showError = useCallback((nextError: string) => {
-    setError(nextError);
-  }, []);
   const versionHistory = useWritingVersions({
     // 草稿库未就绪时 activeDraft 是内存占位草稿，不触发任何版本记录。
     draftId: libraryReady ? activeDraft.id : "",
@@ -308,9 +297,8 @@ export function useWritingWorkspace() {
       bibtex: template.bibtex,
       texFiles: [],
     });
-    setMessage(`已套用「${template.title}」模板`);
-    setError("");
-  }, [updateActiveDraft]);
+    showMessage(`已套用「${template.title}」模板`);
+  }, [showMessage, updateActiveDraft]);
 
   const resetWorkspace = useCallback(() => {
     const template = getDefaultWritingTemplate();
@@ -322,26 +310,24 @@ export function useWritingWorkspace() {
       texFiles: [],
       notes: "",
     });
-    setMessage("已重置为默认论文草稿");
-    setError("");
-  }, [updateActiveDraft]);
+    showMessage("已重置为默认论文草稿");
+  }, [showMessage, updateActiveDraft]);
 
   const createDraft = useCallback((options: WritingCreateDraftOptions = {}) => {
     const draft = createLibraryDraft(options);
-    setMessage(`已新建文稿「${draft.projectName}」`);
-    setError("");
-  }, [createLibraryDraft]);
+    showMessage(`已新建文稿「${draft.projectName}」`, draft.id);
+  }, [createLibraryDraft, showMessage]);
 
   const deleteDraft = useCallback((id: string) => {
     // 历史版本由后端随草稿删除级联清理，无需单独调用。
     const deleted = deleteLibraryDraft(id);
     if (deleted) {
-      setMessage("已删除文稿");
-      setError("");
+      const nextDraftId = id === activeDraftId ? drafts.find((draft) => draft.id !== id)?.id : activeDraft.id;
+      if (nextDraftId) showMessage("已删除文稿", nextDraftId);
     } else {
-      setError("至少保留一篇文稿。");
+      showError("至少保留一篇文稿。");
     }
-  }, [deleteLibraryDraft]);
+  }, [activeDraft.id, activeDraftId, deleteLibraryDraft, drafts, showError, showMessage]);
 
   return {
     drafts,
