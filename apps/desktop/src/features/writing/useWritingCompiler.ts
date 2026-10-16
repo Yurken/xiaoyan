@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { formatErrorMessage, writingApi } from "../../lib/client";
 import { sanitizeLatexProjectName } from "./latexProject";
 import {
@@ -23,6 +23,30 @@ function loadCompileResult(storageKey: string): WritingCompileSummary | null {
     return JSON.parse(raw) as WritingCompileSummary;
   } catch {
     return null;
+  }
+}
+
+interface CompileSession {
+  scope: { storageKey: string };
+  status: WritingCompileStatus;
+  result: WritingCompileSummary | null;
+}
+
+interface CompileLifetime {
+  scope: CompileSession["scope"];
+  compiling: boolean;
+}
+
+function createCompileSession(storageKey: string): CompileSession {
+  return { scope: { storageKey }, status: "idle", result: loadCompileResult(storageKey) };
+}
+
+function cacheCompileResult(storageKey: string, result: WritingCompileSummary | null) {
+  try {
+    if (result) localStorage.setItem(storageKey, JSON.stringify(result));
+    else localStorage.removeItem(storageKey);
+  } catch {
+    // This cache is optional; storage quota/access failures are not compile failures.
   }
 }
 
@@ -52,38 +76,63 @@ export function useWritingCompiler({
   clearStatus,
 }: UseWritingCompilerOptions) {
   const storageKey = compileResultStorageKey(draftId);
-  const [compileStatus, setCompileStatus] = useState<WritingCompileStatus>("idle");
-  const [compileResult, setCompileResult] = useState<WritingCompileSummary | null>(() => loadCompileResult(storageKey));
+  const [session, setSession] = useState(() => createCompileSession(storageKey));
+  let currentSession = session;
+  if (session.scope.storageKey !== storageKey) {
+    // Reset only compile state during render: the new draft must never receive
+    // the previous draft's PDF, even before effects run. A -> B -> A gets a new scope.
+    currentSession = createCompileSession(storageKey);
+    setSession(currentSession);
+  }
+  const { scope, status: compileStatus, result: compileResult } = currentSession;
+  const activeLifetime = useRef<CompileLifetime | null>(null);
   const [latexInstallerStatus, setLatexInstallerStatus] = useState<"idle" | "opening">("idle");
 
-  useEffect(() => {
-    setCompileStatus("idle");
-    setCompileResult(loadCompileResult(storageKey));
-  }, [storageKey]);
+  useLayoutEffect(() => {
+    // Publish the committed scope, not a ref mutated by an uncommitted render.
+    // A fresh lifetime also invalidates work across cleanup/setup in StrictMode.
+    const lifetime: CompileLifetime = { scope, compiling: false };
+    activeLifetime.current = lifetime;
+    return () => {
+      if (activeLifetime.current === lifetime) activeLifetime.current = null;
+    };
+  }, [scope]);
 
   const compilePdf = useCallback(async () => {
-    setCompileStatus("compiling");
-    setCompileResult(null);
-    localStorage.removeItem(storageKey);
-    clearStatus();
+    const lifetime = activeLifetime.current;
+    if (!lifetime || lifetime.scope !== scope || lifetime.compiling) return;
+    // Reserve synchronously so two clicks before the next render start one job.
+    lifetime.compiling = true;
+    const isCurrent = () => activeLifetime.current === lifetime;
+    const update = (status: WritingCompileStatus, result: WritingCompileSummary | null) => {
+      setSession((current) => current.scope === scope ? { ...current, status, result } : current);
+    };
+    update("compiling", null);
+    cacheCompileResult(scope.storageKey, null);
     try {
+      clearStatus();
       const result = await writingApi.compilePdf({ projectName, mainTex, bibtex, texFiles, notes, imageAssets });
-      setCompileResult(result);
-      localStorage.setItem(storageKey, JSON.stringify(result));
+      // Native compilation may finish after switching drafts or unmounting.
+      // Ignore its feedback and cache write; this does not cancel the native job.
+      if (!isCurrent()) return;
+      cacheCompileResult(scope.storageKey, result);
       if (result.success && result.pdfPath) {
-        setCompileStatus("ready");
+        update("ready", result);
       } else if (isLatexCompilerMissing(result)) {
-        setCompileStatus("failed");
+        update("failed", result);
         onError(LATEX_INSTALL_SUPPORT.missingCompilerMessage);
       } else {
-        setCompileStatus("failed");
+        update("failed", result);
         onError("PDF 编译失败，请展开编译日志查看具体错误。");
       }
     } catch (err) {
-      setCompileStatus("failed");
+      if (!isCurrent()) return;
+      update("failed", null);
       onError(formatErrorMessage(err));
+    } finally {
+      lifetime.compiling = false;
     }
-  }, [bibtex, clearStatus, imageAssets, mainTex, notes, onError, projectName, storageKey, texFiles]);
+  }, [bibtex, clearStatus, imageAssets, mainTex, notes, onError, projectName, scope, texFiles]);
 
   const openLatexInstaller = useCallback(async () => {
     setLatexInstallerStatus("opening");
