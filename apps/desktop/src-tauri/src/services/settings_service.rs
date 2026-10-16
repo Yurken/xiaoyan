@@ -613,21 +613,7 @@ pub async fn import_all_data(
         }
     }
 
-    tx.commit().await.map_err(|e| e.to_string())?;
-
-    // Refresh settings cache
-    let raw_settings = load_all_settings(&state.db).await?;
-    let defaults = default_settings();
-    let mut cache = state.settings.write().await;
-    cache.clear();
-    for (key, value) in defaults {
-        cache.insert(key, value);
-    }
-    for (key, value) in raw_settings {
-        cache.insert(key, value);
-    }
-
-    Ok(())
+    super::settings_backup_commit::commit_restored_settings(tx, &state.settings).await
 }
 
 pub async fn test_settings(state: &AppState, data: &serde_json::Value) -> Result<String, String> {
