@@ -7,7 +7,7 @@ import type { LatexPreviewBlock, WritingCompileSummary } from "../../../features
 
 // Keep the real panel, hook, feedback and tabs. Only the native IO and PDF renderer
 // are boundaries: zero synthetic pages avoid canvas/DOMMatrix work in jsdom.
-const pdfRenderer = vi.hoisted(() => ({ getDocument: vi.fn(), getPage: vi.fn() }));
+const pdfRenderer = vi.hoisted(() => ({ getDocument: vi.fn(), getPage: vi.fn(), documentDestroy: vi.fn() }));
 vi.mock("pdfjs-dist", () => ({
   GlobalWorkerOptions: { workerSrc: "" },
   getDocument: pdfRenderer.getDocument,
@@ -37,21 +37,94 @@ function renderPanel() {
   return render(<WritingPreviewPanel blocks={blocks} compileResult={compileResult} compact={false} />);
 }
 
-describe("WritingPreviewPanel PDF 保存交互", () => {
+describe("WritingPreviewPanel PDF 预览与保存交互", () => {
   beforeEach(() => {
     saveMock.mockReset().mockResolvedValue(destination);
     readMock.mockReset().mockResolvedValue(pdfBytes);
     writeMock.mockReset().mockResolvedValue(undefined);
     pdfRenderer.getPage.mockReset();
-    pdfRenderer.getDocument.mockReset().mockReturnValue({
-      promise: Promise.resolve({ numPages: 0, getPage: pdfRenderer.getPage }),
-    });
+    pdfRenderer.documentDestroy.mockReset().mockResolvedValue(undefined);
+    pdfRenderer.getDocument.mockReset().mockImplementation(() => ({
+      promise: Promise.resolve({ numPages: 0, getPage: pdfRenderer.getPage, destroy: pdfRenderer.documentDestroy }),
+      destroy: vi.fn().mockResolvedValue(undefined),
+    }));
   });
   afterEach(() => {
     cleanup();
     saveMock.mockReset();
     readMock.mockReset();
     writeMock.mockReset();
+  });
+
+  it("切到结构销毁已加载 PDF，返回时创建新 owner，卸载各自只销毁一次", async () => {
+    const { unmount } = renderPanel();
+    await screen.findByRole("button", { name: "下载 PDF" });
+    const firstTask = pdfRenderer.getDocument.mock.results[0].value;
+    fireEvent.click(screen.getByRole("button", { name: "结构" }));
+    expect(firstTask.destroy).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "下载 PDF" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+    await screen.findByRole("button", { name: "下载 PDF" });
+    expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(2);
+    const secondTask = pdfRenderer.getDocument.mock.results[1].value;
+    expect(secondTask).not.toBe(firstTask);
+    expect(secondTask.destroy).not.toHaveBeenCalled();
+    unmount();
+    expect(firstTask.destroy).toHaveBeenCalledTimes(1);
+    expect(secondTask.destroy).toHaveBeenCalledTimes(1);
+    expect(pdfRenderer.documentDestroy).not.toHaveBeenCalled();
+  });
+
+  it("PDF 仍在加载时切到结构立即销毁 owner，迟到文档不能恢复旧工具栏", async () => {
+    const loading = deferred<{ numPages: number; getPage: typeof pdfRenderer.getPage }>();
+    const destroy = vi.fn().mockResolvedValue(undefined);
+    pdfRenderer.getDocument.mockReturnValueOnce({ promise: loading.promise, destroy });
+    renderPanel();
+    await waitFor(() => expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("加载 PDF...")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "结构" }));
+    expect(destroy).toHaveBeenCalledTimes(1);
+    await act(async () => { loading.resolve({ numPages: 0, getPage: pdfRenderer.getPage }); });
+    expect(screen.getByText("用于预览的正文")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "下载 PDF" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+    await screen.findByRole("button", { name: "下载 PDF" });
+    expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(2);
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("进入和退出全屏复用已加载文档，最终卸载才销毁 owner", async () => {
+    const { unmount } = renderPanel();
+    await screen.findByRole("button", { name: "下载 PDF" });
+    const task = pdfRenderer.getDocument.mock.results[0].value;
+    fireEvent.click(screen.getByTitle("全屏预览"));
+    expect(screen.getAllByTitle("退出全屏").length).toBeGreaterThan(0);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByTitle("全屏预览")).toBeInTheDocument();
+    expect(readMock).toHaveBeenCalledTimes(1);
+    expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(1);
+    expect(task.destroy).not.toHaveBeenCalled();
+    unmount();
+    expect(task.destroy).toHaveBeenCalledTimes(1);
+    expect(pdfRenderer.documentDestroy).not.toHaveBeenCalled();
+  });
+
+  it("换 PDF 后立即隐藏旧工具栏，等新文档加载后再提供下载", async () => {
+    const { rerender } = renderPanel();
+    await screen.findByRole("button", { name: "下载 PDF" });
+    const oldTask = pdfRenderer.getDocument.mock.results[0].value;
+    const reading = deferred<Uint8Array>();
+    readMock.mockReturnValueOnce(reading.promise);
+    const nextSummary = { ...compileResult, pdfPath: "/synthetic/compile/next.pdf" };
+    rerender(<WritingPreviewPanel blocks={blocks} compileResult={nextSummary} compact={false} />);
+    expect(screen.queryByRole("button", { name: "下载 PDF" })).not.toBeInTheDocument();
+    expect(screen.queryByTitle("全屏预览")).not.toBeInTheDocument();
+    expect(screen.getByText("加载 PDF...")).toBeInTheDocument();
+    expect(oldTask.destroy).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(readMock).toHaveBeenCalledWith(nextSummary.pdfPath));
+    await act(async () => { reading.resolve(pdfBytes); });
+    await screen.findByRole("button", { name: "下载 PDF" });
+    expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(2);
   });
 
   it("下载失败在实际预览中可见，重试写入完成后才呈现成功并恢复下载按钮", async () => {
