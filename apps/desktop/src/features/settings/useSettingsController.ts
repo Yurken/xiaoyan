@@ -23,7 +23,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
   const [updateMsg, setUpdateMsg] = useState("");
   const [appVersion, setAppVersion] = useState("");
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
-  const { saveState, saveError, markPersisted: persistenceMarkPersisted, markSaved, save: handleSaveSettings } =
+  const { saveState, saveError, reloadRequired, replacementActive, retryReadback: handleReloadSettings, replaceFrom, markPersisted: persistenceMarkPersisted, markSaved, save: handleSaveSettings } =
     useSettingsPersistence(form, !loading && !loadError);
 
   // markPersisted：调用方已将该配置持久化到后端（导入/应用历史/恢复备份）时置 true，
@@ -33,6 +33,10 @@ export function useSettingsController(defaultSettings: AppSettings) {
     if (markPersisted) persistenceMarkPersisted(merged);
     setForm(merged);
   }, [defaultSettings, persistenceMarkPersisted]);
+
+  const handleImportSettings = useCallback((data: string, password: string) =>
+    replaceFrom(() => apiClient.settings.import(data, password), (next) => replaceForm(next, true)),
+  [replaceFrom, replaceForm]);
 
   const set = (key: keyof AppSettings) => (value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
@@ -189,6 +193,8 @@ export function useSettingsController(defaultSettings: AppSettings) {
     loadError,
     saveState,
     saveError,
+    reloadRequired,
+    replacementActive,
     testState,
     testMsg,
     updateState,
@@ -198,6 +204,8 @@ export function useSettingsController(defaultSettings: AppSettings) {
     appVersion,
     markSaved,
     handleSaveSettings,
+    handleImportSettings,
+    handleReloadSettings,
     handleTestConnection,
     handleCheckUpdate,
     handleInstallUpdate,

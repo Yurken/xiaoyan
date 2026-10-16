@@ -4,12 +4,14 @@ import { apiClient, formatErrorMessage } from "../../lib/client";
 
 interface UseSettingsHistoryOptions {
   form: AppSettings;
+  blocked?: boolean;
   onApplied: (settings: AppSettings) => void;
   onMarkedSaved?: () => void;
 }
 
 export function useSettingsHistory({
   form,
+  blocked = false,
   onApplied,
   onMarkedSaved,
 }: UseSettingsHistoryOptions) {
@@ -29,7 +31,7 @@ export function useSettingsHistory({
   const busyRef = useRef(false);
 
   const beginAction = () => {
-    if (busyRef.current) return false;
+    if (busyRef.current || blocked) return false;
     busyRef.current = true;
     setBusy(true);
     return true;
@@ -182,7 +184,7 @@ export function useSettingsHistory({
     deletingId,
     actionError,
     actionMessage,
-    busy,
+    busy: busy || blocked,
     setDraftName,
     setSelectedId,
     saveCurrent,

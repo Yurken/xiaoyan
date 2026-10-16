@@ -22,6 +22,7 @@ import { useDataBackup } from "../features/settings/useDataBackup";
 import { DATA_BACKUP_EXPORT_WARNING, DATA_BACKUP_IMPORT_WARNING } from "../features/settings/backup/shared";
 import { useSettingsController } from "../features/settings/useSettingsController";
 import SettingsSaveStatus from "../features/settings/SettingsSaveStatus";
+import SettingsEditingBoundary from "../features/settings/SettingsEditingBoundary";
 import { useSettingsCrypto } from "../features/settings/useSettingsCrypto";
 import { useSettingsHistory } from "../features/settings/useSettingsHistory";
 import { useSettingsMemories } from "../features/settings/useSettingsMemories";
@@ -143,6 +144,8 @@ export default function Settings() {
     loadError,
     saveState,
     saveError,
+    reloadRequired,
+    replacementActive,
     testState,
     testMsg,
     updateState,
@@ -152,6 +155,8 @@ export default function Settings() {
     appVersion,
     markSaved,
     handleSaveSettings,
+    handleImportSettings,
+    handleReloadSettings,
     handleTestConnection,
     handleCheckUpdate,
     handleInstallUpdate,
@@ -193,11 +198,12 @@ export default function Settings() {
     openImportPicker: openConfigImportPicker,
     handleConfirm: handleCryptoConfirm,
   } = useSettingsCrypto({
-    onImported: (next) => replaceForm(next, true),
+    onImport: handleImportSettings,
     onSaved: () => markSaved(),
   });
   const settingsHistory = useSettingsHistory({
     form,
+    blocked: replacementActive,
     onApplied: (next) => replaceForm(next, true),
     onMarkedSaved: () => markSaved(),
   });
@@ -338,12 +344,13 @@ export default function Settings() {
           </Card>
         ) : null}
 
-        {saveState === "error" && activeSection !== "assistant" ? (
+        {replacementActive || (saveState === "error" && activeSection !== "assistant") ? (
           <Card padding="md">
-            <SettingsSaveStatus state={saveState} error={saveError} onRetry={() => { void handleSaveSettings(); }} />
+            <SettingsSaveStatus state={saveState} error={saveError} reloadRequired={reloadRequired} replacementActive={replacementActive} onRetry={() => { void (reloadRequired ? handleReloadSettings() : handleSaveSettings()); }} />
           </Card>
         ) : null}
 
+        <SettingsEditingBoundary locked={replacementActive && ["assistant", "paper_tags", "history"].includes(activeSection)}>
         {activeSection === "desktop_assistant" ? (
           <DesktopAssistantSettingsSection />
         ) : null}
@@ -371,6 +378,7 @@ export default function Settings() {
               actionError: settingsHistory.actionError,
               actionMessage: settingsHistory.actionMessage,
               busy: settingsHistory.busy,
+              locked: replacementActive,
               draftName: settingsHistory.draftName,
               setDraftName: settingsHistory.setDraftName,
               onSaveCurrent: settingsHistory.saveCurrent,
@@ -383,6 +391,8 @@ export default function Settings() {
               testMsg,
               saveState,
               saveError,
+              reloadRequired,
+              replacementActive,
               onRetrySave: () => { void handleSaveSettings(); },
               busy: loading,
               onTest: handleTestConnection,
@@ -494,8 +504,8 @@ export default function Settings() {
             actionError={settingsHistory.actionError}
             actionMessage={settingsHistory.actionMessage}
             busy={settingsHistory.busy}
-            settingsTransferBusy={cryptoBusy}
-            dataTransferBusy={backupBusy}
+            settingsTransferBusy={cryptoBusy || replacementActive}
+            dataTransferBusy={backupBusy || replacementActive}
             setDraftName={settingsHistory.setDraftName}
             onExportSettings={openConfigExportModal}
             onImportSettings={openConfigImportPicker}
@@ -541,6 +551,7 @@ export default function Settings() {
             <FeedbackSection />
           </div>
         ) : null}
+        </SettingsEditingBoundary>
       </div>
     </div>
 
@@ -551,7 +562,9 @@ export default function Settings() {
         password={cryptoPassword}
         confirm={cryptoConfirm}
         busy={cryptoBusy}
-        error={cryptoError}
+        submitDisabled={replacementActive && !cryptoBusy}
+        submitLabel={cryptoModal.mode === "import" && reloadRequired ? "已导入，等待重新读取" : undefined}
+        error={cryptoModal.mode === "import" && reloadRequired ? `配置已导入，但读取最新设置失败：${cryptoError}。请关闭此窗口，点击“重新读取”后继续编辑。` : cryptoError}
         onPasswordChange={(value) => {
           setCryptoPassword(value);
         }}
@@ -574,6 +587,7 @@ export default function Settings() {
         password={backupPassword}
         confirm={backupConfirm}
         busy={backupBusy}
+        submitDisabled={replacementActive}
         error={backupError}
         onPasswordChange={(value) => {
           setBackupPassword(value);
@@ -599,6 +613,7 @@ export default function Settings() {
       renamingId={settingsHistory.renamingId}
       deletingId={settingsHistory.deletingId}
       busy={settingsHistory.busy}
+      locked={replacementActive}
       setSelectedId={settingsHistory.setSelectedId}
       onApplyHistory={settingsHistory.applyHistory}
       onUpdateHistory={settingsHistory.updateHistory}
