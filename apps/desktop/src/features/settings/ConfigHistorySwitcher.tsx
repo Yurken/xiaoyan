@@ -13,6 +13,7 @@ export interface ConfigHistorySwitcherProps {
   actionError: string;
   actionMessage: string;
   busy?: boolean;
+  locked?: boolean;
   draftName: string;
   setDraftName: (value: string) => void;
   onSaveCurrent: () => Promise<void> | void;
@@ -44,6 +45,7 @@ export default function ConfigHistorySwitcher({
   actionError,
   actionMessage,
   busy,
+  locked,
   draftName,
   setDraftName,
   onSaveCurrent,
@@ -94,21 +96,30 @@ export default function ConfigHistorySwitcher({
     if (!open) setComposing(false);
   }, [open]);
 
+  useEffect(() => {
+    if (!locked) return;
+    setOpen(false);
+    setComposing(false);
+    setPendingId(null);
+    setPendingUpdateId(null);
+  }, [locked]);
+
   const confirmApply = () => {
-    if (!pendingId || confirmLoading) return;
+    if (!pendingId || confirmLoading || busy || locked) return;
     void Promise.resolve(onApplyHistory(pendingId))
       .catch(() => undefined)
       .finally(() => setPendingId(null));
   };
 
   const confirmUpdate = () => {
-    if (!pendingUpdateId || updateConfirmLoading) return;
+    if (!pendingUpdateId || updateConfirmLoading || busy || locked) return;
     void Promise.resolve(onUpdateHistory(pendingUpdateId))
       .catch(() => undefined)
       .finally(() => setPendingUpdateId(null));
   };
 
   const handleSave = () => {
+    if (busy || locked) return;
     void Promise.resolve(onSaveCurrent())
       .catch(() => undefined)
       .finally(() => setComposing(false));
@@ -121,6 +132,7 @@ export default function ConfigHistorySwitcher({
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
+        disabled={busy || locked}
         title="小妍配置历史·快速切换"
         className="flex max-w-[200px] items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-medium transition-all duration-150 active:scale-95"
         style={{

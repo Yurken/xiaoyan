@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ConfirmDialog, Select } from "@research-copilot/ui";
 import { Loader2, Pencil, RefreshCw, RotateCcw, Save, Trash2, X } from "lucide-react";
 import type { SettingsHistoryEntry } from "@research-copilot/types";
@@ -17,6 +17,7 @@ interface ConfigHistoryManageModalProps {
   renamingId: string | null;
   deletingId: string | null;
   busy?: boolean;
+  locked?: boolean;
   setSelectedId: (value: string) => void;
   onApplyHistory: (id: string) => Promise<void> | void;
   onUpdateHistory: (id: string) => Promise<void> | void;
@@ -72,6 +73,7 @@ export default function ConfigHistoryManageModal({
   renamingId,
   deletingId,
   busy,
+  locked,
   setSelectedId,
   onApplyHistory,
   onUpdateHistory,
@@ -84,17 +86,23 @@ export default function ConfigHistoryManageModal({
   const [renamingEntry, setRenamingEntry] = useState<SettingsHistoryEntry | null>(null);
   const [renameAttempted, setRenameAttempted] = useState(false);
 
+  useEffect(() => {
+    if (!locked) return;
+    setPendingAction(null);
+    setRenamingEntry(null);
+  }, [locked]);
+
   const selectOptions = useMemo(
     () => entries.map((item) => ({ value: item.id, label: `${item.name} · ${formatCreatedAt(item.created_at)}` })),
     [entries],
   );
 
   const handleApply = (id: string) => {
-    if (!id) return;
+    if (!id || locked) return;
     setPendingAction({ type: "apply", id });
   };
   const handleUpdate = (id: string) => {
-    if (!id) return;
+    if (!id || locked) return;
     setPendingAction({ type: "update", id });
   };
   const handleDelete = (id: string) => setPendingAction({ type: "delete", id });
@@ -130,7 +138,7 @@ export default function ConfigHistoryManageModal({
       : "确认应用";
 
   const confirmPendingAction = () => {
-    if (!pendingAction || confirmLoading) return;
+    if (!pendingAction || confirmLoading || locked) return;
     const action = pendingAction;
     const task = action.type === "apply"
       ? onApplyHistory(action.id)
@@ -200,12 +208,12 @@ export default function ConfigHistoryManageModal({
                 onChange={setSelectedId}
                 options={selectOptions}
                 placeholder={entries.length > 0 ? "请选择历史配置" : "暂无历史配置"}
-                disabled={entries.length === 0}
+                disabled={entries.length === 0 || locked}
               />
               <button
                 type="button"
                 onClick={() => handleApply(selectedId)}
-                disabled={!selectedId || applyingId !== null || busy}
+                disabled={!selectedId || applyingId !== null || busy || locked}
                 className="flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
                 style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
               >
@@ -260,7 +268,7 @@ export default function ConfigHistoryManageModal({
                           <button
                             type="button"
                             onClick={() => handleApply(entry.id)}
-                            disabled={applyingId !== null || busy}
+                            disabled={applyingId !== null || busy || locked}
                             className="flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
                             style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
                           >
@@ -273,7 +281,7 @@ export default function ConfigHistoryManageModal({
                               setRenameAttempted(false);
                               setRenamingEntry(entry);
                             }}
-                            disabled={renamingId !== null || busy}
+                            disabled={renamingId !== null || busy || locked}
                             className="flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
                             style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
                           >
@@ -283,7 +291,7 @@ export default function ConfigHistoryManageModal({
                           <button
                             type="button"
                             onClick={() => handleUpdate(entry.id)}
-                            disabled={updatingId !== null || busy}
+                            disabled={updatingId !== null || busy || locked}
                             className="flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
                             style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
                             title="把当前生效配置保存到这条历史"
@@ -294,7 +302,7 @@ export default function ConfigHistoryManageModal({
                           <button
                             type="button"
                             onClick={() => handleDelete(entry.id)}
-                            disabled={deletingId !== null || busy}
+                            disabled={deletingId !== null || busy || locked}
                             className="flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
                             style={{ background: "rgba(255,59,48,0.08)", color: "#D92D20" }}
                           >

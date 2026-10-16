@@ -38,6 +38,8 @@ export interface ConnectionActions {
   testMsg: string;
   saveState: "idle" | "saving" | "saved" | "error";
   saveError?: string;
+  reloadRequired?: boolean;
+  replacementActive?: boolean;
   onRetrySave?: () => void;
   busy: boolean;
   onTest: () => void;
@@ -205,7 +207,7 @@ export default function ConnectionSection({
               </span>
             ) : null}
           </div>
-          <SettingsSaveStatus state={saveState} error={connectionActions.saveError} onRetry={connectionActions.onRetrySave} />
+          {!connectionActions.replacementActive && <SettingsSaveStatus state={saveState} error={connectionActions.saveError} onRetry={connectionActions.onRetrySave} />}
           {!contentUnavailable ? (
             <ConfigHistorySwitcher {...configHistory} onManage={onManageConfigHistory} />
           ) : null}

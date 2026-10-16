@@ -12,6 +12,8 @@ interface CryptoConfigModalProps {
   password: string;
   confirm: string;
   busy: boolean;
+  submitDisabled?: boolean;
+  submitLabel?: string;
   error: string;
   onPasswordChange: (value: string) => void;
   onConfirmChange: (value: string) => void;
@@ -28,6 +30,8 @@ export default function CryptoConfigModal({
   password,
   confirm,
   busy,
+  submitDisabled,
+  submitLabel,
   error,
   onPasswordChange,
   onConfirmChange,
@@ -74,7 +78,7 @@ export default function CryptoConfigModal({
               value={password}
               onChange={onPasswordChange}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && !busy) void onSubmit();
+                if (event.key === "Enter" && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229 && !busy && !submitDisabled) void onSubmit();
               }}
               placeholder="输入密码"
               autoFocus
@@ -90,7 +94,7 @@ export default function CryptoConfigModal({
                 value={confirm}
                 onChange={onConfirmChange}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && !busy) void onSubmit();
+                  if (event.key === "Enter" && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229 && !busy && !submitDisabled) void onSubmit();
                 }}
                 placeholder="再次输入密码"
                 className="!rounded-2xl !pl-4 !pr-10 !py-2.5"
@@ -120,12 +124,12 @@ export default function CryptoConfigModal({
           <button
             type="button"
             onClick={() => void onSubmit()}
-            disabled={busy || !password.trim()}
+            disabled={busy || submitDisabled || !password.trim()}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
             style={{ background: "var(--rc-button-primary-bg)", boxShadow: "var(--rc-button-primary-shadow)" }}
           >
             {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
-            {busy ? "处理中…" : modal.mode === "export" ? "加密并保存" : "解密并导入"}
+            {busy ? "处理中…" : submitLabel ?? (modal.mode === "export" ? "加密并保存" : "解密并导入")}
           </button>
         </div>
       </div>

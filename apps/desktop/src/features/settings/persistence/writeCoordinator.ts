@@ -1,7 +1,7 @@
 /** 设置页卸载后写入仍可继续，新挂载必须等同一窗口中所有已排队任务落库再读取。 */
 let queue: Promise<void> = Promise.resolve()
 
-export function enqueueSettingsPersistence(task: () => Promise<void>): Promise<void> {
+export function enqueueSettingsPersistence<T>(task: () => Promise<T>): Promise<T> {
   const result = queue.then(task)
   // 某个调用方失败不能阻塞后续实例或加载；失败反馈由调用方负责。
   queue = result.then(() => undefined, () => undefined)
