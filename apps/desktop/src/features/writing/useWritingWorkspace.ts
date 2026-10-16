@@ -347,6 +347,7 @@ export function useWritingWorkspace() {
     viewMode,
     activeSource,
     exportingTarget: fileActions.exportingTarget,
+    compileDraftId: activeDraft.id,
     compileStatus: compiler.compileStatus,
     compileResult: compiler.compileResult,
     latexInstallerStatus: compiler.latexInstallerStatus,

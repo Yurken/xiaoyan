@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { clsx } from "clsx";
 import {
-  CheckCircle2,
   ChevronLeft,
   Eye,
-  FileCheck2,
   FileText,
   FolderOpen,
   LayoutPanelLeft,
@@ -14,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button, CapsuleTabs } from "@research-copilot/ui";
 import WritingAssistantPanel from "./WritingAssistantPanel";
+import WritingCompileButton from "./WritingCompileButton";
 import WritingDraftManagerModal from "./WritingDraftManagerModal";
 import WritingEditorPanel from "./WritingEditorPanel";
 import WritingExportMenu from "./WritingExportMenu";
@@ -26,8 +25,6 @@ import WritingVersionHistoryModal from "./WritingVersionHistoryModal";
 import {
   isLatexCompilerMissing,
   type WritingAssistantActionId,
-  type WritingCompileStatus,
-  type WritingExportTarget,
   type WritingViewMode,
 } from "./shared";
 import { useWritingWorkspace } from "./useWritingWorkspace";
@@ -140,7 +137,8 @@ export default function WritingWorkspace({
               </Button>
 
               <div className="flex items-center gap-1 rounded-xl bg-apple-blue/5 p-1">
-                <CompileButton
+                <WritingCompileButton
+                  draftId={workspace.compileDraftId}
                   compileStatus={workspace.compileStatus}
                   exportingTarget={workspace.exportingTarget}
                   onCompile={() => void workspace.compilePdf()}
@@ -337,52 +335,5 @@ export default function WritingWorkspace({
       />
       </div>
     </div>
-  );
-}
-
-function CompileButton({
-  compileStatus,
-  exportingTarget,
-  onCompile,
-}: {
-  compileStatus: WritingCompileStatus;
-  exportingTarget: WritingExportTarget | null;
-  onCompile: () => void;
-}) {
-  const [flash, setFlash] = useState(false);
-  const prevStatusRef = useRef(compileStatus);
-
-  useEffect(() => {
-    if (prevStatusRef.current !== "ready" && compileStatus === "ready") {
-      setFlash(true);
-      const timer = setTimeout(() => setFlash(false), 3000);
-      return () => clearTimeout(timer);
-    }
-    prevStatusRef.current = compileStatus;
-  }, [compileStatus]);
-
-  return (
-    <Button
-      type="button"
-      size="sm"
-      variant="primary"
-      onClick={onCompile}
-      loading={compileStatus === "compiling"}
-      disabled={exportingTarget !== null}
-      className="shadow-sm transition-colors duration-500"
-      style={flash ? { background: "#34C759", color: "#fff" } : undefined}
-    >
-      {compileStatus !== "compiling" && !flash && (
-        <FileCheck2 className="h-3.5 w-3.5" />
-      )}
-      {flash ? (
-        <span className="inline-flex items-center gap-1">
-          <CheckCircle2 className="h-3.5 w-3.5" />
-          编译完成
-        </span>
-      ) : (
-        "编译 PDF"
-      )}
-    </Button>
   );
 }
