@@ -506,6 +506,7 @@ export default function Settings() {
             busy={settingsHistory.busy}
             settingsTransferBusy={cryptoBusy || replacementActive}
             dataTransferBusy={backupBusy || replacementActive}
+            dataTransferError={backupModal === null ? backupError : undefined}
             setDraftName={settingsHistory.setDraftName}
             onExportSettings={openConfigExportModal}
             onImportSettings={openConfigImportPicker}
@@ -587,6 +588,7 @@ export default function Settings() {
         password={backupPassword}
         confirm={backupConfirm}
         busy={backupBusy}
+        interactionLocked={backupBusy}
         submitDisabled={replacementActive}
         error={backupError}
         onPasswordChange={(value) => {

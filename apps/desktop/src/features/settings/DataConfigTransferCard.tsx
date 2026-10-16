@@ -10,6 +10,7 @@ interface DataConfigTransferCardProps {
   onImportAllData: () => void | Promise<void>;
   settingsBusy?: boolean;
   dataBusy?: boolean;
+  dataError?: string;
 }
 
 interface TransferButtonProps {
@@ -65,6 +66,7 @@ export default function DataConfigTransferCard({
   onImportAllData,
   settingsBusy,
   dataBusy,
+  dataError,
 }: DataConfigTransferCardProps) {
   return (
     <Card padding="md" className="space-y-4">
@@ -126,6 +128,7 @@ export default function DataConfigTransferCard({
           </div>
           <p className="mt-3 text-xs leading-5 text-ink-secondary">{DATA_BACKUP_EXPORT_NOTICE}</p>
           <p className="mt-2 text-xs leading-5 text-apple-red">{DATA_BACKUP_IMPORT_WARNING}</p>
+          {dataError ? <p role="alert" className="mt-2 text-xs leading-5 text-apple-red">{dataError}</p> : null}
         </div>
       </div>
     </Card>

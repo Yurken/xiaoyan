@@ -9,11 +9,12 @@ interface PasswordInputProps {
   style?: React.CSSProperties;
   id?: string;
   autoFocus?: boolean;
+  disabled?: boolean;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
 
 const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(function PasswordInput(
-  { value, onChange, placeholder, className, style, id, autoFocus, onKeyDown },
+  { value, onChange, placeholder, className, style, id, autoFocus, disabled, onKeyDown },
   ref,
 ) {
   const [show, setShow] = useState(false);
@@ -29,6 +30,7 @@ const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(function 
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         autoFocus={autoFocus}
+        disabled={disabled}
         className={`w-full rounded-xl px-3 py-2 pr-9 text-sm outline-none ${className ?? ""}`}
         style={{
           background: "var(--rc-surface)",
@@ -40,6 +42,7 @@ const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(function 
       <button
         type="button"
         onClick={() => setShow(!show)}
+        disabled={disabled}
         className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-tertiary hover:text-ink-primary transition-colors"
         tabIndex={-1}
       >

@@ -12,6 +12,7 @@ interface SettingsHistorySectionProps {
   busy?: boolean;
   settingsTransferBusy?: boolean;
   dataTransferBusy?: boolean;
+  dataTransferError?: string;
   setDraftName: (value: string) => void;
   onExportSettings: () => void;
   onImportSettings: () => Promise<void> | void;
@@ -30,6 +31,7 @@ export default function SettingsHistorySection({
   busy,
   settingsTransferBusy,
   dataTransferBusy,
+  dataTransferError,
   setDraftName,
   onExportSettings,
   onImportSettings,
@@ -47,6 +49,7 @@ export default function SettingsHistorySection({
         onImportAllData={onImportAllData}
         settingsBusy={settingsTransferBusy}
         dataBusy={dataTransferBusy}
+        dataError={dataTransferError}
       />
 
       <SyncSection />

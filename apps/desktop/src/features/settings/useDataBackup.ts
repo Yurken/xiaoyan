@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 
 export type DataBackupModalState =
@@ -10,64 +10,108 @@ interface UseDataBackupOptions {
   onImported?: () => Promise<void> | void;
 }
 
+interface BackupOperation {
+  version: number;
+  lifetime: { active: boolean };
+}
+
 export function useDataBackup({ onImported }: UseDataBackupOptions = {}) {
-  const [modal, setModal] = useState<DataBackupModalState>(null);
+  const [session, setSession] = useState<{ version: number; modal: DataBackupModalState }>({
+    version: 0,
+    modal: null,
+  });
+  const { modal } = session;
   const [password, setPasswordValue] = useState("");
   const [confirm, setConfirmValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const version = useRef(0);
+  const lifetime = useRef({ active: true });
+  const operation = useRef<BackupOperation | null>(null);
+
+  useLayoutEffect(() => {
+    const activeLifetime = { active: true };
+    lifetime.current = activeLifetime;
+    return () => { activeLifetime.active = false; };
+  }, []);
+
+  const canEdit = () =>
+    lifetime.current.active && version.current === session.version && !operation.current;
+
+  const isCurrent = (request: BackupOperation) =>
+    request.lifetime.active && lifetime.current === request.lifetime &&
+    operation.current === request && version.current === request.version;
+
+  const resetModal = (next: DataBackupModalState) => {
+    version.current += 1;
+    setSession({ version: version.current, modal: next });
+    setPasswordValue("");
+    setConfirmValue("");
+    setError("");
+  };
+
+  const beginOperation = (): BackupOperation | null => {
+    if (!canEdit()) return null;
+    const request = { version: version.current, lifetime: lifetime.current };
+    // Reserve synchronously, before any native dialog or React state update.
+    operation.current = request;
+    setBusy(true);
+    setError("");
+    return request;
+  };
+
+  const finishOperation = (request: BackupOperation) => {
+    if (operation.current !== request) return;
+    operation.current = null;
+    if (lifetime.current.active) setBusy(false);
+  };
 
   const setPassword = (value: string) => {
+    if (!canEdit()) return;
     setPasswordValue(value);
     setError("");
   };
 
   const setConfirm = (value: string) => {
+    if (!canEdit()) return;
     setConfirmValue(value);
     setError("");
   };
 
   const closeModal = () => {
-    setModal(null);
-    setPasswordValue("");
-    setConfirmValue("");
-    setBusy(false);
-    setError("");
+    if (canEdit()) resetModal(null);
   };
 
   const openExportModal = () => {
-    setModal({ mode: "export" });
-    setPasswordValue("");
-    setConfirmValue("");
-    setBusy(false);
-    setError("");
+    if (canEdit()) resetModal({ mode: "export" });
   };
 
   const openImportPicker = async () => {
+    const request = beginOperation();
+    if (!request) return;
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
+      if (!isCurrent(request)) return;
       const file = await open({
         filters: [{ name: "备份文件", extensions: ["rcbak"] }],
         multiple: false,
       });
-      if (!file) return;
+      if (!file || !isCurrent(request)) return;
 
       const filePath = typeof file === "string" ? file : (file as { path: string }).path;
       const { readTextFile } = await import("@tauri-apps/plugin-fs");
+      if (!isCurrent(request)) return;
       const fileData = await readTextFile(filePath);
-
-      setModal({ mode: "import", fileData: fileData.trim() });
-      setPasswordValue("");
-      setConfirmValue("");
-      setBusy(false);
-      setError("");
+      if (isCurrent(request)) resetModal({ mode: "import", fileData: fileData.trim() });
     } catch (nextError) {
-      setError(formatErrorMessage(nextError));
+      if (isCurrent(request)) setError(formatErrorMessage(nextError));
+    } finally {
+      finishOperation(request);
     }
   };
 
   const handleConfirm = async () => {
-    if (!modal) return;
+    if (!canEdit() || !modal) return;
     if (!password.trim()) {
       setError("密码不能为空。");
       return;
@@ -77,26 +121,29 @@ export function useDataBackup({ onImported }: UseDataBackupOptions = {}) {
       return;
     }
 
-    setBusy(true);
-    setError("");
-
+    const request = beginOperation();
+    if (!request) return;
     try {
       if (modal.mode === "export") {
         const blob = await apiClient.settings.dataBackup.export(password);
+        if (!isCurrent(request)) return;
         const { save } = await import("@tauri-apps/plugin-dialog");
+        if (!isCurrent(request)) return;
         const savePath = await save({
           defaultPath: `xiaoyan-backup-${new Date().toISOString().slice(0, 10)}.rcbak`,
           filters: [{ name: "备份文件", extensions: ["rcbak"] }],
         });
 
+        if (!isCurrent(request)) return;
         if (!savePath) {
-          closeModal();
+          resetModal(null);
           return;
         }
 
         const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+        if (!isCurrent(request)) return;
         await writeTextFile(savePath, blob);
-        closeModal();
+        if (isCurrent(request)) resetModal(null);
         void apiClient.memory.add({
           type: "auto",
           action: "data_backup.export",
@@ -105,18 +152,20 @@ export function useDataBackup({ onImported }: UseDataBackupOptions = {}) {
         return;
       }
 
+      // An invoked restore is durable; leaving this view cannot cancel it.
+      // Keep its completion callback, but discard feedback for an unmounted view.
       await apiClient.settings.dataBackup.import(modal.fileData, password);
       await onImported?.();
-      closeModal();
+      if (isCurrent(request)) resetModal(null);
       void apiClient.memory.add({
         type: "auto",
         action: "data_backup.import",
         summary: "导入了加密数据备份",
       });
     } catch (nextError) {
-      setError(formatErrorMessage(nextError));
+      if (isCurrent(request)) setError(formatErrorMessage(nextError));
     } finally {
-      setBusy(false);
+      finishOperation(request);
     }
   };
 
