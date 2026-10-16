@@ -1,7 +1,7 @@
 import { Card } from "@research-copilot/ui";
 import { Database, Download, FileKey2, Upload } from "lucide-react";
 import { SectionIcon } from "./shared";
-import { DATA_BACKUP_EXCLUSIONS, DATA_BACKUP_IMPORT_WARNING, DATA_BACKUP_SCOPE } from "./backup/shared";
+import { DATA_BACKUP_EXPORT_NOTICE, DATA_BACKUP_IMPORT_WARNING, DATA_BACKUP_SCOPE } from "./backup/shared";
 
 interface DataConfigTransferCardProps {
   onExportSettings: () => void;
@@ -124,7 +124,7 @@ export default function DataConfigTransferCard({
               danger
             />
           </div>
-          <p className="mt-3 text-xs leading-5 text-ink-secondary">{DATA_BACKUP_EXCLUSIONS}</p>
+          <p className="mt-3 text-xs leading-5 text-ink-secondary">{DATA_BACKUP_EXPORT_NOTICE}</p>
           <p className="mt-2 text-xs leading-5 text-apple-red">{DATA_BACKUP_IMPORT_WARNING}</p>
         </div>
       </div>
