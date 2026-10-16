@@ -6,6 +6,8 @@ import { CapsuleTabs } from "@research-copilot/ui";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import type { LatexPreviewBlock, WritingCompileSummary } from "./shared";
+import { useWritingPdfExport } from "./useWritingPdfExport";
+import WritingPdfExportFeedback from "./WritingPdfExportFeedback";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -32,6 +34,7 @@ export default function WritingPreviewPanel({
   compact,
 }: WritingPreviewPanelProps) {
   const [previewMode, setPreviewMode] = useState<PreviewMode>("pdf");
+  const pdfExport = useWritingPdfExport(compileResult?.success ? compileResult.pdfPath : null);
 
   return (
     <aside className="flex min-h-0 flex-col gap-4 pl-1">
@@ -64,7 +67,7 @@ export default function WritingPreviewPanel({
               <p className="text-xs">暂无内容预览。</p>
             </div>
           ) : previewMode === "pdf" ? (
-            <PdfPreview compileResult={compileResult} />
+            <PdfPreview compileResult={compileResult} pdfExport={pdfExport} />
           ) : (
             <StructurePreview blocks={blocks} />
           )}
@@ -75,7 +78,10 @@ export default function WritingPreviewPanel({
   );
 }
 
-function PdfPreview({ compileResult }: { compileResult: WritingCompileSummary | null }) {
+function PdfPreview({ compileResult, pdfExport }: {
+  compileResult: WritingCompileSummary | null;
+  pdfExport: ReturnType<typeof useWritingPdfExport>;
+}) {
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [numPages, setNumPages] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -235,23 +241,6 @@ function PdfPreview({ compileResult }: { compileResult: WritingCompileSummary | 
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [clampZoom]);
 
-  const handleSave = useCallback(async () => {
-    if (!compileResult?.pdfPath) return;
-    try {
-      const { save } = await import("@tauri-apps/plugin-dialog");
-      const { writeFile, readFile } = await import("@tauri-apps/plugin-fs");
-      const path = await save({
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
-        defaultPath: "paper.pdf",
-      });
-      if (!path) return;
-      const bytes = await readFile(compileResult.pdfPath);
-      await writeFile(path, bytes);
-    } catch {
-      // ignore
-    }
-  }, [compileResult?.pdfPath]);
-
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
     dragRef.current = {
@@ -310,6 +299,13 @@ function PdfPreview({ compileResult }: { compileResult: WritingCompileSummary | 
 
   const pdfContent = (
     <>
+      <WritingPdfExportFeedback
+        className={isFullscreen ? "mr-16" : undefined}
+        saving={pdfExport.saving}
+        message={pdfExport.message}
+        error={pdfExport.error}
+        onRetry={() => { void pdfExport.savePdf(); }}
+      />
       {pdfLoading ? (
         <div className="flex h-full w-full items-center justify-center gap-2 text-white/60">
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -382,10 +378,15 @@ function PdfPreview({ compileResult }: { compileResult: WritingCompileSummary | 
           <button
             type="button"
             className="flex h-6 w-6 items-center justify-center rounded text-white/70 hover:bg-white/10 hover:text-white transition"
-            onClick={handleSave}
-            title="下载 PDF"
+            onClick={() => { void pdfExport.savePdf(); }}
+            disabled={pdfExport.saving}
+            aria-busy={pdfExport.saving}
+            title={pdfExport.saving ? "正在保存 PDF" : "下载 PDF"}
+            aria-label={pdfExport.saving ? "正在保存 PDF" : "下载 PDF"}
           >
-            <Download className="h-3.5 w-3.5" />
+            {pdfExport.saving
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <Download className="h-3.5 w-3.5" />}
           </button>
           <button
             type="button"
