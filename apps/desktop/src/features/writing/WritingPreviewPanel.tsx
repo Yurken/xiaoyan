@@ -3,13 +3,10 @@ import { createPortal } from "react-dom";
 import { clsx } from "clsx";
 import { BookOpen, Download, FileCheck2, ListTree, Loader2, Maximize, Minimize, Minus, Plus, RotateCcw, X } from "lucide-react";
 import { CapsuleTabs } from "@research-copilot/ui";
-import * as pdfjsLib from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import type { LatexPreviewBlock, WritingCompileSummary } from "./shared";
+import { useWritingPdfPreview } from "./useWritingPdfPreview";
 import { useWritingPdfExport } from "./useWritingPdfExport";
 import WritingPdfExportFeedback from "./WritingPdfExportFeedback";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 type PreviewMode = "structure" | "pdf";
 
@@ -82,19 +79,18 @@ function PdfPreview({ compileResult, pdfExport }: {
   compileResult: WritingCompileSummary | null;
   pdfExport: ReturnType<typeof useWritingPdfExport>;
 }) {
-  const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
-  const [numPages, setNumPages] = useState(0);
-  const [pdfLoading, setPdfLoading] = useState(false);
-  const [pdfError, setPdfError] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const dragRef = useRef({ startX: 0, startY: 0, scrollX: 0, scrollY: 0 });
   const scrollRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
-  const renderTaskRef = useRef(new Map<number, pdfjsLib.RenderTask>());
 
   const clampZoom = useCallback((value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value)), []);
+  const { pdfDoc, numPages, pdfLoading, pdfError } = useWritingPdfPreview(
+    compileResult?.success ? compileResult.pdfPath : null,
+    { isFullscreen, scrollRef, canvasRefs, setZoomLevel, clampZoom },
+  );
 
   useEffect(() => {
     if (!isFullscreen) return;
@@ -104,112 +100,6 @@ function PdfPreview({ compileResult, pdfExport }: {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [isFullscreen]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const tasksOnMount = renderTaskRef.current;
-
-    async function loadPdf() {
-      if (!compileResult?.pdfPath || !compileResult.success) {
-        setPdfDoc(null);
-        setNumPages(0);
-        setPdfError(false);
-        return;
-      }
-
-      setPdfLoading(true);
-      setPdfError(false);
-      setPdfDoc(null);
-      setNumPages(0);
-      try {
-        const { readFile } = await import("@tauri-apps/plugin-fs");
-        const bytes = await readFile(compileResult.pdfPath);
-        if (cancelled) return;
-        const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
-        if (cancelled) return;
-        setPdfDoc(doc);
-        setNumPages(doc.numPages);
-        setZoomLevel(1);
-      } catch {
-        if (!cancelled) setPdfError(true);
-      } finally {
-        if (!cancelled) setPdfLoading(false);
-      }
-    }
-
-    loadPdf();
-
-    return () => {
-      cancelled = true;
-      tasksOnMount.forEach((task) => { try { task.cancel(); } catch { /* ignore */ } });
-      tasksOnMount.clear();
-    };
-  }, [compileResult?.pdfPath, compileResult?.success]);
-
-  // PDF 加载后自动 fill：取 fit-to-width 和 fit-to-height 的较大值
-  useEffect(() => {
-    if (!pdfDoc || numPages === 0) return;
-    let cancelled = false;
-    pdfDoc.getPage(1).then((page) => {
-      if (cancelled) return;
-      const viewport = page.getViewport({ scale: 1.5 });
-      const el = scrollRef.current;
-      const cw = el?.clientWidth ?? 0;
-      const ch = el?.clientHeight ?? 0;
-      if (cw > 0 && ch > 0) {
-        const fitW = cw / viewport.width;
-        const fitH = ch / viewport.height;
-        setZoomLevel(clampZoom(Math.max(fitW, fitH)));
-      } else if (cw > 0) {
-        setZoomLevel(clampZoom(cw / viewport.width));
-      }
-    });
-    return () => { cancelled = true; };
-  }, [pdfDoc, numPages, clampZoom]);
-
-  useEffect(() => {
-    if (!pdfDoc || numPages === 0) return;
-
-    let cancelled = false;
-    const currentTasks = renderTaskRef.current;
-    const doc = pdfDoc;
-
-    async function renderPages() {
-      for (let i = 1; i <= numPages; i++) {
-        if (cancelled) break;
-        const page = await doc.getPage(i);
-        if (cancelled) break;
-        const viewport = page.getViewport({ scale: 1.5 });
-        const canvas = canvasRefs.current.get(i);
-        if (!canvas) continue;
-        const pixelRatio = window.devicePixelRatio || 1;
-        canvas.width = viewport.width * pixelRatio;
-        canvas.height = viewport.height * pixelRatio;
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) continue;
-        ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-        const existing = currentTasks.get(i);
-        if (existing) { try { existing.cancel(); } catch { /* ignore */ } }
-        const task = page.render({ canvasContext: ctx, viewport, canvas });
-        currentTasks.set(i, task);
-        try {
-          await task.promise;
-        } catch {
-          // cancelled
-        }
-      }
-    }
-
-    renderPages();
-
-    return () => {
-      cancelled = true;
-      currentTasks.forEach((task) => { try { task.cancel(); } catch { /* ignore */ } });
-      currentTasks.clear();
-    };
-  }, [pdfDoc, numPages, isFullscreen]);
 
   const prevZoomRef = useRef(zoomLevel);
   useEffect(() => {
@@ -279,7 +169,7 @@ function PdfPreview({ compileResult, pdfExport }: {
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [pdfDoc, clampZoom]);
+  }, [pdfDoc, isFullscreen, clampZoom]);
 
   if (!compileResult?.pdfPath || !compileResult.success) {
     return (
