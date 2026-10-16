@@ -5,6 +5,7 @@ use crate::repositories::settings_repository::{
     delete_settings_history, get_settings_history, insert_settings_history, list_settings_history,
     load_all_settings, rename_settings_history, update_settings_history, upsert_settings,
 };
+use crate::services::settings_backup_export_assets::collect_row_assets;
 use crate::state::{default_settings, AppState, SENSITIVE_KEYS};
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
@@ -235,32 +236,6 @@ fn apply_settings_overrides(
     Ok(())
 }
 
-fn sanitize_asset_segment(input: &str) -> String {
-    let mut output = String::with_capacity(input.len());
-    for ch in input.chars() {
-        if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
-            output.push(ch);
-        } else {
-            output.push('_');
-        }
-    }
-    if output.is_empty() {
-        "asset".to_string()
-    } else {
-        output
-    }
-}
-
-fn relative_path_string(path: &Path) -> String {
-    path.components()
-        .filter_map(|component| match component {
-            Component::Normal(part) => Some(part.to_string_lossy().to_string()),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .join("/")
-}
-
 fn safe_relative_path(value: &str) -> Option<PathBuf> {
     let path = Path::new(value);
     if path.is_absolute() {
@@ -281,67 +256,6 @@ fn safe_relative_path(value: &str) -> Option<PathBuf> {
     } else {
         Some(result)
     }
-}
-
-fn collect_file_asset(
-    assets: &mut serde_json::Map<String, serde_json::Value>,
-    app_data_dir: &Path,
-    file_path: &str,
-    fallback_prefix: &str,
-) {
-    if file_path.trim().is_empty() || assets.contains_key(file_path) {
-        return;
-    }
-
-    let source = PathBuf::from(file_path);
-    let Ok(bytes) = std::fs::read(&source) else {
-        return;
-    };
-    let relative_path = source
-        .strip_prefix(app_data_dir)
-        .ok()
-        .map(relative_path_string)
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| {
-            let file_name = source
-                .file_name()
-                .and_then(|value| value.to_str())
-                .map(sanitize_asset_segment)
-                .unwrap_or_else(|| "asset.bin".to_string());
-            format!(
-                "restored_assets/{}/{}",
-                sanitize_asset_segment(fallback_prefix),
-                file_name
-            )
-        });
-
-    assets.insert(
-        file_path.to_string(),
-        serde_json::json!({
-            "relative_path": relative_path,
-            "data": B64.encode(bytes),
-        }),
-    );
-}
-
-fn collect_row_assets(
-    table: &str,
-    row: &serde_json::Value,
-    app_data_dir: &Path,
-    assets: &mut serde_json::Map<String, serde_json::Value>,
-) {
-    if !matches!(table, "papers" | "paper_figures" | "experiment_attachments") {
-        return;
-    }
-
-    let Some(file_path) = row.get("file_path").and_then(|value| value.as_str()) else {
-        return;
-    };
-    let id = row
-        .get("id")
-        .and_then(|value| value.as_str())
-        .unwrap_or("row");
-    collect_file_asset(assets, app_data_dir, file_path, &format!("{table}/{id}"));
 }
 
 fn restore_file_asset(
@@ -584,7 +498,7 @@ pub async fn export_all_data(
         let mut array = Vec::with_capacity(rows.len());
         for row in &rows {
             let value = row_to_json(row)?;
-            collect_row_assets(table, &value, &app_data_dir, &mut assets);
+            collect_row_assets(table, &value, &app_data_dir, &mut assets)?;
             array.push(value);
         }
 
