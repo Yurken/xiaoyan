@@ -12,6 +12,7 @@ interface CryptoConfigModalProps {
   password: string;
   confirm: string;
   busy: boolean;
+  interactionLocked?: boolean;
   submitDisabled?: boolean;
   submitLabel?: string;
   error: string;
@@ -30,6 +31,7 @@ export default function CryptoConfigModal({
   password,
   confirm,
   busy,
+  interactionLocked = false,
   submitDisabled,
   submitLabel,
   error,
@@ -47,7 +49,7 @@ export default function CryptoConfigModal({
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ background: "var(--rc-modal-backdrop)" }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (!interactionLocked && event.target === event.currentTarget) onClose();
       }}
     >
       <div
@@ -76,9 +78,10 @@ export default function CryptoConfigModal({
             <label className="text-xs font-medium text-ink-tertiary ml-1">密码</label>
             <PasswordInput
               value={password}
+              disabled={interactionLocked}
               onChange={onPasswordChange}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229 && !busy && !submitDisabled) void onSubmit();
+                if (event.key === "Enter" && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229 && !busy && !interactionLocked && !submitDisabled) void onSubmit();
               }}
               placeholder="输入密码"
               autoFocus
@@ -92,9 +95,10 @@ export default function CryptoConfigModal({
               <label className="text-xs font-medium text-ink-tertiary ml-1">确认密码</label>
               <PasswordInput
                 value={confirm}
+                disabled={interactionLocked}
                 onChange={onConfirmChange}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229 && !busy && !submitDisabled) void onSubmit();
+                  if (event.key === "Enter" && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229 && !busy && !interactionLocked && !submitDisabled) void onSubmit();
                 }}
                 placeholder="再次输入密码"
                 className="!rounded-2xl !pl-4 !pr-10 !py-2.5"
@@ -116,7 +120,8 @@ export default function CryptoConfigModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2 rounded-2xl text-sm font-medium transition-all duration-150"
+            disabled={interactionLocked}
+            className="flex-1 py-2 rounded-2xl text-sm font-medium transition-all duration-150 disabled:opacity-50"
             style={{ background: "var(--rc-chip-bg)", color: "var(--rc-text-soft)", boxShadow: "var(--rc-chip-shadow)" }}
           >
             取消
@@ -124,7 +129,7 @@ export default function CryptoConfigModal({
           <button
             type="button"
             onClick={() => void onSubmit()}
-            disabled={busy || submitDisabled || !password.trim()}
+            disabled={busy || interactionLocked || submitDisabled || !password.trim()}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
             style={{ background: "var(--rc-button-primary-bg)", boxShadow: "var(--rc-button-primary-shadow)" }}
           >
