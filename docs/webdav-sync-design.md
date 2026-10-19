@@ -55,6 +55,7 @@
 - 资产列（`papers/paper_figures/experiment_attachments` 的 `file_path`）在快照里替换为 `asset://<sha256>` 引用；合并时按需从 `assets/` 下载并落地到本地 `app_data_dir/sync_assets/`。
 - 大且可本地再生的列（如 `paper_chunks.embedding`、`knowledge_notes.embedding`）不进入快照，以控制体积；新设备合并后按需重算。
 - 设备本地专属设置键（如应用锁相关）不参与同步。
+- 非空附件路径必须能转换为内容哈希引用；源不可读或待上传内容改变时停止发布。缓存和下载明文按 SHA-256 核对，成功写入临时文件后替换缓存。合并中实际胜出的行缺少可用附件时整笔回滚，被淘汰的旧行不要求附件可用；显式空路径仍表示清空。旧快照中的设备绝对路径若胜出会报错，需源设备重新同步修复。详见 [附件校验及待执行验证](evolution-runs/2026-10-19-sync-asset-integrity.md)。
 
 ## 本地元数据（SQLite）
 

@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::HashMap;
 use chrono::DateTime;
 use serde_json::json;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
@@ -24,7 +25,7 @@ async fn database() -> SqlitePool {
         .expect("isolated single-connection memory database");
     for &table in BACKUP_TABLES {
         let extra = match table {
-            "papers" => ", title TEXT NOT NULL DEFAULT ''",
+            "papers" => ", title TEXT NOT NULL DEFAULT '', file_path TEXT",
             "settings" => ", value TEXT NOT NULL DEFAULT ''",
             "chat_messages" => ", images TEXT DEFAULT 'synthetic-heavy-field'",
             "paper_chunks" | "knowledge_notes" => {
@@ -428,5 +429,105 @@ async fn corrupt_late_baseline_fails_capture_and_rolls_back_earlier_deletion_tra
     bounded(checkpoint_local_deletes(&db)).await.expect("retry preserves pending local deletion");
     assert!(tombstones(&db).await.contains_key(&paper_key("p1")));
     assert!(baseline(&db, "papers").await.is_empty());
+    db.close().await;
+}
+
+fn paper_with_asset(id: &str, timestamp: &str, path: &str) -> Value {
+    let mut row = paper(id, "remote edit with asset", timestamp);
+    row["file_path"] = json!(path);
+    row
+}
+
+#[tokio::test]
+async fn selected_row_with_unavailable_asset_rolls_back_other_rows_and_metadata() {
+    let db = database().await;
+    insert_paper(&db, "asset-target", "keep local title", OLD).await;
+    insert_paper(&db, "delete-target", "keep local row", OLD).await;
+    sqlx::query("UPDATE papers SET file_path = '/synthetic/keep.pdf' WHERE id = 'asset-target'")
+        .execute(&db)
+        .await
+        .unwrap();
+    bounded(capture_local_state(&db)).await.unwrap();
+    let before = metadata(&db).await;
+    let previous_tombstones = tombstones(&db).await;
+    let hash = "a".repeat(64);
+    let remote = plan(
+        vec![("papers", paper_with_asset("asset-target", NEW, &format!("asset://{hash}")))],
+        vec![("papers", "delete-target", MIDDLE)],
+    );
+    // Missing and explicit failure mappings must both refuse the upsert.
+    for assets in [
+        ResolvedAssets::new(),
+        HashMap::from([(hash.clone(), Err("synthetic remote 404".to_string()))]),
+        HashMap::from([(hash.clone(), Ok(String::new()))]),
+    ] {
+        let error = bounded(apply_merge(&db, &remote, &assets)).await.unwrap_err();
+        assert!(error.contains("asset-target"), "{error}");
+        assert_eq!(paper_title(&db, "asset-target").await.as_deref(), Some("keep local title"));
+        assert_eq!(paper_title(&db, "delete-target").await.as_deref(), Some("keep local row"));
+        let path: String = sqlx::query_scalar("SELECT file_path FROM papers WHERE id = 'asset-target'")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        assert_eq!(path, "/synthetic/keep.pdf");
+        assert_eq!(metadata(&db).await, before);
+        assert_eq!(tombstones(&db).await, previous_tombstones);
+    }
+    db.close().await;
+}
+
+#[tokio::test]
+async fn discarded_remote_rows_do_not_require_their_missing_assets() {
+    let db = database().await;
+    insert_paper(&db, "local-newer", "keep newer local edit", NEW).await;
+    seed_tombstone(&db, "locally-deleted", NEW).await;
+    bounded(capture_local_state(&db)).await.unwrap();
+    let hash = "b".repeat(64);
+    let reference = format!("asset://{hash}");
+    let remote = plan(
+        vec![
+            ("papers", paper_with_asset("local-newer", OLD, &reference)),
+            ("papers", paper_with_asset("locally-deleted", OLD, &reference)),
+            ("papers", paper_with_asset("remotely-deleted", OLD, &reference)),
+        ],
+        vec![("papers", "remotely-deleted", NEW)],
+    );
+    let assets = HashMap::from([(hash, Err("synthetic unavailable asset".to_string()))]);
+    let counts = bounded(apply_merge(&db, &remote, &assets)).await.unwrap();
+    assert_eq!(counts, (0, 0));
+    assert_eq!(paper_title(&db, "local-newer").await.as_deref(), Some("keep newer local edit"));
+    assert_eq!(paper_title(&db, "locally-deleted").await, None);
+    assert_eq!(paper_title(&db, "remotely-deleted").await, None);
+    db.close().await;
+}
+
+#[tokio::test]
+async fn selected_asset_requires_resolution_but_explicit_empty_path_still_clears_it() {
+    let db = database().await;
+    insert_paper(&db, "p1", "original", OLD).await;
+    bounded(capture_local_state(&db)).await.unwrap();
+    let legacy = plan(
+        vec![("papers", paper_with_asset("p1", MIDDLE, "/other-device/paper.pdf"))],
+        vec![],
+    );
+    assert!(bounded(apply_merge(&db, &legacy, &ResolvedAssets::new())).await.is_err());
+    assert_eq!(paper_title(&db, "p1").await.as_deref(), Some("original"));
+
+    let hash = "c".repeat(64);
+    let restored = plan(
+        vec![("papers", paper_with_asset("p1", MIDDLE, &format!("asset://{hash}")))],
+        vec![],
+    );
+    let assets = HashMap::from([(hash, Ok("/synthetic/resolved.pdf".to_string()))]);
+    assert_eq!(bounded(apply_merge(&db, &restored, &assets)).await.unwrap(), (1, 0));
+    let path: String = sqlx::query_scalar("SELECT file_path FROM papers WHERE id = 'p1'")
+        .fetch_one(&db).await.unwrap();
+    assert_eq!(path, "/synthetic/resolved.pdf");
+
+    let cleared = plan(vec![("papers", paper_with_asset("p1", NEW, ""))], vec![]);
+    assert_eq!(bounded(apply_merge(&db, &cleared, &ResolvedAssets::new())).await.unwrap(), (1, 0));
+    let path: String = sqlx::query_scalar("SELECT file_path FROM papers WHERE id = 'p1'")
+        .fetch_one(&db).await.unwrap();
+    assert!(path.is_empty());
     db.close().await;
 }
