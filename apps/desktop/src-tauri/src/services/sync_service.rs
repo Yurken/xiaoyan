@@ -2,7 +2,7 @@
 //!
 //! 设计要点（详见 docs 与计划）：
 //! - 每台设备只写自己的 `devices/{device_id}.rcstate`，因此 WebDAV 上永远不存在
-//!   对同一文件的并发写 → 从根本上消除「丢更新」。
+//!   不同设备覆盖对方状态文件的问题；本地判断与写入另由事务保护。
 //! - 设备间通过确定性合并收敛：按主键做记录级 Last-Write-Wins（比较 `updated_at`，
 //!   纯追加表回退 `created_at`），删除通过墓碑传播。
 //! - 资产（PDF 等）按内容哈希存为 `assets/{sha256}.rcblob`（一次写入、去重），
@@ -10,7 +10,7 @@
 //! - 所有上行/下行文件均用 WebDAV 密码经 AES-256-GCM 加密。
 
 use crate::services::settings_service::{
-    decrypt_blob, encrypt_blob, is_local_only_settings_key, row_to_json, BACKUP_TABLES, MAGIC_SYNC,
+    decrypt_blob, encrypt_blob, is_local_only_settings_key, BACKUP_TABLES, MAGIC_SYNC,
 };
 use crate::services::webdav_service::{self, WebdavConfig};
 use crate::state::{default_settings, AppState};
@@ -21,6 +21,10 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 use tauri::{Emitter, Manager};
+
+#[path = "sync_local_state.rs"]
+mod local_state;
+use local_state::{apply_merge, capture_local_state, checkpoint_local_deletes};
 
 const SYNC_ROOT: &str = "xiaoyan-sync";
 const DEVICES_DIR: &str = "xiaoyan-sync/devices";
@@ -186,67 +190,6 @@ fn automatic_sync_is_due(last_run_started_at: Option<DateTime<Utc>>, now: DateTi
         .unwrap_or(true)
 }
 
-// ── 删除检测（基线对比）──────────────────────────────────────────
-
-/// 对比上次同步保存的「行 id 基线」与当前行集合，为本地删除生成墓碑。
-async fn detect_local_deletes(db: &sqlx::SqlitePool) -> Result<(), String> {
-    let deleted_at = now_rfc3339();
-    for &table in BACKUP_TABLES {
-        let pk = pk_column(table);
-        let current: HashSet<String> =
-            sqlx::query_scalar::<_, String>(&format!("SELECT {pk} FROM {table}"))
-                .fetch_all(db)
-                .await
-                .map_err(|e| format!("读取 {table} 主键失败: {e}"))?
-                .into_iter()
-                .collect();
-
-        let baseline_key = format!("baseline:{table}");
-        let baseline: HashSet<String> = match meta_get(db, &baseline_key).await? {
-            Some(json) => serde_json::from_str(&json).unwrap_or_default(),
-            None => {
-                // 首次同步该表：仅建立基线，不视为删除。
-                let cur_vec: Vec<&String> = current.iter().collect();
-                meta_set(db, &baseline_key, &serde_json::to_string(&cur_vec).unwrap()).await?;
-                continue;
-            }
-        };
-
-        for gone in baseline.difference(&current) {
-            sqlx::query(
-                "INSERT INTO sync_tombstones (entity_table, entity_id, deleted_at) VALUES (?, ?, ?)
-                 ON CONFLICT(entity_table, entity_id) DO NOTHING",
-            )
-            .bind(table)
-            .bind(gone)
-            .bind(&deleted_at)
-            .execute(db)
-            .await
-            .map_err(|e| e.to_string())?;
-        }
-    }
-    Ok(())
-}
-
-/// 合并完成后刷新所有表的基线为当前状态。
-async fn update_baselines(db: &sqlx::SqlitePool) -> Result<(), String> {
-    for &table in BACKUP_TABLES {
-        let pk = pk_column(table);
-        let current: Vec<String> =
-            sqlx::query_scalar::<_, String>(&format!("SELECT {pk} FROM {table}"))
-                .fetch_all(db)
-                .await
-                .map_err(|e| e.to_string())?;
-        meta_set(
-            db,
-            &format!("baseline:{table}"),
-            &serde_json::to_string(&current).unwrap(),
-        )
-        .await?;
-    }
-    Ok(())
-}
-
 // ── 快照构建 ─────────────────────────────────────────────────────
 
 /// 构建本设备快照；返回 (快照, 资产哈希->本地源文件路径)。
@@ -254,32 +197,16 @@ async fn build_snapshot(
     db: &sqlx::SqlitePool,
     device: &str,
 ) -> Result<(DeviceSnapshot, HashMap<String, String>), String> {
-    let mut tables: BTreeMap<String, Vec<serde_json::Value>> = BTreeMap::new();
+    let (mut tables, tombstones) = capture_local_state(db).await?;
     let mut assets: BTreeMap<String, String> = BTreeMap::new();
     let mut asset_sources: HashMap<String, String> = HashMap::new();
 
-    for &table in BACKUP_TABLES {
-        let rows = sqlx::query(&format!("SELECT * FROM {table}"))
-            .fetch_all(db)
-            .await
-            .map_err(|e| format!("导出 {table} 失败: {e}"))?;
-
-        let mut arr = Vec::with_capacity(rows.len());
-        for row in &rows {
-            let value = row_to_json(row)?;
-            let Some(mut obj) = value.as_object().cloned() else {
+    // The database transaction has ended before touching any asset file.
+    for (table, rows) in &mut tables {
+        for row in rows {
+            let serde_json::Value::Object(obj) = row else {
                 continue;
             };
-
-            if table == "settings" {
-                if let Some(key) = obj.get("key").and_then(|v| v.as_str()) {
-                    if is_local_only_settings_key(key) {
-                        continue;
-                    }
-                }
-            }
-
-            obj.retain(|col, _| !is_excluded_column(table, col));
 
             if is_asset_table(table) {
                 if let Some(fp) = obj.get("file_path").and_then(|v| v.as_str()) {
@@ -297,25 +224,8 @@ async fn build_snapshot(
                     }
                 }
             }
-
-            arr.push(serde_json::Value::Object(obj));
         }
-        tables.insert(table.to_string(), arr);
     }
-
-    let tombstones = sqlx::query_as::<_, (String, String, String)>(
-        "SELECT entity_table, entity_id, deleted_at FROM sync_tombstones",
-    )
-    .fetch_all(db)
-    .await
-    .map_err(|e| e.to_string())?
-    .into_iter()
-    .map(|(table, id, deleted_at)| Tombstone {
-        table,
-        id,
-        deleted_at,
-    })
-    .collect();
 
     let snapshot = DeviceSnapshot {
         version: SNAPSHOT_VERSION,
@@ -394,191 +304,6 @@ fn combine_snapshots(snapshots: &[DeviceSnapshot]) -> MergePlan {
         tombstones,
         assets,
     }
-}
-
-/// 本地各表的有效时间戳：(table -> (id -> ts))
-async fn load_local_ts(
-    db: &sqlx::SqlitePool,
-) -> Result<HashMap<String, HashMap<String, String>>, String> {
-    let mut map = HashMap::new();
-    for &table in BACKUP_TABLES {
-        let pk = pk_column(table);
-        let ts = ts_column(table);
-        let rows = sqlx::query_as::<_, (String, Option<String>)>(&format!(
-            "SELECT {pk}, {ts} FROM {table}"
-        ))
-        .fetch_all(db)
-        .await
-        .map_err(|e| format!("读取 {table} 时间戳失败: {e}"))?;
-        let inner: HashMap<String, String> = rows
-            .into_iter()
-            .map(|(id, ts)| (id, ts.unwrap_or_default()))
-            .collect();
-        map.insert(table.to_string(), inner);
-    }
-    Ok(map)
-}
-
-/// 把合并计划应用到本地数据库（单事务）。返回 (应用行数, 删除行数)。
-async fn apply_merge(
-    db: &sqlx::SqlitePool,
-    plan: &MergePlan,
-    local_ts: &HashMap<String, HashMap<String, String>>,
-    asset_paths: &HashMap<String, String>,
-) -> Result<(usize, usize), String> {
-    let mut tx = db.begin().await.map_err(|e| e.to_string())?;
-    sqlx::query("PRAGMA defer_foreign_keys = ON")
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let mut applied = 0usize;
-    let mut deleted = 0usize;
-
-    // 1) 应用删除：仅当本地行不比墓碑更新时删除。
-    for ((table, id), del_ts) in &plan.tombstones {
-        let pk = pk_column(table);
-        let local = local_ts.get(table).and_then(|m| m.get(id));
-        let should_delete = match local {
-            Some(ts) => !is_newer_timestamp(ts, del_ts),
-            None => false, // 本地没有该行，无需删
-        };
-        if should_delete {
-            sqlx::query(&format!("DELETE FROM {table} WHERE {pk} = ?"))
-                .bind(id)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| format!("删除 {table} 失败: {e}"))?;
-            deleted += 1;
-        }
-        // 记录墓碑（保留最新 deleted_at）
-        let existing_tombstone = sqlx::query_scalar::<_, String>(
-            "SELECT deleted_at FROM sync_tombstones WHERE entity_table = ? AND entity_id = ?",
-        )
-        .bind(table)
-        .bind(id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|e| e.to_string())?;
-        if existing_tombstone
-            .as_deref()
-            .is_none_or(|current| is_newer_timestamp(del_ts, current))
-        {
-            sqlx::query(
-                "INSERT INTO sync_tombstones (entity_table, entity_id, deleted_at) VALUES (?, ?, ?)
-                 ON CONFLICT(entity_table, entity_id) DO UPDATE SET deleted_at = excluded.deleted_at",
-            )
-            .bind(table)
-            .bind(id)
-            .bind(del_ts)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| e.to_string())?;
-        }
-    }
-
-    // 2) 按依赖顺序 upsert（父表先于子表）。
-    for &table in BACKUP_TABLES {
-        let Some(bucket) = plan.rows.get(table) else {
-            continue;
-        };
-        let pk = pk_column(table);
-        for (id, row) in bucket {
-            let row_ts = effective_ts(table, row);
-
-            // 墓碑更新于该行 → 跳过（删除胜出）
-            if let Some(del) = plan.tombstones.get(&(table.to_string(), id.clone())) {
-                if !is_newer_timestamp(&row_ts, del) {
-                    continue;
-                }
-            }
-            // 本地更新 → 跳过（本地胜出）
-            if let Some(local) = local_ts.get(table).and_then(|m| m.get(id)) {
-                if !is_newer_timestamp(&row_ts, local) {
-                    continue;
-                }
-            }
-
-            upsert_row(&mut tx, table, pk, row, asset_paths).await?;
-            applied += 1;
-        }
-    }
-
-    tx.commit().await.map_err(|e| e.to_string())?;
-    Ok((applied, deleted))
-}
-
-async fn upsert_row(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    table: &str,
-    pk: &str,
-    row: &serde_json::Value,
-    asset_paths: &HashMap<String, String>,
-) -> Result<(), String> {
-    let Some(obj) = row.as_object() else {
-        return Ok(());
-    };
-    if obj.is_empty() {
-        return Ok(());
-    }
-
-    // 解析资产引用为本地路径。
-    let mut resolved = obj.clone();
-    if is_asset_table(table) {
-        if let Some(fp) = resolved.get("file_path").and_then(|v| v.as_str()) {
-            if let Some(hash) = fp.strip_prefix("asset://") {
-                let local = asset_paths.get(hash).cloned().unwrap_or_default();
-                resolved.insert("file_path".into(), serde_json::Value::String(local));
-            }
-        }
-    }
-
-    let entries: Vec<(&String, &serde_json::Value)> = resolved.iter().collect();
-    let columns: Vec<String> = entries.iter().map(|(k, _)| (*k).clone()).collect();
-    let columns_str = columns.join(", ");
-    let placeholders = vec!["?"; entries.len()].join(", ");
-    let updates: Vec<String> = columns
-        .iter()
-        .filter(|c| c.as_str() != pk)
-        .map(|c| format!("{c} = excluded.{c}"))
-        .collect();
-
-    let sql = if updates.is_empty() {
-        format!(
-            "INSERT INTO {table} ({columns_str}) VALUES ({placeholders})
-             ON CONFLICT({pk}) DO NOTHING"
-        )
-    } else {
-        format!(
-            "INSERT INTO {table} ({columns_str}) VALUES ({placeholders})
-             ON CONFLICT({pk}) DO UPDATE SET {}",
-            updates.join(", ")
-        )
-    };
-
-    let mut query = sqlx::query(&sql);
-    for (_, value) in entries {
-        query = match value {
-            serde_json::Value::Null => query.bind(Option::<String>::None),
-            serde_json::Value::String(v) => query.bind(v.clone()),
-            serde_json::Value::Bool(v) => query.bind(if *v { 1_i64 } else { 0_i64 }),
-            serde_json::Value::Number(v) => {
-                if let Some(i) = v.as_i64() {
-                    query.bind(i)
-                } else if let Some(f) = v.as_f64() {
-                    query.bind(f)
-                } else {
-                    query.bind(v.to_string())
-                }
-            }
-            other => query.bind(other.to_string()),
-        };
-    }
-    query
-        .execute(&mut **tx)
-        .await
-        .map_err(|e| format!("写入 {table} 失败: {e}"))?;
-    Ok(())
 }
 
 // ── 资产上行/下行 ────────────────────────────────────────────────
@@ -781,10 +506,7 @@ async fn run_sync_inner(
     webdav_service::ensure_collection(config, DEVICES_DIR).await?;
     webdav_service::ensure_collection(config, ASSETS_DIR).await?;
 
-    // 1) 本地删除检测 → 墓碑。
-    detect_local_deletes(db).await?;
-
-    // 2) 构建并上传本设备快照（内容未变则跳过上传）。
+    // 1–2) 同一事务捕获删除、基线和行，再构建资产引用并上传快照。
     let (snapshot, asset_sources) = build_snapshot(db, &device).await?;
     let snapshot_json = serde_json::to_string(&snapshot).map_err(|e| e.to_string())?;
 
@@ -835,8 +557,8 @@ async fn run_sync_inner(
     let pulled_devices = remote_snapshots.len();
 
     if remote_snapshots.is_empty() {
-        // 没有其它设备：仅刷新基线即可。
-        update_baselines(db).await?;
+        // 没有其它设备：也要记录网络等待期间发生的本地删除。
+        checkpoint_local_deletes(db).await?;
         return Ok(SyncSummary {
             pushed,
             pulled_devices: 0,
@@ -850,11 +572,9 @@ async fn run_sync_inner(
     // 4) 合并。
     let plan = combine_snapshots(&remote_snapshots);
     let (asset_paths, assets_downloaded) = download_assets(config, &app_data_dir, &plan).await?;
-    let local_ts = load_local_ts(db).await?;
-    let (rows_applied, rows_deleted) = apply_merge(db, &plan, &local_ts, &asset_paths).await?;
+    let (rows_applied, rows_deleted) = apply_merge(db, &plan, &asset_paths).await?;
 
-    // 5) 收尾：刷新基线与设置缓存。
-    update_baselines(db).await?;
+    // 5) 基线已随合并提交；这里只刷新设置缓存。
     refresh_settings_cache(state).await?;
 
     Ok(SyncSummary {
@@ -978,13 +698,9 @@ mod tests {
         .unwrap();
 
         // 建立基线并把 A 的快照合并进 B
-        detect_local_deletes(&a).await.unwrap();
         let (snap_a, _) = build_snapshot(&a, "devA").await.unwrap();
         let plan = combine_snapshots(&[snap_a]);
-        let lts = load_local_ts(&b).await.unwrap();
-        apply_merge(&b, &plan, &lts, &no_assets).await.unwrap();
-        detect_local_deletes(&b).await.unwrap();
-        update_baselines(&b).await.unwrap();
+        apply_merge(&b, &plan, &no_assets).await.unwrap();
 
         let title: String = sqlx::query_scalar("SELECT title FROM papers WHERE id='p1'")
             .fetch_one(&b)
@@ -999,9 +715,7 @@ mod tests {
             .unwrap();
         let (snap_b, _) = build_snapshot(&b, "devB").await.unwrap();
         let plan = combine_snapshots(&[snap_b]);
-        let lts = load_local_ts(&a).await.unwrap();
-        apply_merge(&a, &plan, &lts, &no_assets).await.unwrap();
-        update_baselines(&a).await.unwrap();
+        apply_merge(&a, &plan, &no_assets).await.unwrap();
 
         let title: String = sqlx::query_scalar("SELECT title FROM papers WHERE id='p1'")
             .fetch_one(&a)
@@ -1014,13 +728,11 @@ mod tests {
             .execute(&a)
             .await
             .unwrap();
-        detect_local_deletes(&a).await.unwrap();
         let (snap_a2, _) = build_snapshot(&a, "devA").await.unwrap();
         assert!(!snap_a2.tombstones.is_empty(), "应生成删除墓碑");
 
         let plan = combine_snapshots(&[snap_a2]);
-        let lts = load_local_ts(&b).await.unwrap();
-        let (_applied, deleted) = apply_merge(&b, &plan, &lts, &no_assets).await.unwrap();
+        let (_applied, deleted) = apply_merge(&b, &plan, &no_assets).await.unwrap();
         assert!(deleted >= 1, "删除应被应用");
 
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM papers WHERE id='p1'")
@@ -1031,8 +743,7 @@ mod tests {
 
         // 幂等：再合并一次不应改变结果（p1 仍不存在）
         let plan = combine_snapshots(&[build_snapshot(&a, "devA").await.unwrap().0]);
-        let lts = load_local_ts(&b).await.unwrap();
-        apply_merge(&b, &plan, &lts, &no_assets).await.unwrap();
+        apply_merge(&b, &plan, &no_assets).await.unwrap();
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM papers WHERE id='p1'")
             .fetch_one(&b)
             .await
