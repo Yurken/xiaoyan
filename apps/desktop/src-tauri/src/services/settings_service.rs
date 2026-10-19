@@ -5,7 +5,8 @@ use crate::repositories::settings_repository::{
     delete_settings_history, get_settings_history, insert_settings_history, list_settings_history,
     load_all_settings, rename_settings_history, update_settings_history, upsert_settings,
 };
-use crate::services::settings_backup_export_assets::collect_row_assets;
+use crate::services::settings_backup_export_assets::collect_snapshot_assets;
+use crate::services::settings_backup_snapshot::read_backup_tables;
 use crate::state::{default_settings, AppState, SENSITIVE_KEYS};
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
@@ -468,23 +469,9 @@ pub async fn export_all_data(
     }
 
     let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let mut tables = serde_json::Map::new();
-    let mut assets = serde_json::Map::new();
-    for table in BACKUP_TABLES {
-        let rows = sqlx::query(&format!("SELECT * FROM {table}"))
-            .fetch_all(&state.db)
-            .await
-            .map_err(|e| format!("导出表 {table} 失败: {e}"))?;
-
-        let mut array = Vec::with_capacity(rows.len());
-        for row in &rows {
-            let value = row_to_json(row)?;
-            collect_row_assets(table, &value, &app_data_dir, &mut assets)?;
-            array.push(value);
-        }
-
-        tables.insert(table.to_string(), serde_json::Value::Array(array));
-    }
+    // Finish the database snapshot before reading potentially large files.
+    let tables = read_backup_tables(&state.db, BACKUP_TABLES).await?;
+    let assets = collect_snapshot_assets(BACKUP_TABLES, &tables, &app_data_dir)?;
 
     let payload = serde_json::json!({
         "version": 1,

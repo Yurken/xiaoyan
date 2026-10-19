@@ -342,3 +342,102 @@ fn a_failed_read_preserves_prior_assets_and_can_be_retried_after_repair() {
         b"repaired fixture bytes",
     );
 }
+
+#[test]
+fn snapshot_collection_preserves_table_order_for_shared_external_asset_paths() {
+    let fixture = Fixture::new();
+    let source = fixture.write("external/shared.bin", b"shared synthetic bytes");
+    // serde_json::Map sorts these names; the collector must use backup order.
+    let tables = json!({
+        "experiment_attachments": [row("attachment-1", &source)],
+        "papers": [row("paper-1", &source)],
+        "settings": [{"key": "synthetic", "value": "unchanged"}],
+    });
+    let original = tables.clone();
+
+    let assets = super::collect_snapshot_assets(
+        &["papers", "settings", "experiment_attachments"],
+        tables.as_object().expect("synthetic snapshot"),
+        &fixture.app_data_dir,
+    )
+    .expect("collect snapshot references");
+
+    assert_eq!(assets.len(), 1);
+    assert_asset(
+        &assets,
+        &source,
+        "restored_assets/papers_paper-1/shared.bin",
+        b"shared synthetic bytes",
+    );
+    assert_eq!(tables, original, "file collection must not rewrite table rows");
+}
+
+#[test]
+fn snapshot_collection_rejects_missing_or_non_array_tables() {
+    let fixture = Fixture::new();
+    for tables in [
+        json!({ "papers": [] }),
+        json!({ "papers": [], "paper_figures": null }),
+        json!({ "papers": [], "paper_figures": {} }),
+    ] {
+        let error = super::collect_snapshot_assets(
+            &["papers", "paper_figures"],
+            tables.as_object().expect("synthetic snapshot"),
+            &fixture.app_data_dir,
+        )
+        .expect_err("an incomplete snapshot must not produce a backup");
+
+        assert!(error.contains("paper_figures"), "{error}");
+    }
+}
+
+#[test]
+fn snapshot_collection_fails_if_a_later_referenced_file_disappears_and_can_retry() {
+    let fixture = Fixture::new();
+    let paper = fixture.write("app-data/papers/one.pdf", b"synthetic PDF");
+    let figure = fixture.write("app-data/figures/one.png", b"synthetic figure");
+    let tables = json!({
+        "papers": [row("paper-1", &paper)],
+        "paper_figures": [row("figure-1", &figure)],
+    });
+    // The rows are already captured. Deleting a referenced file afterwards must
+    // fail the file phase instead of returning only the successfully read PDF.
+    fs::remove_file(&figure).expect("remove only the synthetic fixture file");
+    let error = super::collect_snapshot_assets(
+        &["papers", "paper_figures"],
+        tables.as_object().expect("synthetic snapshot"),
+        &fixture.app_data_dir,
+    )
+    .expect_err("a disappeared file must reject the whole asset collection");
+    assert!(error.contains("paper_figures/figure-1"), "{error}");
+    assert!(error.contains(path_string(&figure)), "{error}");
+
+    fs::write(&figure, b"repaired synthetic figure").expect("repair fixture file");
+    let assets = super::collect_snapshot_assets(
+        &["papers", "paper_figures"],
+        tables.as_object().expect("synthetic snapshot"),
+        &fixture.app_data_dir,
+    )
+    .expect("retry after the referenced file is repaired");
+    assert_eq!(assets.len(), 2);
+    assert_asset(&assets, &paper, "papers/one.pdf", b"synthetic PDF");
+    assert_asset(
+        &assets,
+        &figure,
+        "figures/one.png",
+        b"repaired synthetic figure",
+    );
+}
+
+#[test]
+fn empty_snapshot_tables_produce_no_assets() {
+    let fixture = Fixture::new();
+    let tables = json!({ "papers": [], "paper_figures": [], "experiment_attachments": [] });
+    let assets = super::collect_snapshot_assets(
+        &ASSET_TABLES,
+        tables.as_object().expect("synthetic snapshot"),
+        &fixture.app_data_dir,
+    )
+    .expect("empty tables remain valid backup content");
+    assert!(assets.is_empty());
+}

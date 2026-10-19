@@ -94,6 +94,26 @@ pub(crate) fn collect_row_assets(
     )
 }
 
+/// Collect files only from the completed database snapshot, preserving the
+/// original table order because the first reference owns a shared asset path.
+pub(crate) fn collect_snapshot_assets(
+    table_names: &[&str],
+    tables: &serde_json::Map<String, serde_json::Value>,
+    app_data_dir: &Path,
+) -> Result<serde_json::Map<String, serde_json::Value>, String> {
+    let mut assets = serde_json::Map::new();
+    for &table in table_names {
+        let rows = tables
+            .get(table)
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| format!("备份快照缺少有效的表 {table}"))?;
+        for row in rows {
+            collect_row_assets(table, row, app_data_dir, &mut assets)?;
+        }
+    }
+    Ok(assets)
+}
+
 #[cfg(test)]
 #[path = "settings_backup_export_assets_tests.rs"]
 mod tests;
