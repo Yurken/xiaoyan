@@ -139,6 +139,7 @@ export interface TokenUsageStats {
 
 export const settingsApi = {
   get: (): Promise<AppSettings> => invoke("settings_get"),
+  reload: (): Promise<AppSettings> => invoke("settings_reload"),
   update: (data: Partial<AppSettings>): Promise<{ ok: boolean; updated: string[] }> =>
     invoke("settings_update", { data }),
   test: (data: Partial<AppSettings>): Promise<string> =>

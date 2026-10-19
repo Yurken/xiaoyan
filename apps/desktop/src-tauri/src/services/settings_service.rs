@@ -195,14 +195,6 @@ pub(crate) fn is_local_only_settings_key(key: &str) -> bool {
     LOCAL_ONLY_SETTINGS_KEYS.contains(&key)
 }
 
-fn mask_value(key: &str, value: &str) -> String {
-    if SENSITIVE_KEYS.contains(&key) && !value.is_empty() {
-        MASK.to_string()
-    } else {
-        value.to_string()
-    }
-}
-
 fn merge_with_defaults(
     defaults: &HashMap<String, String>,
     values: &HashMap<String, String>,
@@ -375,18 +367,7 @@ fn settings_history_entry(
 
 pub async fn get_exposed_settings(state: &AppState) -> Result<HashMap<String, String>, String> {
     let cache = state.settings.read().await;
-    let defaults = default_settings();
-    let mut result = HashMap::new();
-
-    for (key, default) in &defaults {
-        let value = cache
-            .get(key)
-            .map(|item| item.as_str())
-            .unwrap_or(default.as_str());
-        result.insert(key.clone(), mask_value(key, value));
-    }
-
-    Ok(result)
+    Ok(super::settings_reload::expose_settings(&cache))
 }
 
 pub async fn update_settings(

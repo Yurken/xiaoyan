@@ -4,7 +4,7 @@ import { resetInvokeMock } from "../mocks/tauri";
 import { DEFAULT_SETTINGS } from "../../features/settings/pageConfig";
 import Settings from "../../pages/Settings";
 
-const persistenceMock = vi.hoisted(() => ({ saveState: "idle", saveError: "", retry: vi.fn() }));
+const persistenceMock = vi.hoisted(() => ({ saveState: "idle", saveError: "", loadError: "", retry: vi.fn(), retryLoad: vi.fn() }));
 
 // Settings.tsx 内联渲染胶囊导航并直接消费 SETTINGS_SECTIONS，因此 pageConfig 不做
 // mock，让真实的分区元数据（标签/key/默认 assistant）参与渲染；下面只 mock 重型
@@ -21,7 +21,7 @@ vi.mock("../../features/settings/useSettingsController", () => ({
     getSharedValue: () => "",
     hasMixedValue: () => false,
     loading: false,
-    loadError: "",
+    loadError: persistenceMock.loadError,
     saveState: persistenceMock.saveState,
     saveError: persistenceMock.saveError,
     testState: "idle",
@@ -33,6 +33,7 @@ vi.mock("../../features/settings/useSettingsController", () => ({
     appVersion: "1.0.0",
     markSaved: vi.fn(),
     handleSaveSettings: persistenceMock.retry,
+    handleRetryLoadSettings: persistenceMock.retryLoad,
     handleTestConnection: vi.fn(),
     handleCheckUpdate: vi.fn(),
     handleInstallUpdate: vi.fn(),
@@ -158,7 +159,7 @@ vi.mock("../../features/settings/CryptoConfigModal", () => ({
   default: () => <div data-testid="crypto-modal" />,
 }));
 vi.mock("../../features/settings/ConfigHistoryManageModal", () => ({
-  default: () => <div data-testid="config-manage-modal" />,
+  default: ({ locked }: { locked?: boolean }) => <div data-testid="config-manage-modal" data-locked={Boolean(locked)} />,
 }));
 
 describe("Settings 页面", () => {
@@ -167,7 +168,9 @@ describe("Settings 页面", () => {
     localStorage.clear();
     persistenceMock.saveState = "idle";
     persistenceMock.saveError = "";
+    persistenceMock.loadError = "";
     persistenceMock.retry.mockClear();
+    persistenceMock.retryLoad.mockClear();
   });
 
   it("应渲染设置页面（默认显示小妍分区）", async () => {
@@ -201,6 +204,21 @@ describe("Settings 页面", () => {
     await waitFor(() => {
       expect(screen.getByTestId("about-section")).toBeInTheDocument();
     });
+  });
+
+  it("重新挂载读取失败时锁定配置区，仍可在锁外重新读取", () => {
+    persistenceMock.loadError = "读取恢复后的设置失败";
+    render(<Settings />);
+    expect(screen.getByText("读取恢复后的设置失败")).toBeInTheDocument();
+    const reload = screen.getByRole("button", { name: "重新读取" });
+    expect(reload).not.toBeDisabled();
+    expect(screen.getByTestId("assistant-settings").closest("fieldset")).toBeDisabled();
+    fireEvent.click(screen.getByText("数据与配置"));
+    expect(screen.getByTestId("history-section").closest("fieldset")).toBeDisabled();
+    expect(screen.getByTestId("config-manage-modal")).toHaveAttribute("data-locked", "true");
+    fireEvent.click(reload);
+    expect(persistenceMock.retryLoad).toHaveBeenCalledOnce();
+    expect(persistenceMock.retry).not.toHaveBeenCalled();
   });
 
   it("离开小妍分区后仍显示未保存错误并允许重试", () => {

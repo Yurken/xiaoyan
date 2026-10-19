@@ -7,7 +7,9 @@ export type DataBackupModalState =
   | null;
 
 interface UseDataBackupOptions {
+  onImport?: (data: string, password: string, onReadback: () => Promise<void>) => Promise<void>;
   onImported?: () => Promise<void> | void;
+  blocked?: boolean;
 }
 
 interface BackupOperation {
@@ -15,7 +17,7 @@ interface BackupOperation {
   lifetime: { active: boolean };
 }
 
-export function useDataBackup({ onImported }: UseDataBackupOptions = {}) {
+export function useDataBackup({ onImport, onImported, blocked = false }: UseDataBackupOptions = {}) {
   const [session, setSession] = useState<{ version: number; modal: DataBackupModalState }>({
     version: 0,
     modal: null,
@@ -28,6 +30,8 @@ export function useDataBackup({ onImported }: UseDataBackupOptions = {}) {
   const version = useRef(0);
   const lifetime = useRef({ active: true });
   const operation = useRef<BackupOperation | null>(null);
+  const blockedRef = useRef(blocked);
+  blockedRef.current = blocked;
 
   useLayoutEffect(() => {
     const activeLifetime = { active: true };
@@ -51,7 +55,7 @@ export function useDataBackup({ onImported }: UseDataBackupOptions = {}) {
   };
 
   const beginOperation = (): BackupOperation | null => {
-    if (!canEdit()) return null;
+    if (!canEdit() || blockedRef.current) return null;
     const request = { version: version.current, lifetime: lifetime.current };
     // Reserve synchronously, before any native dialog or React state update.
     operation.current = request;
@@ -83,7 +87,7 @@ export function useDataBackup({ onImported }: UseDataBackupOptions = {}) {
   };
 
   const openExportModal = () => {
-    if (canEdit()) resetModal({ mode: "export" });
+    if (canEdit() && !blockedRef.current) resetModal({ mode: "export" });
   };
 
   const openImportPicker = async () => {
@@ -111,7 +115,7 @@ export function useDataBackup({ onImported }: UseDataBackupOptions = {}) {
   };
 
   const handleConfirm = async () => {
-    if (!canEdit() || !modal) return;
+    if (!canEdit() || blockedRef.current || !modal) return;
     if (!password.trim()) {
       setError("密码不能为空。");
       return;
@@ -152,11 +156,25 @@ export function useDataBackup({ onImported }: UseDataBackupOptions = {}) {
         return;
       }
 
-      // An invoked restore is durable; leaving this view cannot cancel it.
-      // Keep its completion callback, but discard feedback for an unmounted view.
-      await apiClient.settings.dataBackup.import(modal.fileData, password);
-      await onImported?.();
-      if (isCurrent(request)) resetModal(null);
+      // The controller reserves settings persistence synchronously. Its readback
+      // callback also runs after a read-only recovery, when this request is no
+      // longer busy; modal identity must therefore not depend on the busy token.
+      const onReadback = async () => {
+        if (request.lifetime.active && lifetime.current === request.lifetime && version.current === request.version) {
+          resetModal(null);
+        }
+        try {
+          await onImported?.();
+        } catch (refreshError) {
+          console.warn("备份设置已重新读取，但刷新相关界面失败", refreshError);
+        }
+      };
+      if (onImport) {
+        await onImport(modal.fileData, password, onReadback);
+      } else {
+        await apiClient.settings.dataBackup.import(modal.fileData, password);
+        await onReadback();
+      }
       void apiClient.memory.add({
         type: "auto",
         action: "data_backup.import",
