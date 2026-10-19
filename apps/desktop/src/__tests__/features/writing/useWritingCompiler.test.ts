@@ -5,6 +5,7 @@ import { useWritingCompiler } from "../../../features/writing/useWritingCompiler
 import { useWritingFeedback } from "../../../features/writing/useWritingFeedback";
 import {
   LATEX_INSTALL_SUPPORT,
+  isLatexCompilerMissing,
   type WritingCompileSummary,
 } from "../../../features/writing/shared";
 import { getInvokeMock, resetInvokeMock } from "../../mocks/tauri";
@@ -119,6 +120,14 @@ function resetStorage() {
   storageMocks.setItem.mockReset().mockImplementation(originalStorage.setItem);
   storageMocks.removeItem.mockReset().mockImplementation(originalStorage.removeItem);
   localStorage.clear();
+}
+
+function useCompilerWithInstallNotice(input: CompilerOptions) {
+  const compiler = useWritingCompiler(input);
+  return {
+    ...compiler,
+    showLatexInstallNotice: isLatexCompilerMissing(compiler.compileResult),
+  };
 }
 
 function StrictWrapper({ children }: PropsWithChildren) {
@@ -436,6 +445,145 @@ describe("useWritingCompiler", () => {
       expect(input.onError).not.toHaveBeenCalled();
     },
   );
+
+  it.each([
+    { name: "缺失字段", value: {} },
+    { name: "日志对象", value: { ...summary("bad-log-cache"), log: { message: "Unexpected log shape" } } },
+    { name: "数组", value: [] },
+  ])("缓存是有效 JSON 但结构为$name时忽略结果，真实安装提示消费者可安全渲染", ({ value }) => {
+    localStorage.setItem(storageKey("draft-a"), JSON.stringify(value));
+    storageMocks.setItem.mockClear();
+    storageMocks.removeItem.mockClear();
+    const input = options();
+    const { result } = renderHook(useCompilerWithInstallNotice, { initialProps: input });
+
+    expect(result.current.compileStatus).toBe("idle");
+    expect(result.current.compileResult).toBeNull();
+    expect(storageMocks.setItem).not.toHaveBeenCalled();
+    expect(storageMocks.removeItem).not.toHaveBeenCalled();
+    expect(localStorage.getItem(storageKey("draft-a"))).toBe(JSON.stringify(value));
+    expect(result.current.showLatexInstallNotice).toBe(false);
+    expect(input.onError).not.toHaveBeenCalled();
+    expect(input.onMessage).not.toHaveBeenCalled();
+    expect(getInvokeMock()).not.toHaveBeenCalled();
+  });
+
+  it("切换到坏结构缓存的 B 时，每次 render 均丢弃 A 的结果并安全计算安装提示", () => {
+    const cachedA = summary("cached-valid-a");
+    localStorage.setItem(storageKey("draft-a"), JSON.stringify(cachedA));
+    localStorage.setItem(storageKey("draft-b"), JSON.stringify({
+      ...summary("cached-invalid-b"), log: { message: "Invalid log" },
+    }));
+    const renders: Array<{
+      draftId: string; result: WritingCompileSummary | null; status: string; notice: boolean;
+    }> = [];
+    const { result, rerender } = renderHook((input: CompilerOptions) => {
+      const compiler = useCompilerWithInstallNotice(input);
+      renders.push({
+        draftId: input.draftId, result: compiler.compileResult,
+        status: compiler.compileStatus, notice: compiler.showLatexInstallNotice,
+      });
+      return compiler;
+    }, { initialProps: options() });
+    expect(result.current.compileResult).toEqual(cachedA);
+
+    rerender(options("draft-b"));
+    const bRenders = renders.filter((render) => render.draftId === "draft-b");
+    expect(bRenders.length).toBeGreaterThan(0);
+    for (const render of bRenders) {
+      expect(render.result).toBeNull();
+      expect(render.status).toBe("idle");
+      expect(render.notice).toBe(false);
+    }
+    expect(JSON.parse(localStorage.getItem(storageKey("draft-a"))!)).toEqual(cachedA);
+    expect(getInvokeMock()).not.toHaveBeenCalled();
+  });
+
+  it("原生返回坏结构时不进入结果或缓存，显示格式错误且下一次编译可成功", async () => {
+    localStorage.setItem(storageKey("draft-a"), JSON.stringify(summary("previous-valid")));
+    const invalid = deferred();
+    const retry = deferred();
+    mockCompileQueue(invalid, retry);
+    const input = options();
+    const { result } = renderHook(useCompilerWithInstallNotice, { initialProps: input });
+    storageMocks.setItem.mockClear();
+    const badResult: unknown = {
+      ...summary("invalid-native"), log: { message: "Unexpected native log object" },
+    };
+    await finishCompile(invalid, startCompile(result.current.compilePdf), badResult as WritingCompileSummary);
+
+    expect(result.current.compileStatus).toBe("failed");
+    expect(result.current.compileResult).toBeNull();
+    expect(result.current.showLatexInstallNotice).toBe(false);
+    expect(storageMocks.setItem).not.toHaveBeenCalled();
+    expect(localStorage.getItem(storageKey("draft-a"))).toBeNull();
+    expect(input.onError).toHaveBeenCalledWith("编译器返回的结果格式无效，请重新编译。");
+    expect(input.onMessage).not.toHaveBeenCalled();
+
+    const valid = summary("retry-valid-native");
+    await finishCompile(retry, startCompile(result.current.compilePdf), valid);
+    expect(getInvokeMock()).toHaveBeenCalledTimes(2);
+    expect(result.current.compileStatus).toBe("ready");
+    expect(result.current.compileResult).toEqual(valid);
+    expect(JSON.parse(localStorage.getItem(storageKey("draft-a"))!)).toEqual(valid);
+    expect(input.onError).toHaveBeenCalledTimes(1);
+  });
+
+  it("旧文稿返回坏结构时完全忽略，不污染当前结果、反馈或任一缓存", async () => {
+    const old = deferred();
+    mockCompileQueue(old);
+    const inputA = options();
+    const inputB = options("draft-b");
+    const cachedB = summary("current-valid-b");
+    localStorage.setItem(storageKey("draft-b"), JSON.stringify(cachedB));
+    const { result, rerender } = renderHook(useCompilerWithInstallNotice, { initialProps: inputA });
+    const oldJob = startCompile(result.current.compilePdf);
+    rerender(inputB);
+    const preservedA = summary("externally-refreshed-a");
+    localStorage.setItem(storageKey("draft-a"), JSON.stringify(preservedA));
+    storageMocks.setItem.mockClear();
+    storageMocks.removeItem.mockClear();
+
+    await finishCompile(old, oldJob, {} as unknown as WritingCompileSummary);
+    expect(result.current.compileStatus).toBe("idle");
+    expect(result.current.compileResult).toEqual(cachedB);
+    expect(result.current.showLatexInstallNotice).toBe(false);
+    expect(storageMocks.setItem).not.toHaveBeenCalled();
+    expect(storageMocks.removeItem).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem(storageKey("draft-a"))!)).toEqual(preservedA);
+    expect(JSON.parse(localStorage.getItem(storageKey("draft-b"))!)).toEqual(cachedB);
+    for (const input of [inputA, inputB]) {
+      expect(input.onError).not.toHaveBeenCalled();
+      expect(input.onMessage).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each([
+    {
+      name: "普通失败",
+      value: summary("cached-failed", { success: false, pdfPath: null, log: "Undefined control sequence" }),
+      notice: false,
+    },
+    {
+      name: "日志提示缺编译器",
+      value: summary("cached-missing", {
+        success: false, pdfPath: null, engine: "future-engine", log: "未找到 LaTeX 编译器，请检查安装。",
+      }),
+      notice: true,
+    },
+  ])("有效$name缓存仍保留完整日志和安装提示，加载状态保持 idle", ({ value, notice }) => {
+    localStorage.setItem(storageKey("draft-a"), JSON.stringify(value));
+    const input = options();
+    const { result } = renderHook(useCompilerWithInstallNotice, { initialProps: input });
+
+    expect(result.current.compileStatus).toBe("idle");
+    expect(result.current.compileResult).toEqual(value);
+    expect(result.current.compileResult?.log).toBe(value.log);
+    expect(result.current.showLatexInstallNotice).toBe(notice);
+    expect(input.onError).not.toHaveBeenCalled();
+    expect(input.onMessage).not.toHaveBeenCalled();
+    expect(getInvokeMock()).not.toHaveBeenCalled();
+  });
 
   it("缓存 JSON 损坏时仍可正常编译", async () => {
     localStorage.setItem(storageKey("draft-a"), "{broken");
