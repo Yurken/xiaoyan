@@ -8,6 +8,12 @@ pub async fn settings_get(state: State<'_, AppState>) -> Result<HashMap<String, 
     settings_service::get_exposed_settings(state.inner()).await
 }
 
+/// Read committed settings from SQLite and reconcile the in-memory cache.
+#[tauri::command]
+pub async fn settings_reload(state: State<'_, AppState>) -> Result<HashMap<String, String>, String> {
+    crate::services::settings_reload::reload_exposed_settings(&state.db, &state.settings).await
+}
+
 #[tauri::command]
 pub async fn settings_update(
     state: State<'_, AppState>,

@@ -6,7 +6,6 @@ import AboutSection from "../features/settings/AboutSection";
 import AssistantSettingsSection from "../features/settings/AssistantSettingsSection";
 import { PAPER_TAG_OPTIONS, parsePaperTagVisibility, togglePaperTagVisibility } from "../lib/paperTags";
 import CryptoConfigModal from "../features/settings/CryptoConfigModal";
-import { emitAppLockStatusChange } from "../features/appLock/shared";
 import MemorySection from "../features/settings/MemorySection";
 import SettingsHistorySection from "../features/settings/SettingsHistorySection";
 import ConfigHistoryManageModal from "../features/settings/ConfigHistoryManageModal";
@@ -156,7 +155,9 @@ export default function Settings() {
     markSaved,
     handleSaveSettings,
     handleImportSettings,
+    handleImportDataBackup,
     handleReloadSettings,
+    handleRetryLoadSettings,
     handleTestConnection,
     handleCheckUpdate,
     handleInstallUpdate,
@@ -203,7 +204,7 @@ export default function Settings() {
   });
   const settingsHistory = useSettingsHistory({
     form,
-    blocked: replacementActive,
+    blocked: replacementActive || loading || Boolean(loadError),
     onApplied: (next) => replaceForm(next, true),
     onMarkedSaved: () => markSaved(),
   });
@@ -220,16 +221,9 @@ export default function Settings() {
     openImportPicker: openBackupImportPicker,
     handleConfirm: handleBackupConfirm,
   } = useDataBackup({
-    onImported: async () => {
-      const fresh = await apiClient.settings.get();
-      replaceForm(fresh, true);
-      markSaved();
-      await settingsHistory.reload();
-      emitAppLockStatusChange({
-        enabled: fresh.app_lock_enabled === "true",
-        timeoutMinutes: Number(fresh.app_lock_timeout_minutes) || 0,
-      });
-    },
+    onImport: handleImportDataBackup,
+    onImported: settingsHistory.reload,
+    blocked: replacementActive || loading || Boolean(loadError),
   });
 
   // Ollama models
@@ -340,7 +334,8 @@ export default function Settings() {
         {loadError ? (
           <Card padding="md" className="flex items-center gap-2 text-sm text-apple-red">
             <AlertCircle className="w-4 h-4" />
-            {loadError}
+            <span>{loadError}</span>
+            <button type="button" className="underline" onClick={handleRetryLoadSettings}>重新读取</button>
           </Card>
         ) : null}
 
@@ -350,7 +345,7 @@ export default function Settings() {
           </Card>
         ) : null}
 
-        <SettingsEditingBoundary locked={replacementActive && ["assistant", "paper_tags", "history"].includes(activeSection)}>
+        <SettingsEditingBoundary locked={(replacementActive || contentUnavailable) && ["assistant", "paper_tags", "history"].includes(activeSection)}>
         {activeSection === "desktop_assistant" ? (
           <DesktopAssistantSettingsSection />
         ) : null}
@@ -504,8 +499,8 @@ export default function Settings() {
             actionError={settingsHistory.actionError}
             actionMessage={settingsHistory.actionMessage}
             busy={settingsHistory.busy}
-            settingsTransferBusy={cryptoBusy || replacementActive}
-            dataTransferBusy={backupBusy || replacementActive}
+            settingsTransferBusy={cryptoBusy || replacementActive || contentUnavailable}
+            dataTransferBusy={backupBusy || replacementActive || contentUnavailable}
             dataTransferError={backupModal === null ? backupError : undefined}
             setDraftName={settingsHistory.setDraftName}
             onExportSettings={openConfigExportModal}
@@ -590,7 +585,8 @@ export default function Settings() {
         busy={backupBusy}
         interactionLocked={backupBusy}
         submitDisabled={replacementActive}
-        error={backupError}
+        submitLabel={backupModal.mode === "import" && reloadRequired ? "等待重新读取" : undefined}
+        error={backupModal.mode === "import" && reloadRequired ? saveError + " 请关闭此窗口，点击“重新读取”。" : backupError}
         onPasswordChange={(value) => {
           setBackupPassword(value);
         }}
@@ -615,7 +611,7 @@ export default function Settings() {
       renamingId={settingsHistory.renamingId}
       deletingId={settingsHistory.deletingId}
       busy={settingsHistory.busy}
-      locked={replacementActive}
+      locked={replacementActive || contentUnavailable}
       setSelectedId={settingsHistory.setSelectedId}
       onApplyHistory={settingsHistory.applyHistory}
       onUpdateHistory={settingsHistory.updateHistory}

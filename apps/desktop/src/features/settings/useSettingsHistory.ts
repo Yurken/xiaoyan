@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppSettings, SettingsHistoryEntry } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
+import { waitForSettingsPersistence } from "./persistence/writeCoordinator";
 
 interface UseSettingsHistoryOptions {
   form: AppSettings;
@@ -63,7 +64,12 @@ export function useSettingsHistory({
   }, []);
 
   useEffect(() => {
-    void loadHistory();
+    let cancelled = false;
+    // A remounted page must not reload history ahead of an in-flight restore.
+    void waitForSettingsPersistence().then(() => {
+      if (!cancelled) void loadHistory();
+    });
+    return () => { cancelled = true; };
   }, [loadHistory]);
 
   const saveCurrent = async () => {

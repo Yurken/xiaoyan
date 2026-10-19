@@ -211,7 +211,7 @@ use commands::{
     settings::{
         settings_export, settings_get, settings_history_apply, settings_history_delete,
         settings_history_list, settings_history_rename, settings_history_save,
-        settings_history_update, settings_import, settings_list_models,
+        settings_history_update, settings_import, settings_list_models, settings_reload,
         settings_list_ollama_models, settings_test, settings_test_tavily, settings_test_vision,
         settings_update,
     },
@@ -626,6 +626,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Settings
             settings_get,
+            settings_reload,
             settings_update,
             settings_test,
             settings_test_vision,

@@ -4,7 +4,8 @@ import { safeListen } from "../../lib/tauriEvent";
 import type { AppSettings, AppUpdateInfo } from "@research-copilot/types";
 import { apiClient, formatErrorMessage } from "../../lib/client";
 import { useSettingsPersistence } from "./useSettingsPersistence";
-import { waitForSettingsPersistence } from "./persistence/writeCoordinator";
+import { readSettingsAfterPersistence } from "./persistence/writeCoordinator";
+import { emitAppLockStatusChange } from "../appLock/shared";
 export type { SaveState } from "./useSettingsPersistence";
 import type { DownloadProgress } from "../../lib/updateProgress";
 import { getUpdateStatusMessage } from "../../lib/updateProgress";
@@ -16,6 +17,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
   const [form, setForm] = useState<AppSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [testState, setTestState] = useState<TestState>("idle");
   const [testMsg, setTestMsg] = useState("");
   const [updateState, setUpdateState] = useState<UpdateState>("idle");
@@ -36,6 +38,23 @@ export function useSettingsController(defaultSettings: AppSettings) {
 
   const handleImportSettings = useCallback((data: string, password: string) =>
     replaceFrom(() => apiClient.settings.import(data, password), (next) => replaceForm(next, true)),
+  [replaceFrom, replaceForm]);
+
+  const handleImportDataBackup = useCallback((data: string, password: string, onReadback?: () => Promise<void> | void) =>
+    replaceFrom(() => apiClient.settings.dataBackup.import(data, password), (next) => replaceForm(next, true), {
+      backupRecovery: true,
+      onReadback: async (fresh) => {
+        try {
+          emitAppLockStatusChange({
+            enabled: fresh.app_lock_enabled === "true",
+            timeoutMinutes: Number(fresh.app_lock_timeout_minutes) || 0,
+          });
+        } finally {
+          // Modal completion and history refresh must also run if an event fails.
+          await onReadback?.();
+        }
+      },
+    }),
   [replaceFrom, replaceForm]);
 
   const set = (key: keyof AppSettings) => (value: string) =>
@@ -79,7 +98,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
 
       try {
         const [data, version] = await Promise.all([
-          waitForSettingsPersistence().then(() => apiClient.settings.get()),
+          readSettingsAfterPersistence(() => apiClient.settings.get()),
           getVersion().catch(() => ""),
         ]);
         if (!cancelled) {
@@ -102,7 +121,7 @@ export function useSettingsController(defaultSettings: AppSettings) {
     return () => {
       cancelled = true;
     };
-  }, [replaceForm, defaultSettings, persistenceMarkPersisted]);
+  }, [replaceForm, defaultSettings, persistenceMarkPersisted, loadAttempt]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -205,7 +224,9 @@ export function useSettingsController(defaultSettings: AppSettings) {
     markSaved,
     handleSaveSettings,
     handleImportSettings,
+    handleImportDataBackup,
     handleReloadSettings,
+    handleRetryLoadSettings: () => setLoadAttempt((attempt) => attempt + 1),
     handleTestConnection,
     handleCheckUpdate,
     handleInstallUpdate,
