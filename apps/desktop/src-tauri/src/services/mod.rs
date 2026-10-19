@@ -16,6 +16,7 @@ pub mod research_context_service;
 pub mod settings_backup_commit;
 pub mod settings_backup_export_assets;
 pub mod settings_backup_import_guard;
+pub mod settings_backup_snapshot;
 pub mod settings_reload;
 pub mod settings_service;
 pub mod source_service;
