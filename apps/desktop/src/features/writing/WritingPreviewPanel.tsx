@@ -7,6 +7,7 @@ import type { LatexPreviewBlock, WritingCompileSummary } from "./shared";
 import { useWritingPdfPreview } from "./useWritingPdfPreview";
 import { useWritingPdfExport } from "./useWritingPdfExport";
 import WritingPdfExportFeedback from "./WritingPdfExportFeedback";
+import WritingPdfPreviewError from "./WritingPdfPreviewError";
 
 type PreviewMode = "structure" | "pdf";
 
@@ -87,7 +88,7 @@ function PdfPreview({ compileResult, pdfExport }: {
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
 
   const clampZoom = useCallback((value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value)), []);
-  const { pdfDoc, numPages, pdfLoading, pdfError } = useWritingPdfPreview(
+  const { pdfDoc, numPages, pdfLoading, pdfError, retryPreview } = useWritingPdfPreview(
     compileResult?.success ? compileResult.pdfPath : null,
     { isFullscreen, scrollRef, canvasRefs, setZoomLevel, clampZoom },
   );
@@ -197,14 +198,16 @@ function PdfPreview({ compileResult, pdfExport }: {
         onRetry={() => { void pdfExport.savePdf(); }}
       />
       {pdfLoading ? (
-        <div className="flex h-full w-full items-center justify-center gap-2 text-white/60">
-          <Loader2 className="h-5 w-5 animate-spin" />
+        <div role="status" aria-label="正在加载 PDF 预览" className="flex h-full w-full items-center justify-center gap-2 text-white/60">
+          <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" />
           <span className="text-xs">加载 PDF...</span>
         </div>
       ) : pdfError ? (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/60">
-          <p className="text-xs">无法加载 PDF 预览</p>
-        </div>
+        <WritingPdfPreviewError
+          onRetry={retryPreview}
+          onSave={() => { void pdfExport.savePdf(); }}
+          saving={pdfExport.saving}
+        />
       ) : (
         <div
           ref={scrollRef}

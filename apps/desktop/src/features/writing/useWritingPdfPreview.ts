@@ -35,6 +35,24 @@ function cancelTask(lifetime: PreviewLifetime, task: pdfjsLib.RenderTask) {
   try { task.cancel(); } catch { /* Already stopped; still release the document owner. */ }
 }
 
+function disposePreview(lifetime: PreviewLifetime) {
+  if (lifetime.disposed) return;
+  lifetime.disposed = true;
+  lifetime.renderTasks.forEach((task) => cancelTask(lifetime, task));
+  const task = lifetime.loadingTask;
+  lifetime.loadingTask = null;
+  lifetime.pdfDoc = null;
+  if (!task) return;
+  // LoadingTask owns both pending and loaded documents, including its worker.
+  try {
+    void Promise.resolve(task.destroy()).catch((error: unknown) => {
+      console.warn("PDF 预览资源释放失败", error);
+    });
+  } catch (error) {
+    console.warn("PDF 预览资源释放失败", error);
+  }
+}
+
 /** Own the PDF loading task and its render work for one committed source visit. */
 export function useWritingPdfPreview(pdfPath: string | null, {
   isFullscreen, scrollRef, canvasRefs, setZoomLevel, clampZoom,
@@ -61,33 +79,26 @@ export function useWritingPdfPreview(pdfPath: string | null, {
   const reportRenderError = useCallback((lifetime: PreviewLifetime) => {
     if (!isCurrent(lifetime) || lifetime.renderFailed) return;
     lifetime.renderFailed = true;
-    lifetime.renderTasks.forEach((task) => cancelTask(lifetime, task));
     setState((current) => current.scope === lifetime.scope
-      ? { ...current, pdfError: true } : current);
+      ? { ...current, pdfDoc: null, pdfLoading: false, pdfError: true } : current);
+    // Export reads the source file independently; a failed renderer need not stay alive.
+    disposePreview(lifetime);
   }, [isCurrent]);
+
+  const retryPreview = useCallback(() => {
+    if (!scope.pdfPath || committedScope.current !== scope) return;
+    // A new scope reloads the same path and invalidates the failed attempt.
+    // Duplicate queued retries see a different scope and cannot start another load.
+    setState((current) => current.scope === scope && current.pdfError
+      ? emptyPreview(scope.pdfPath) : current);
+  }, [scope]);
 
   useEffect(() => {
     const lifetime: PreviewLifetime = {
       scope, disposed: false, renderFailed: false, loadingTask: null, pdfDoc: null, renderTasks: new Set(),
     };
     owner.current = lifetime;
-    const dispose = () => {
-      if (lifetime.disposed) return;
-      lifetime.disposed = true;
-      lifetime.renderTasks.forEach((task) => cancelTask(lifetime, task));
-      const task = lifetime.loadingTask;
-      lifetime.loadingTask = null;
-      lifetime.pdfDoc = null;
-      if (!task) return;
-      // LoadingTask owns both pending and loaded documents, including its worker.
-      try {
-        void Promise.resolve(task.destroy()).catch((error: unknown) => {
-          console.warn("PDF 预览资源释放失败", error);
-        });
-      } catch (error) {
-        console.warn("PDF 预览资源释放失败", error);
-      }
-    };
+    const dispose = () => disposePreview(lifetime);
 
     async function load() {
       if (!scope.pdfPath) return;
@@ -194,5 +205,6 @@ export function useWritingPdfPreview(pdfPath: string | null, {
     numPages: preview.pdfDoc?.numPages ?? 0,
     pdfLoading: preview.pdfLoading,
     pdfError: preview.pdfError,
+    retryPreview,
   };
 }
