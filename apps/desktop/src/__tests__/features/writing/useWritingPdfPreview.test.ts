@@ -100,8 +100,9 @@ describe("useWritingPdfPreview resource lifetime", () => {
 
   it("没有 PDF 时不读文件、不创建 worker，并返回空闲预览", async () => {
     const { result } = renderPreview(null);
+    act(() => { result.current.retryPreview(); });
     await act(async () => {});
-    expect(result.current).toEqual({ pdfDoc: null, numPages: 0, pdfLoading: false, pdfError: false });
+    expect(result.current).toMatchObject({ pdfDoc: null, numPages: 0, pdfLoading: false, pdfError: false });
     expect(readMock).not.toHaveBeenCalled();
     expect(pdfRenderer.getDocument).not.toHaveBeenCalled();
   });
@@ -157,7 +158,7 @@ describe("useWritingPdfPreview resource lifetime", () => {
     const { result, unmount } = renderPreview();
     await waitFor(() => expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(1));
     await act(async () => { task.reject(new Error("Malformed PDF")); });
-    expect(result.current).toEqual({ pdfDoc: null, numPages: 0, pdfLoading: false, pdfError: true });
+    expect(result.current).toMatchObject({ pdfDoc: null, numPages: 0, pdfLoading: false, pdfError: true });
     expect(task.destroy).toHaveBeenCalledTimes(1);
     unmount();
     expect(task.destroy).toHaveBeenCalledTimes(1);
@@ -173,6 +174,195 @@ describe("useWritingPdfPreview resource lifetime", () => {
     rerender({ pdfPath: sourceB, isFullscreen: false });
     await waitFor(() => expect(result.current.pdfDoc).not.toBeNull());
     expect(result.current.pdfError).toBe(false);
+  });
+
+  it.each(["read", "load"] as const)("%s 失败可在同一路径重试，同 tick 重复和 loading/ready 重试都不重读", async (stage) => {
+    const failedTask = makeLoadingTask();
+    const recoveredTask = makeLoadingTask();
+    const recoveredDocument = makeDocument();
+    if (stage === "read") {
+      readMock.mockRejectedValueOnce(new Error("Temporary read failure"));
+      pdfRenderer.getDocument.mockReturnValueOnce(recoveredTask);
+    } else {
+      pdfRenderer.getDocument.mockReturnValueOnce(failedTask).mockReturnValueOnce(recoveredTask);
+    }
+    const { result, unmount } = renderPreview();
+    if (stage === "load") {
+      await waitFor(() => expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(1));
+      await act(async () => { failedTask.reject(new Error("Temporary document load failure")); });
+    }
+    await waitFor(() => expect(result.current.pdfError).toBe(true));
+    const retryRead = deferred<Uint8Array>();
+    readMock.mockReturnValueOnce(retryRead.promise);
+    const originalRetry = result.current.retryPreview;
+    act(() => {
+      originalRetry();
+      originalRetry();
+    });
+
+    expect(result.current).toMatchObject({ pdfDoc: null, numPages: 0, pdfLoading: true, pdfError: false });
+    await waitFor(() => expect(readMock).toHaveBeenCalledTimes(2));
+    expect(readMock).toHaveBeenNthCalledWith(2, sourceA);
+    act(() => {
+      originalRetry();
+      result.current.retryPreview();
+    });
+    await act(async () => { retryRead.resolve(pdfBytes); });
+    await waitFor(() => expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(stage === "load" ? 2 : 1));
+    expect(result.current.pdfLoading).toBe(true);
+    act(() => { result.current.retryPreview(); });
+
+    await act(async () => { recoveredTask.resolve(recoveredDocument); });
+    expect(result.current).toMatchObject({
+      pdfDoc: recoveredDocument, numPages: 0, pdfLoading: false, pdfError: false,
+    });
+    act(() => {
+      originalRetry();
+      result.current.retryPreview();
+    });
+    await act(async () => {});
+    expect(readMock).toHaveBeenCalledTimes(2);
+    expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(stage === "load" ? 2 : 1);
+    if (stage === "load") expect(failedTask.destroy).toHaveBeenCalledTimes(1);
+    expect(recoveredTask.destroy).not.toHaveBeenCalled();
+    unmount();
+    if (stage === "load") expect(failedTask.destroy).toHaveBeenCalledTimes(1);
+    expect(recoveredTask.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["fit", "page", "render"] as const)(
+    "失败后重试同路径销毁旧 owner 一次，迟到的旧 %s 不干扰新预览或渲染所有权",
+    async (lateWork) => {
+      const fitting = deferred<ReturnType<typeof makePage>>();
+      const fetchingPage = deferred<ReturnType<typeof makePage>>();
+      const oldRendering = makeRenderTask();
+      // Cancellation need not settle the renderer immediately.
+      oldRendering.cancel.mockImplementation(() => {});
+      const oldPage = makePage();
+      oldPage.render.mockReturnValueOnce(oldRendering);
+      const oldDocument = makeDocument(1, oldPage);
+      oldDocument.getPage.mockReturnValueOnce(fitting.promise);
+      if (lateWork === "page") oldDocument.getPage.mockReturnValueOnce(fetchingPage.promise);
+      const oldTask = makeLoadingTask(oldDocument);
+
+      const currentRendering = makeRenderTask();
+      const currentPage = makePage();
+      currentPage.render.mockReturnValueOnce(currentRendering);
+      const currentDocument = makeDocument(1, currentPage);
+      const nextTask = makeLoadingTask(currentDocument);
+      pdfRenderer.getDocument.mockReturnValueOnce(oldTask).mockReturnValueOnce(nextTask);
+      const options = makeOptions();
+      const { result, unmount } = renderPreview(sourceA, options);
+      await waitFor(() => expect(oldDocument.getPage).toHaveBeenCalledTimes(2));
+      if (lateWork !== "page") await waitFor(() => expect(oldPage.render).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        if (lateWork === "fit") oldRendering.reject(new Error("Initial render failure"));
+        else fitting.reject(new Error("Initial fit failure"));
+      });
+      expect(result.current).toMatchObject({ pdfDoc: null, numPages: 0, pdfLoading: false, pdfError: true });
+      expect(oldTask.destroy).toHaveBeenCalledTimes(1);
+      expect(oldDocument.destroy).not.toHaveBeenCalled();
+      if (lateWork === "render") {
+        expect(oldRendering.cancel).toHaveBeenCalledTimes(1);
+        expect(oldRendering.cancel.mock.invocationCallOrder[0]).toBeLessThan(oldTask.destroy.mock.invocationCallOrder[0]);
+      }
+
+      act(() => { result.current.retryPreview(); });
+      expect(result.current).toMatchObject({ pdfDoc: null, numPages: 0, pdfLoading: true, pdfError: false });
+      await waitFor(() => expect(currentPage.render).toHaveBeenCalledTimes(1));
+      expect(result.current.pdfDoc).toBe(currentDocument);
+      expect(readMock).toHaveBeenNthCalledWith(2, sourceA);
+      const zoomCalls = options.setZoomLevel.mock.calls.length;
+      const viewportCalls = oldPage.getViewport.mock.calls.length;
+      const oldRenderCalls = oldPage.render.mock.calls.length;
+      await act(async () => {
+        if (lateWork === "fit") fitting.resolve(oldPage);
+        else if (lateWork === "page") fetchingPage.resolve(oldPage);
+        else oldRendering.reject(new Error("Late cancelled render failure"));
+      });
+
+      expect(result.current).toMatchObject({
+        pdfDoc: currentDocument, numPages: 1, pdfLoading: false, pdfError: false,
+      });
+      expect(options.setZoomLevel).toHaveBeenCalledTimes(zoomCalls);
+      expect(oldPage.getViewport).toHaveBeenCalledTimes(viewportCalls);
+      expect(oldPage.render).toHaveBeenCalledTimes(oldRenderCalls);
+      expect(oldTask.destroy).toHaveBeenCalledTimes(1);
+      expect(nextTask.destroy).not.toHaveBeenCalled();
+      expect(currentRendering.cancel).not.toHaveBeenCalled();
+      expect(readMock).toHaveBeenCalledTimes(2);
+      unmount();
+      expect(oldTask.destroy).toHaveBeenCalledTimes(1);
+      expect(currentRendering.cancel).toHaveBeenCalledTimes(1);
+      expect(nextTask.destroy).toHaveBeenCalledTimes(1);
+      expect(currentRendering.cancel.mock.invocationCallOrder[0]).toBeLessThan(nextTask.destroy.mock.invocationCallOrder[0]);
+      await act(async () => {});
+    },
+  );
+
+  it("旧 retry 闭包在换源、A→B→A、一次重试和卸载后都不能重新读文件", async () => {
+    readMock.mockRejectedValue(new Error("Synthetic persistent read failure"));
+    const { result, rerender, unmount } = renderPreview();
+    await waitFor(() => expect(result.current.pdfError).toBe(true));
+    const firstA = result.current.retryPreview;
+    rerender({ pdfPath: sourceB, isFullscreen: false });
+    await waitFor(() => expect(result.current.pdfError).toBe(true));
+    act(() => { firstA(); });
+    await act(async () => {});
+    expect(readMock).toHaveBeenCalledTimes(2);
+
+    rerender({ pdfPath: sourceA, isFullscreen: false });
+    await waitFor(() => expect(result.current.pdfError).toBe(true));
+    act(() => { firstA(); });
+    await act(async () => {});
+    expect(readMock).toHaveBeenCalledTimes(3);
+    const returnedA = result.current.retryPreview;
+    act(() => { returnedA(); });
+    await waitFor(() => expect(readMock).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(result.current.pdfError).toBe(true));
+    act(() => { returnedA(); });
+    await act(async () => {});
+    expect(readMock).toHaveBeenCalledTimes(4);
+
+    const currentRetry = result.current.retryPreview;
+    unmount();
+    act(() => {
+      firstA();
+      returnedA();
+      currentRetry();
+    });
+    await act(async () => {});
+    expect(readMock).toHaveBeenCalledTimes(4);
+    expect(pdfRenderer.getDocument).not.toHaveBeenCalled();
+  });
+
+  it("StrictMode 重放后仍可原路径重试，重复操作不创建额外 worker 且卸载只释放一次", async () => {
+    readMock.mockRejectedValueOnce(new Error("Synthetic first read failure"));
+    const document = makeDocument();
+    const task = makeLoadingTask(document);
+    pdfRenderer.getDocument.mockReturnValueOnce(task);
+    const options = makeOptions();
+    const { result, unmount } = renderHook(() => useWritingPdfPreview(sourceA, options), { wrapper: StrictWrapper });
+    await waitFor(() => expect(result.current.pdfError).toBe(true));
+    const retry = result.current.retryPreview;
+    act(() => {
+      retry();
+      retry();
+    });
+    await waitFor(() => expect(result.current.pdfDoc).toBe(document));
+    act(() => {
+      retry();
+      result.current.retryPreview();
+    });
+    await act(async () => {});
+
+    expect(result.current.pdfError).toBe(false);
+    expect(readMock).toHaveBeenCalledTimes(2);
+    expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(1);
+    expect(task.destroy).not.toHaveBeenCalled();
+    unmount();
+    expect(task.destroy).toHaveBeenCalledTimes(1);
+    expect(document.destroy).not.toHaveBeenCalled();
   });
 
   it.each(["throw", "reject"] as const)("destroy %s 被接住且不会阻止下一份 PDF 加载", async (failureMode) => {
@@ -247,7 +437,7 @@ describe("useWritingPdfPreview resource lifetime", () => {
         else firstTask.reject(new Error("Old load failed"));
         if (returnToA) middleTask.reject(new Error("Intermediate load failed"));
       });
-      expect(result.current).toEqual({
+      expect(result.current).toMatchObject({
         pdfDoc: currentDocument, numPages: 0, pdfLoading: false, pdfError: false,
       });
       expect(firstTask.destroy).toHaveBeenCalledTimes(1);
@@ -305,7 +495,7 @@ describe("useWritingPdfPreview resource lifetime", () => {
   });
 
   it.each(["fit page", "render page", "viewport", "context", "render start", "render completion"] as const)(
-    "%s 失败转为可见预览错误，保留已加载文档供导出",
+    "%s 失败清除失效文档并释放 loadingTask，卸载不重复释放",
     async (stage) => {
       const failure = new Error(stage);
       const page = makePage();
@@ -324,14 +514,14 @@ describe("useWritingPdfPreview resource lifetime", () => {
       const { result, unmount } = renderPreview(sourceA, options);
       await waitFor(() => expect(result.current.pdfError).toBe(true));
       expect(result.current.pdfLoading).toBe(false);
-      expect(result.current.pdfDoc).toBe(document);
-      expect(task.destroy).not.toHaveBeenCalled();
+      expect(result.current.pdfDoc).toBeNull();
+      expect(task.destroy).toHaveBeenCalledTimes(1);
       unmount();
       expect(task.destroy).toHaveBeenCalledTimes(1);
     },
   );
 
-  it("fit 迟到失败立即取消正在绘制的 canvas，全屏切换不重启失败文档的渲染", async () => {
+  it("fit 迟到失败先取消绘制再释放 owner，全屏切换不重启失败文档", async () => {
     const fitting = deferred<ReturnType<typeof makePage>>();
     const rendering = makeRenderTask();
     const page = makePage();
@@ -344,12 +534,14 @@ describe("useWritingPdfPreview resource lifetime", () => {
     await waitFor(() => expect(page.render).toHaveBeenCalledTimes(1));
     await act(async () => { fitting.reject(new Error("Fit failed")); });
     expect(result.current.pdfError).toBe(true);
-    expect(result.current.pdfDoc).toBe(document);
+    expect(result.current.pdfDoc).toBeNull();
     expect(rendering.cancel).toHaveBeenCalledTimes(1);
+    expect(task.destroy).toHaveBeenCalledTimes(1);
+    expect(rendering.cancel.mock.invocationCallOrder[0]).toBeLessThan(task.destroy.mock.invocationCallOrder[0]);
     rerender({ pdfPath: sourceA, isFullscreen: true });
     await act(async () => {});
     expect(page.render).toHaveBeenCalledTimes(1);
-    expect(task.destroy).not.toHaveBeenCalled();
+    expect(task.destroy).toHaveBeenCalledTimes(1);
     unmount();
     expect(rendering.cancel).toHaveBeenCalledTimes(1);
     expect(task.destroy).toHaveBeenCalledTimes(1);

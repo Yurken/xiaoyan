@@ -6,7 +6,8 @@ import WritingPreviewPanel from "../../../features/writing/WritingPreviewPanel";
 import type { LatexPreviewBlock, WritingCompileSummary } from "../../../features/writing/shared";
 
 // Keep the real panel, hook, feedback and tabs. Only the native IO and PDF renderer
-// are boundaries: zero synthetic pages avoid canvas/DOMMatrix work in jsdom.
+// are boundaries. Most cases use zero pages; the fullscreen render case supplies
+// one synthetic page and a minimal canvas context without running PDF.js.
 const pdfRenderer = vi.hoisted(() => ({ getDocument: vi.fn(), getPage: vi.fn(), documentDestroy: vi.fn() }));
 vi.mock("pdfjs-dist", () => ({
   GlobalWorkerOptions: { workerSrc: "" },
@@ -29,8 +30,12 @@ const compileResult: WritingCompileSummary = {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise; });
-  return { promise, resolve };
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 function renderPanel() {
@@ -51,6 +56,7 @@ describe("WritingPreviewPanel PDF 预览与保存交互", () => {
   });
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
     saveMock.mockReset();
     readMock.mockReset();
     writeMock.mockReset();
@@ -212,5 +218,207 @@ describe("WritingPreviewPanel PDF 预览与保存交互", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(writeMock).not.toHaveBeenCalled();
+  });
+
+  it("读取失败后可重试同一 PDF，重试加载期间隐藏重试和下载，成功后恢复工具栏", async () => {
+    const reading = deferred<Uint8Array>();
+    readMock.mockRejectedValueOnce(new Error("读取失败")).mockReturnValueOnce(reading.promise);
+    renderPanel();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("无法加载 PDF 预览");
+    expect(alert).toHaveTextContent("可重试预览；若文件已移动或删除，请重新编译 PDF。");
+    expect(screen.getByRole("button", { name: "下载 PDF" })).toBeEnabled();
+    expect(pdfRenderer.getDocument).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "重试预览" }));
+    expect(screen.getByRole("status", { name: "正在加载 PDF 预览" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "重试预览" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "下载 PDF" })).not.toBeInTheDocument();
+    expect(screen.queryByTitle("全屏预览")).not.toBeInTheDocument();
+    await waitFor(() => expect(readMock).toHaveBeenCalledTimes(2));
+    expect(readMock.mock.calls.map(([path]) => path)).toEqual([source, source]);
+
+    await act(async () => { reading.resolve(pdfBytes); });
+    expect(await screen.findByRole("button", { name: "下载 PDF" })).toBeEnabled();
+    expect(screen.getByTitle("全屏预览")).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "正在加载 PDF 预览" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "重试预览" })).not.toBeInTheDocument();
+    expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(1);
+    expect(pdfRenderer.getDocument).toHaveBeenCalledWith({ data: pdfBytes });
+    expect(saveMock).not.toHaveBeenCalled();
+    expect(writeMock).not.toHaveBeenCalled();
+  });
+
+  it("预览重试仍失败时重新提供重试入口，下一次成功恢复同一 PDF", async () => {
+    const retryReading = deferred<Uint8Array>();
+    const finalReading = deferred<Uint8Array>();
+    readMock.mockRejectedValueOnce(new Error("首次读取失败"))
+      .mockReturnValueOnce(retryReading.promise)
+      .mockReturnValueOnce(finalReading.promise);
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: "重试预览" }));
+    await waitFor(() => expect(readMock).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("status", { name: "正在加载 PDF 预览" })).toBeInTheDocument();
+
+    await act(async () => { retryReading.reject(new Error("再次读取失败")); });
+    expect(screen.getByRole("alert")).toHaveTextContent("无法加载 PDF 预览");
+    expect(screen.getByRole("button", { name: "重试预览" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "重试预览" }));
+    expect(screen.getByRole("status", { name: "正在加载 PDF 预览" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "重试预览" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "下载 PDF" })).not.toBeInTheDocument();
+    await waitFor(() => expect(readMock).toHaveBeenCalledTimes(3));
+
+    await act(async () => { finalReading.resolve(pdfBytes); });
+    await screen.findByRole("button", { name: "下载 PDF" });
+    expect(screen.getByTitle("全屏预览")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(readMock.mock.calls.map(([path]) => path)).toEqual([source, source, source]);
+    expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(1);
+    expect(saveMock).not.toHaveBeenCalled();
+    expect(writeMock).not.toHaveBeenCalled();
+  });
+
+  it("PDF 解析失败后仍能独立保存原文件，错误区下载保留保存锁和成功反馈", async () => {
+    pdfRenderer.getDocument.mockImplementationOnce(() => { throw new Error("无法解析 PDF"); });
+    const writing = deferred<void>();
+    writeMock.mockReturnValueOnce(writing.promise);
+    renderPanel();
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法加载 PDF 预览");
+    expect(screen.queryByTitle("全屏预览")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "下载 PDF" }));
+    await waitFor(() => expect(writeMock).toHaveBeenCalledWith(destination, pdfBytes));
+    const busyButton = screen.getByRole("button", { name: "正在保存 PDF" });
+    expect(busyButton).toBeDisabled();
+    expect(busyButton).toHaveAttribute("aria-busy", "true");
+    expect(busyButton).toHaveAttribute("title", "正在保存 PDF");
+    expect(screen.getByRole("status")).toHaveTextContent("正在保存 PDF");
+    expect(screen.getByRole("alert")).toHaveTextContent("无法加载 PDF 预览");
+    fireEvent.click(busyButton);
+    expect(saveMock).toHaveBeenCalledTimes(1);
+    expect(writeMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => { writing.resolve(undefined); });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("PDF 已保存：review.pdf"));
+    expect(screen.getByRole("button", { name: "下载 PDF" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "重试预览" })).toBeEnabled();
+    expect(screen.getByRole("alert")).toHaveTextContent("无法加载 PDF 预览");
+    expect(readMock.mock.calls.map(([path]) => path)).toEqual([source, source]);
+    expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(1);
+    expect(pdfRenderer.getPage).not.toHaveBeenCalled();
+    expect(writeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("错误区保存期间重试预览不丢在途导出锁，原写入完成后当前预览继续显示成功反馈", async () => {
+    pdfRenderer.getDocument.mockImplementationOnce(() => { throw new Error("无法解析 PDF"); });
+    const writing = deferred<void>();
+    writeMock.mockReturnValueOnce(writing.promise);
+    renderPanel();
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法加载 PDF 预览");
+    fireEvent.click(screen.getByRole("button", { name: "下载 PDF" }));
+    await waitFor(() => expect(writeMock).toHaveBeenCalledWith(destination, pdfBytes));
+    expect(screen.getByRole("button", { name: "正在保存 PDF" })).toBeDisabled();
+    expect(saveMock).toHaveBeenCalledTimes(1);
+    expect(readMock).toHaveBeenCalledTimes(2);
+
+    // Queue the preview read only after export has read its original source.
+    const reading = deferred<Uint8Array>();
+    readMock.mockReturnValueOnce(reading.promise);
+    fireEvent.click(screen.getByRole("button", { name: "重试预览" }));
+    expect(screen.getByRole("status", { name: "正在加载 PDF 预览" })).toBeInTheDocument();
+    expect(screen.getByText("正在保存 PDF…")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "重试预览" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "下载 PDF" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "正在保存 PDF" })).not.toBeInTheDocument();
+    await waitFor(() => expect(readMock).toHaveBeenCalledTimes(3));
+
+    await act(async () => { reading.resolve(pdfBytes); });
+    const busyButton = await screen.findByRole("button", { name: "正在保存 PDF" });
+    expect(busyButton).toBeDisabled();
+    expect(busyButton).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTitle("全屏预览")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("正在保存 PDF");
+    expect(screen.queryByRole("status", { name: "正在加载 PDF 预览" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "重试预览" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/PDF 已保存/)).not.toBeInTheDocument();
+    fireEvent.click(busyButton);
+    fireEvent.click(busyButton);
+    expect(saveMock).toHaveBeenCalledTimes(1);
+    expect(writeMock).toHaveBeenCalledTimes(1);
+    expect(readMock.mock.calls.map(([path]) => path)).toEqual([source, source, source]);
+    expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(2);
+
+    await act(async () => { writing.resolve(undefined); });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("PDF 已保存：review.pdf"));
+    const download = screen.getByRole("button", { name: "下载 PDF" });
+    expect(download).toBeEnabled();
+    expect(download).toHaveAttribute("aria-busy", "false");
+    expect(screen.getByTitle("全屏预览")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(saveMock).toHaveBeenCalledTimes(1);
+    expect(writeMock).toHaveBeenCalledTimes(1);
+    expect(writeMock).toHaveBeenLastCalledWith(destination, pdfBytes);
+  });
+
+  it("全屏绘制失败后在 portal 内重试同一 PDF，加载和恢复均保持全屏及关闭入口", async () => {
+    const context = { setTransform: vi.fn() } as unknown as CanvasRenderingContext2D;
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context);
+    const fullscreenRendering = deferred<void>();
+    const page = {
+      getViewport: vi.fn(() => ({ width: 600, height: 800 })),
+      render: vi.fn().mockImplementation(() => ({ promise: Promise.resolve(), cancel: vi.fn() })),
+    };
+    page.render.mockReturnValueOnce({ promise: Promise.resolve(), cancel: vi.fn() })
+      .mockReturnValueOnce({ promise: fullscreenRendering.promise, cancel: vi.fn() });
+    pdfRenderer.getPage.mockResolvedValue(page);
+    pdfRenderer.getDocument.mockImplementation(() => ({
+      promise: Promise.resolve({ numPages: 1, getPage: pdfRenderer.getPage, destroy: pdfRenderer.documentDestroy }),
+      destroy: vi.fn().mockResolvedValue(undefined),
+    }));
+    const { container } = renderPanel();
+    await waitFor(() => expect(page.render).toHaveBeenCalledTimes(1));
+    const oldTask = pdfRenderer.getDocument.mock.results[0].value;
+    fireEvent.click(screen.getByTitle("全屏预览"));
+    await waitFor(() => expect(page.render).toHaveBeenCalledTimes(2));
+    await act(async () => { fullscreenRendering.reject(new Error("全屏绘制失败")); });
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("无法加载 PDF 预览");
+    expect(container.contains(alert)).toBe(false);
+    expect(screen.getByTitle("退出全屏")).toBeEnabled();
+    expect(oldTask.destroy).toHaveBeenCalledTimes(1);
+    const reading = deferred<Uint8Array>();
+    readMock.mockReturnValueOnce(reading.promise);
+    fireEvent.click(screen.getByRole("button", { name: "重试预览" }));
+    const loading = screen.getByRole("status", { name: "正在加载 PDF 预览" });
+    expect(container.contains(loading)).toBe(false);
+    expect(screen.getByTitle("退出全屏")).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "重试预览" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "下载 PDF" })).not.toBeInTheDocument();
+    await waitFor(() => expect(readMock).toHaveBeenCalledTimes(2));
+
+    await act(async () => { reading.resolve(pdfBytes); });
+    await waitFor(() => expect(page.render).toHaveBeenCalledTimes(3));
+    const download = screen.getByRole("button", { name: "下载 PDF" });
+    expect(container.contains(download)).toBe(false);
+    expect(screen.getAllByTitle("退出全屏").length).toBeGreaterThan(0);
+    expect(screen.queryByTitle("全屏预览")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "正在加载 PDF 预览" })).not.toBeInTheDocument();
+    expect(readMock.mock.calls.map(([path]) => path)).toEqual([source, source]);
+    expect(pdfRenderer.getDocument).toHaveBeenCalledTimes(2);
+    expect(oldTask.destroy).toHaveBeenCalledTimes(1);
+    expect(pdfRenderer.documentDestroy).not.toHaveBeenCalled();
+    expect(saveMock).not.toHaveBeenCalled();
+    expect(writeMock).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByTitle("全屏预览")).toBeInTheDocument();
+    expect(container.contains(screen.getByRole("button", { name: "下载 PDF" }))).toBe(true);
   });
 });
