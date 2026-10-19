@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { formatErrorMessage, writingApi } from "../../lib/client";
 import { sanitizeLatexProjectName } from "./latexProject";
+import { useWritingLatexInstall } from "./useWritingLatexInstall";
 import {
   isLatexCompilerMissing,
   LATEX_INSTALL_SUPPORT,
@@ -86,7 +87,7 @@ export function useWritingCompiler({
   }
   const { scope, status: compileStatus, result: compileResult } = currentSession;
   const activeLifetime = useRef<CompileLifetime | null>(null);
-  const [latexInstallerStatus, setLatexInstallerStatus] = useState<"idle" | "opening">("idle");
+  const latexInstall = useWritingLatexInstall({ draftId, onMessage, onError, clearStatus });
 
   useLayoutEffect(() => {
     // Publish the committed scope, not a ref mutated by an uncommitted render.
@@ -134,31 +135,6 @@ export function useWritingCompiler({
     }
   }, [bibtex, clearStatus, imageAssets, mainTex, notes, onError, projectName, scope, texFiles]);
 
-  const openLatexInstaller = useCallback(async () => {
-    setLatexInstallerStatus("opening");
-    clearStatus();
-    try {
-      await writingApi.openMactexInstaller();
-      onMessage(
-        LATEX_INSTALL_SUPPORT.installerOpenedMessage ??
-          "已打开 LaTeX 安装器，请完成安装后重新编译。",
-      );
-    } catch (err) {
-      onError(formatErrorMessage(err));
-    } finally {
-      setLatexInstallerStatus("idle");
-    }
-  }, [clearStatus, onError, onMessage]);
-
-  const openLatexDownloadPage = useCallback(async () => {
-    try {
-      await writingApi.openMactexDownloadPage();
-      onMessage(LATEX_INSTALL_SUPPORT.installGuideOpenedMessage);
-    } catch (err) {
-      onError(formatErrorMessage(err));
-    }
-  }, [onError, onMessage]);
-
   const openCompiledPdf = useCallback(async () => {
     if (!compileResult?.pdfPath) return;
     try {
@@ -187,10 +163,8 @@ export function useWritingCompiler({
   return {
     compileStatus,
     compileResult,
-    latexInstallerStatus,
     compilePdf,
-    openLatexInstaller,
-    openLatexDownloadPage,
+    ...latexInstall,
     openCompiledPdf,
     saveCompiledPdf,
   };

@@ -136,6 +136,58 @@ describe("useWritingCompiler", () => {
     resetInvokeMock();
   });
 
+  it("安装请求通过真实子 hook 防重入，切文稿保留 busy 且旧反馈不干扰编译状态", async () => {
+    let finishInstaller!: () => void;
+    const installer = new Promise<void>((resolve) => { finishInstaller = resolve; });
+    const compiled = summary("a-before-switch");
+    getInvokeMock().mockImplementation((command: string) => {
+      if (command === "writing_open_mactex_installer") return installer;
+      if (command === "writing_compile_pdf") return Promise.resolve(compiled);
+      if (command === "writing_open_mactex_download_page") return Promise.resolve();
+      throw new Error(`Unexpected invoke: ${command}`);
+    });
+    const { result, rerender } = renderHook((input: CompilerOptions) => {
+      const feedback = useWritingFeedback(input.draftId);
+      const compiler = useWritingCompiler({
+        ...input,
+        onMessage: feedback.showMessage,
+        onError: feedback.showError,
+        clearStatus: feedback.clearStatus,
+      });
+      return { ...compiler, message: feedback.message, error: feedback.error };
+    }, { initialProps: options() });
+    let first!: Promise<void>;
+    let duplicate!: Promise<void>;
+    act(() => {
+      first = result.current.openLatexInstaller();
+      duplicate = result.current.openLatexInstaller();
+    });
+    expect(getInvokeMock()).toHaveBeenCalledTimes(1);
+    expect(result.current.latexInstallerStatus).toBe("opening");
+
+    await act(async () => { await result.current.compilePdf(); });
+    expect(result.current.compileStatus).toBe("ready");
+    expect(result.current.compileResult).toEqual(compiled);
+    expect(result.current.latexInstallerStatus).toBe("opening");
+
+    rerender(options("draft-b"));
+    expect(result.current.compileStatus).toBe("idle");
+    expect(result.current.compileResult).toBeNull();
+    expect(result.current.latexInstallerStatus).toBe("opening");
+    await act(async () => { await result.current.openLatexInstaller(); });
+    expect(getInvokeMock().mock.calls.filter(([command]) =>
+      command === "writing_open_mactex_installer")).toHaveLength(1);
+    await act(async () => { finishInstaller(); await Promise.all([first, duplicate]); });
+    expect(result.current.latexInstallerStatus).toBe("idle");
+    expect(result.current.message).toBe("");
+    expect(result.current.error).toBe("");
+    expect(result.current.compileResult).toBeNull();
+
+    await act(async () => { await result.current.openLatexDownloadPage(); });
+    expect(getInvokeMock()).toHaveBeenLastCalledWith("writing_open_mactex_download_page");
+    expect(result.current.message).toBe(LATEX_INSTALL_SUPPORT.installGuideOpenedMessage);
+  });
+
   it("编译成功保存当前文稿结果并把完整点击快照传给原生接口", async () => {
     const gate = deferred();
     mockCompileQueue(gate);
