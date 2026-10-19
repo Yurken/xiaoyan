@@ -1,12 +1,11 @@
-use super::super::is_asset_table;
-use std::collections::HashMap;
+use super::super::assets::{resolve_row_asset_path, ResolvedAssets};
 
 pub(super) async fn upsert_row(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     table: &str,
     pk: &str,
     row: &serde_json::Value,
-    asset_paths: &HashMap<String, String>,
+    asset_paths: &ResolvedAssets,
 ) -> Result<(), String> {
     let Some(obj) = row.as_object() else {
         return Ok(());
@@ -17,14 +16,7 @@ pub(super) async fn upsert_row(
 
     // 解析资产引用为本地路径。
     let mut resolved = obj.clone();
-    if is_asset_table(table) {
-        if let Some(fp) = resolved.get("file_path").and_then(|v| v.as_str()) {
-            if let Some(hash) = fp.strip_prefix("asset://") {
-                let local = asset_paths.get(hash).cloned().unwrap_or_default();
-                resolved.insert("file_path".into(), serde_json::Value::String(local));
-            }
-        }
-    }
+    resolve_row_asset_path(table, &mut resolved, asset_paths)?;
 
     let entries: Vec<(&String, &serde_json::Value)> = resolved.iter().collect();
     let columns: Vec<String> = entries.iter().map(|(k, _)| (*k).clone()).collect();

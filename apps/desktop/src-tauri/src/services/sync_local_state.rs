@@ -4,11 +4,12 @@ use super::{
     effective_ts, is_excluded_column, is_local_only_settings_key, is_newer_timestamp,
     now_rfc3339, pk_column, ts_column, MergePlan, Tombstone, BACKUP_TABLES,
 };
+use super::assets::ResolvedAssets;
 use crate::services::settings_service::row_to_json;
 use futures_util::TryStreamExt;
 use serde_json::Value;
 use sqlx::{Sqlite, SqlitePool, Transaction};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 #[path = "sync_merge_row.rs"]
 mod merge_row;
@@ -203,7 +204,7 @@ async fn row_timestamp(
 pub(super) async fn apply_merge(
     db: &SqlitePool,
     plan: &MergePlan,
-    asset_paths: &HashMap<String, String>,
+    asset_paths: &ResolvedAssets,
 ) -> Result<(usize, usize), String> {
     let mut tx = begin_local_change(db).await?;
     sqlx::query("PRAGMA defer_foreign_keys = ON")

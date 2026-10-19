@@ -19,8 +19,11 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::path::Path;
 use tauri::{Emitter, Manager};
+
+#[path = "sync_assets.rs"]
+mod assets;
+use assets::{download_assets, prepare_snapshot_assets, upload_assets};
 
 #[path = "sync_local_state.rs"]
 mod local_state;
@@ -198,34 +201,7 @@ async fn build_snapshot(
     device: &str,
 ) -> Result<(DeviceSnapshot, HashMap<String, String>), String> {
     let (mut tables, tombstones) = capture_local_state(db).await?;
-    let mut assets: BTreeMap<String, String> = BTreeMap::new();
-    let mut asset_sources: HashMap<String, String> = HashMap::new();
-
-    // The database transaction has ended before touching any asset file.
-    for (table, rows) in &mut tables {
-        for row in rows {
-            let serde_json::Value::Object(obj) = row else {
-                continue;
-            };
-
-            if is_asset_table(table) {
-                if let Some(fp) = obj.get("file_path").and_then(|v| v.as_str()) {
-                    if !fp.is_empty() && !fp.starts_with("asset://") {
-                        if let Some((hash, ext)) = hash_file(fp) {
-                            assets.insert(hash.clone(), ext);
-                            asset_sources
-                                .entry(hash.clone())
-                                .or_insert_with(|| fp.to_string());
-                            obj.insert(
-                                "file_path".into(),
-                                serde_json::Value::String(format!("asset://{hash}")),
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let (assets, asset_sources) = prepare_snapshot_assets(&mut tables)?;
 
     let snapshot = DeviceSnapshot {
         version: SNAPSHOT_VERSION,
@@ -236,19 +212,6 @@ async fn build_snapshot(
         assets,
     };
     Ok((snapshot, asset_sources))
-}
-
-fn hash_file(path: &str) -> Option<(String, String)> {
-    let bytes = std::fs::read(path).ok()?;
-    let mut hasher = Sha256::new();
-    hasher.update(&bytes);
-    let hash = format!("{:x}", hasher.finalize());
-    let ext = Path::new(path)
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| format!(".{e}"))
-        .unwrap_or_default();
-    Some((hash, ext))
 }
 
 // ── 合并 ─────────────────────────────────────────────────────────
@@ -304,81 +267,6 @@ fn combine_snapshots(snapshots: &[DeviceSnapshot]) -> MergePlan {
         tombstones,
         assets,
     }
-}
-
-// ── 资产上行/下行 ────────────────────────────────────────────────
-
-/// 上传本地快照引用的、服务器尚不存在的资产 blob。返回上传数量。
-async fn upload_assets(
-    config: &WebdavConfig,
-    asset_sources: &HashMap<String, String>,
-    existing: &HashSet<String>,
-) -> Result<usize, String> {
-    let mut uploaded = 0;
-    for (hash, src) in asset_sources {
-        if existing.contains(hash.as_str()) {
-            continue;
-        }
-        let Ok(bytes) = std::fs::read(src) else {
-            continue;
-        };
-        let encrypted = encrypt_blob(&bytes, &config.password, MAGIC_SYNC)?;
-        let path = format!("{ASSETS_DIR}/{hash}.rcblob");
-        webdav_service::put_file(config, &path, encrypted.as_bytes()).await?;
-        uploaded += 1;
-    }
-    Ok(uploaded)
-}
-
-/// 下载合并计划引用的、本地缺失的资产到 app_data_dir/sync_assets。
-/// 返回 (资产哈希 -> 本地绝对路径, 下载数量)。
-async fn download_assets(
-    config: &WebdavConfig,
-    app_data_dir: &Path,
-    plan: &MergePlan,
-) -> Result<(HashMap<String, String>, usize), String> {
-    // 收集计划中被引用的哈希
-    let mut needed: HashSet<String> = HashSet::new();
-    for bucket in plan.rows.values() {
-        for row in bucket.values() {
-            if let Some(fp) = row.get("file_path").and_then(|v| v.as_str()) {
-                if let Some(hash) = fp.strip_prefix("asset://") {
-                    needed.insert(hash.to_string());
-                }
-            }
-        }
-    }
-
-    let dir = app_data_dir.join("sync_assets");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("创建资产目录失败: {e}"))?;
-
-    let mut map = HashMap::new();
-    let mut downloaded = 0;
-    for hash in needed {
-        let ext = plan.assets.get(&hash).cloned().unwrap_or_default();
-        let local = dir.join(format!("{hash}{ext}"));
-        if local.exists() {
-            map.insert(hash, local.to_string_lossy().to_string());
-            continue;
-        }
-        let remote = format!("{ASSETS_DIR}/{hash}.rcblob");
-        match webdav_service::get_file(config, &remote).await? {
-            Some(encrypted) => {
-                let plaintext = decrypt_blob(
-                    std::str::from_utf8(&encrypted).map_err(|_| "资产数据损坏".to_string())?,
-                    &config.password,
-                    MAGIC_SYNC,
-                )?;
-                std::fs::write(&local, plaintext).map_err(|e| format!("写入资产失败: {e}"))?;
-                map.insert(hash, local.to_string_lossy().to_string());
-                downloaded += 1;
-            }
-            None => {
-                // 资产缺失：保持空路径，行其余元数据仍可用。
-            }
-        }
-    }
-    Ok((map, downloaded))
 }
 
 // ── 设置缓存刷新 ─────────────────────────────────────────────────
@@ -571,7 +459,7 @@ async fn run_sync_inner(
 
     // 4) 合并。
     let plan = combine_snapshots(&remote_snapshots);
-    let (asset_paths, assets_downloaded) = download_assets(config, &app_data_dir, &plan).await?;
+    let (asset_paths, assets_downloaded) = download_assets(config, &app_data_dir, &plan).await;
     let (rows_applied, rows_deleted) = apply_merge(db, &plan, &asset_paths).await?;
 
     // 5) 基线已随合并提交；这里只刷新设置缓存。
