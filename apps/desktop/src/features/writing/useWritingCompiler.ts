@@ -5,6 +5,7 @@ import { useWritingLatexInstall } from "./useWritingLatexInstall";
 import {
   isLatexCompilerMissing,
   LATEX_INSTALL_SUPPORT,
+  parseWritingCompileSummary,
   type WritingCompileStatus,
   type WritingCompileSummary,
   type WritingImageAsset,
@@ -21,7 +22,7 @@ function loadCompileResult(storageKey: string): WritingCompileSummary | null {
   try {
     const raw = localStorage.getItem(storageKey);
     if (!raw) return null;
-    return JSON.parse(raw) as WritingCompileSummary;
+    return parseWritingCompileSummary(JSON.parse(raw));
   } catch {
     return null;
   }
@@ -112,10 +113,12 @@ export function useWritingCompiler({
     cacheCompileResult(scope.storageKey, null);
     try {
       clearStatus();
-      const result = await writingApi.compilePdf({ projectName, mainTex, bibtex, texFiles, notes, imageAssets });
+      const response = await writingApi.compilePdf({ projectName, mainTex, bibtex, texFiles, notes, imageAssets });
       // Native compilation may finish after switching drafts or unmounting.
       // Ignore its feedback and cache write; this does not cancel the native job.
       if (!isCurrent()) return;
+      const result = parseWritingCompileSummary(response);
+      if (!result) throw new Error("编译器返回的结果格式无效，请重新编译。");
       cacheCompileResult(scope.storageKey, result);
       if (result.success && result.pdfPath) {
         update("ready", result);

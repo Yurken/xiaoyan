@@ -294,6 +294,22 @@ export function writingResearchInterestTitle(
   return interest?.folder_name?.trim() || interest?.topic || "未绑定研究主题";
 }
 
+/** Both persisted JSON and native invoke results cross an untyped boundary. */
+export function parseWritingCompileSummary(value: unknown): WritingCompileSummary | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const { success, pdfPath, workDir, engine, log } = value as Record<string, unknown>;
+  if (
+    typeof success !== "boolean"
+    || (pdfPath !== null && typeof pdfPath !== "string")
+    || typeof workDir !== "string"
+    || typeof engine !== "string"
+    || typeof log !== "string"
+  ) return null;
+  // Keep the existing success/path classification in the compiler hook.
+  // Extra fields from a newer producer must not invalidate a compatible result.
+  return { success, pdfPath, workDir, engine, log };
+}
+
 export function isLatexCompilerMissing(result: WritingCompileSummary | null): boolean {
   if (!result) return false;
   return result.engine === "not-found" || result.log.includes("未找到 LaTeX 编译器");
