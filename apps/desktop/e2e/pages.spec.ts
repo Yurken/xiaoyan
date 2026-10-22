@@ -76,6 +76,38 @@ test.describe("工具页面", () => {
   });
 });
 
+test.describe("DSH 直接入口", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(TAURI_MOCK_SCRIPT);
+    await page.goto("/code");
+  });
+
+  test("运行时缺失时显示按需安装提示", async ({ page }) => {
+    await expect(page.getByText("安装 DSH 后即可开始使用")).toBeVisible();
+    await expect(page.getByText(/未找到本机 DSH/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "一键安装" })).toBeVisible();
+  });
+
+  test("不再显示自制标题和必经启动表单", async ({ page }) => {
+    await expect(page.getByText("安装 DSH 后即可开始使用")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "DeepSeek Harness" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "启动 DSH" })).toHaveCount(0);
+    await expect(page.getByLabel("工作目录")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "高级配置" })).toHaveCount(0);
+  });
+});
+
+for (const legacyPath of ["/codex", "/opencode", "/pi"]) {
+  test(`${legacyPath} 保留兼容地址并转入 DSH`, async ({ page }) => {
+    await page.addInitScript(TAURI_MOCK_SCRIPT);
+    await page.goto(legacyPath);
+    await expect(page).toHaveURL("/code");
+    await expect(page.getByLabel("DSH", { exact: true })).toHaveAttribute("href", "/code");
+    await expect(page.getByText("安装 DSH 后即可开始使用")).toBeVisible();
+  });
+}
+
+/* 旧必经启动页及其他 Harness 的用例随入口注释保留。
 test.describe("DSH 页面", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(TAURI_MOCK_SCRIPT);
@@ -145,6 +177,8 @@ test.describe("OpenCode 页面", () => {
     await expect(page.getByLabel(/使用其他本机 OpenCode/)).toBeVisible();
   });
 });
+
+*/
 
 test.describe("设置页面", () => {
   test.beforeEach(async ({ page }) => {

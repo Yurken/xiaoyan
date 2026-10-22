@@ -76,21 +76,19 @@ test.describe("应用导航", () => {
     await expect(page).toHaveURL("/settings");
   });
 
-  test("设置中切换到 Codex 后侧栏显示 Codex", async ({ page }) => {
+  test("界面布局不再提供代码助手切换设置", async ({ page }) => {
     await page.goto("/settings");
     await page.getByRole("button", { name: "界面布局" }).click();
-    await page.getByRole("button", { name: /Codex Harness/ }).click();
-    await expect(page.getByLabel("Codex")).toBeVisible();
-    await expect(page.getByLabel("Codex")).toHaveAttribute("href", "/codex");
-    await expect(page.getByLabel("DSH")).toHaveCount(0);
+    await expect(page.getByText("代码助手", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Codex Harness|OpenCode/ })).toHaveCount(0);
+    await expect(page.getByLabel("DSH", { exact: true })).toHaveAttribute("href", "/code");
   });
 
-  test("设置中切换到 OpenCode 后侧栏显示 OpenCode", async ({ page }) => {
-    await page.goto("/settings");
-    await page.getByRole("button", { name: "界面布局" }).click();
-    await page.getByRole("button", { name: /OpenCode/ }).click();
-    await expect(page.getByLabel("OpenCode")).toHaveAttribute("href", "/opencode");
-    await expect(page.getByLabel("DSH")).toHaveCount(0);
+  test("旧版代码助手偏好回退到 DSH", async ({ page }) => {
+    await page.evaluate(() => localStorage.setItem("rc:code-harness-provider", "opencode"));
+    await page.reload();
+    await expect(page.getByLabel("DSH", { exact: true })).toHaveAttribute("href", "/code");
+    await expect(page.getByLabel("OpenCode", { exact: true })).toHaveCount(0);
   });
 
   test("应支持键盘快捷键跳转设置", async ({ page }) => {
