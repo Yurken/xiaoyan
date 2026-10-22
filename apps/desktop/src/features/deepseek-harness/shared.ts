@@ -1,6 +1,8 @@
 export type DshRuntimeMode = "auto" | "bundled" | "external";
 export const DSH_CONTROLS_SURFACE = "dsh-runtime-controls";
 export const DSH_VIEWPORT_EVENT = "dsh:viewport";
+export const DSH_API_SYNC_REQUEST = "dsh:api-sync-request";
+export const DSH_API_SYNC_STATE = "dsh:api-sync-state";
 export const DSH_CONTROLS_INITIAL_SIZE = { width: 280, height: 64 };
 
 export interface DshViewBounds {
@@ -40,6 +42,17 @@ export interface DshApiImportResult {
   protocol: string;
   model: string;
   dataHome: string;
+}
+
+export interface DshApiSyncState {
+  busy: boolean;
+  result: DshApiImportResult | null;
+  error: string;
+}
+
+export function canStartDsh(snapshot: DshRuntimeSnapshot | null): boolean {
+  return Boolean(snapshot && ((snapshot.config.mode === "external" && snapshot.config.externalExecutable?.trim())
+    || snapshot.pathAvailable || snapshot.bundledAvailable));
 }
 
 export const DEFAULT_DSH_CONFIG: DshRuntimeConfig = {

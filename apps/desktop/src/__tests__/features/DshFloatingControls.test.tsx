@@ -6,6 +6,7 @@ const native = vi.hoisted(() => ({
   setPosition: vi.fn().mockResolvedValue(undefined),
   setSize: vi.fn().mockResolvedValue(undefined),
   listen: vi.fn().mockResolvedValue(() => {}),
+  emitTo: vi.fn().mockResolvedValue(undefined),
 }));
 const restart = vi.hoisted(() => vi.fn());
 const stop = vi.hoisted(() => vi.fn());
@@ -75,5 +76,14 @@ describe("DshFloatingControls", () => {
     const onBounds = native.listen.mock.calls[0][1] as (event: { payload: unknown }) => void;
     act(() => onBounds({ payload: { x: 60, y: 0, width: 500, height: 400 } }));
     await waitFor(() => expect(native.setPosition).toHaveBeenLastCalledWith(expect.objectContaining({ x: 112, y: 12 })));
+  });
+
+  it("requests API sync from the main view after an explicit restart action", async () => {
+    render(<DshFloatingControls />);
+    await waitFor(() => expect(native.emitTo).toHaveBeenCalledWith("main", "dsh:api-sync-request", "status"));
+    fireEvent.click(screen.getByRole("button", { name: "配置小妍 API" }));
+    expect(native.emitTo).not.toHaveBeenCalledWith("main", "dsh:api-sync-request", "sync");
+    fireEvent.click(screen.getByRole("button", { name: "同步并重启" }));
+    expect(native.emitTo).toHaveBeenCalledWith("main", "dsh:api-sync-request", "sync");
   });
 });

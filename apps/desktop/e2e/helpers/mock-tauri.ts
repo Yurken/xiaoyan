@@ -79,6 +79,15 @@ const MOCK_INVOKE_RESULTS = {
   sync_status: { configured: false, running: false, last_sync_at: null, last_error: null, last_message: null },
   update_check: { available: false },
 
+  // DSH is absent on this synthetic machine; no native child webview is created.
+  dsh_runtime_status: {
+    phase: "stopped", url: null, error: null, logs: [],
+    config: { mode: "auto", externalExecutable: null, externalHome: null, profile: "web", workspaceDir: null },
+    bundledAvailable: false, pathAvailable: false, pathExecutable: null,
+    lockedVersion: "0.2.1-rc.2", lockedCommit: "synthetic-commit", nodeRequirement: ">=22.19.0",
+    source: "https://github.com/deepseek-ai/deepseek-harness", dataHome: "/synthetic/dsh",
+  },
+
   // Knowledge
   knowledge_list_interests: [],
   knowledge_list_notes: [],
@@ -183,6 +192,7 @@ export const TAURI_MOCK_SCRIPT = `
   // getCurrentWindow() reads metadata.currentWindow.label synchronously.
   window.__TAURI_INTERNALS__.metadata = window.__TAURI_INTERNALS__.metadata || {
     currentWindow: { label: "main" },
+    currentWebview: { label: "main" },
     windows: [{ label: "main" }],
   };
 
