@@ -44,7 +44,7 @@
     "release:landing": "node scripts/release-sync-landing.mjs"
   },
   "devDependencies": {
-    "@types/react": "^19.2.14",
+    "@types/react": "^19.3.0",
     "turbo": "^2.10.11"
   },
   "packageManager": "pnpm@9.0.0",
