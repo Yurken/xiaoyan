@@ -30,7 +30,7 @@ export default function DshRuntimeControls({
             <RefreshCw className="h-3.5 w-3.5" />
             重启
           </Button>
-          <Button variant="secondary" size="sm" onClick={onStop} disabled={busy}>
+          <Button variant="ghost" size="sm" onClick={onStop} disabled={busy}>
             <Square className="h-3 w-3" />
             停止
           </Button>
