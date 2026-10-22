@@ -84,6 +84,10 @@ updateJson("apps/mobile/app.json", (json) => {
   json.expo.version = appVersion;
 }, touched);
 
+updateText("apps/mobile/android/app/build.gradle", (text) => {
+  return text.replace(/(\bversionName ")[^"]+(")/, `$1${appVersion}$2`);
+}, touched);
+
 updateJson("apps/desktop/src-tauri/tauri.conf.json", (json) => {
   json.version = appVersion;
 }, touched);
