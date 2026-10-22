@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
-import CodexIcon from "./CodexIcon";
 import type { CodexRuntimeConfig } from "./shared";
 import { useCodexRuntime } from "./useCodexRuntime";
 import CodexLaunchPanel from "./CodexLaunchPanel";
 import CodexRuntimeControls from "./CodexRuntimeControls";
 import FloatingRuntimeControls from "../code-harness/FloatingRuntimeControls";
+import RuntimeControlBar from "../code-harness/RuntimeControlBar";
 
 export default function CodexWorkspace() {
   const runtime = useCodexRuntime();
@@ -36,15 +36,9 @@ export default function CodexWorkspace() {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-nm-bg">
       {!isRunning && (
-        <header className="app-header flex flex-shrink-0 items-center justify-between gap-4 border-b border-nm-dark/10 px-6 pb-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl text-ink-primary" style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}>
-              <CodexIcon className="h-4.5 w-4.5" />
-            </div>
-            <h1 className="truncate text-[15px] font-semibold text-ink-primary">Codex Harness</h1>
-          </div>
+        <RuntimeControlBar>
           <CodexRuntimeControls phase={phase} statusTone={statusTone} busy={runtime.busy} onRestart={() => void runtime.restart()} onStop={() => void runtime.stop()} />
-        </header>
+        </RuntimeControlBar>
       )}
 
       {isRunning ? (

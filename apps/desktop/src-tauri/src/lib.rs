@@ -14,10 +14,10 @@ mod assistant_prompts;
 mod ccf;
 mod citation_graph;
 mod code;
-mod codex;
-mod codex_api_config;
-mod codex_process;
-mod codex_web;
+// mod codex; // 暂停：当前仅启用 DSH，保留源码。
+// mod codex_api_config; // 暂停：当前仅启用 DSH，保留源码。
+// mod codex_process; // 暂停：当前仅启用 DSH，保留源码。
+// mod codex_web; // 暂停：当前仅启用 DSH，保留源码。
 mod commands;
 mod db;
 mod desktop_shell;
@@ -29,12 +29,12 @@ mod graph_rag;
 mod journal_partitions;
 mod links;
 mod llm;
-mod opencode;
-mod opencode_api_config;
-mod opencode_process;
-mod pi_web;
-mod pi_web_api_config;
-mod pi_web_process;
+// mod opencode; // 暂停：当前仅启用 DSH，保留源码。
+// mod opencode_api_config; // 暂停：当前仅启用 DSH，保留源码。
+// mod opencode_process; // 暂停：当前仅启用 DSH，保留源码。
+// mod pi_web; // 暂停：当前仅启用 DSH，保留源码。
+// mod pi_web_api_config; // 暂停：当前仅启用 DSH，保留源码。
+// mod pi_web_process; // 暂停：当前仅启用 DSH，保留源码。
 mod platform;
 mod rag;
 mod repositories;
@@ -414,9 +414,9 @@ pub fn run() {
 
             app.manage(runtime_installer::RuntimeInstallerState::new(app_data_dir.clone()));
             app.manage(dsh::DshRuntimeState::new(app_data_dir.clone()));
-            app.manage(codex::CodexRuntimeState::new(app_data_dir.clone()));
-            app.manage(opencode::OpenCodeRuntimeState::new(app_data_dir.clone()));
-            app.manage(pi_web::PiWebRuntimeState::new(app_data_dir.clone()));
+            // app.manage(codex::CodexRuntimeState::new(app_data_dir.clone()));
+            // app.manage(opencode::OpenCodeRuntimeState::new(app_data_dir.clone()));
+            // app.manage(pi_web::PiWebRuntimeState::new(app_data_dir.clone()));
 
             configure_diagnostic_log_path(&app_data_dir);
             append_diagnostic_log(&format!(
@@ -651,26 +651,26 @@ pub fn run() {
             dsh::dsh_runtime_validate_external,
             dsh::dsh_runtime_import_xiaoyan_api,
             // OpenAI Codex runtime
-            codex::codex_runtime_status,
-            codex::codex_runtime_configure,
-            codex::codex_runtime_start,
-            codex::codex_runtime_stop,
-            codex::codex_runtime_validate_external,
-            codex::codex_runtime_import_xiaoyan_api,
+            // codex::codex_runtime_status,
+            // codex::codex_runtime_configure,
+            // codex::codex_runtime_start,
+            // codex::codex_runtime_stop,
+            // codex::codex_runtime_validate_external,
+            // codex::codex_runtime_import_xiaoyan_api,
             // OpenCode official web runtime
-            opencode::opencode_runtime_status,
-            opencode::opencode_runtime_configure,
-            opencode::opencode_runtime_start,
-            opencode::opencode_runtime_stop,
-            opencode::opencode_runtime_validate_external,
-            opencode::opencode_runtime_import_xiaoyan_api,
+            // opencode::opencode_runtime_status,
+            // opencode::opencode_runtime_configure,
+            // opencode::opencode_runtime_start,
+            // opencode::opencode_runtime_stop,
+            // opencode::opencode_runtime_validate_external,
+            // opencode::opencode_runtime_import_xiaoyan_api,
             // Pi runtime
-            pi_web::pi_web_runtime_status,
-            pi_web::pi_web_runtime_configure,
-            pi_web::pi_web_runtime_start,
-            pi_web::pi_web_runtime_stop,
-            pi_web::pi_web_runtime_validate_external,
-            pi_web::pi_web_runtime_import_xiaoyan_api,
+            // pi_web::pi_web_runtime_status,
+            // pi_web::pi_web_runtime_configure,
+            // pi_web::pi_web_runtime_start,
+            // pi_web::pi_web_runtime_stop,
+            // pi_web::pi_web_runtime_validate_external,
+            // pi_web::pi_web_runtime_import_xiaoyan_api,
             // Downloadable managed runtimes
             runtime_installer::runtime_download_managed,
             // Papers

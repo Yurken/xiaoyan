@@ -73,7 +73,7 @@ function pnpm(commandArgs, options = {}) {
     return;
   }
   const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-  run(npx, ["--yes", "pnpm@11.7.0", ...commandArgs], { ...options, shell: process.platform === "win32" });
+  run(npx, ["--yes", "pnpm@11.28.5", ...commandArgs], { ...options, shell: process.platform === "win32" });
 }
 
 function gitOutput(commandArgs) {

@@ -761,6 +761,10 @@ pub async fn runtime_download_managed(
     state: State<'_, RuntimeInstallerState>,
     provider: ManagedRuntimeProvider,
 ) -> Result<ManagedRuntimeInstall, String> {
+    // 暂停其他 Harness 的安装入口；实现与已有私有运行时继续保留。
+    if provider != ManagedRuntimeProvider::Dsh {
+        return Err("当前仅启用 DSH，其他 Agent 工具已暂停".to_string());
+    }
     {
         let mut active = state.active.lock().await;
         if !active.insert(provider) {

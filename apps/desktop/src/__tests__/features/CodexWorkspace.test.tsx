@@ -50,7 +50,7 @@ describe("CodexWorkspace", () => {
     render(<CodexWorkspace />);
 
     expect(await screen.findByRole("heading", { name: "启动 Codex" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Codex Harness" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Codex Harness" })).not.toBeInTheDocument();
     expect(screen.getByText("已发现本机 Codex")).toBeInTheDocument();
     expect(screen.getByText("/usr/local/bin/codex")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "一键安装" })).not.toBeInTheDocument();

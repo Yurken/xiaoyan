@@ -5,21 +5,19 @@ import {
   FolderOpen,
   Loader2,
   Play,
-  RefreshCw,
-  Square,
 } from "lucide-react";
-import DeepSeekIcon from "./DeepSeekIcon";
 import { Button, Card, Input } from "@research-copilot/ui";
 import {
-  DSH_PHASE_LABELS,
   type DshRuntimeConfig,
-  type DshRuntimePhase,
 } from "./shared";
 import { useDeepSeekHarnessRuntime } from "./useDeepSeekHarnessRuntime";
 import RuntimeExecutableSettings from "../code-harness/RuntimeExecutableSettings";
 import RuntimeSourceSummary from "../code-harness/RuntimeSourceSummary";
-import FloatingRuntimeControls from "../code-harness/FloatingRuntimeControls";
 import XiaoyanApiImportSection from "../code-harness/XiaoyanApiImportSection";
+import DshRuntimeView from "./DshRuntimeView";
+import RuntimeControlBar from "../code-harness/RuntimeControlBar";
+import FloatingRuntimeControls from "../code-harness/FloatingRuntimeControls";
+import DshRuntimeControls from "./DshRuntimeControls";
 
 function RuntimeLog({ logs }: { logs: string[] }) {
   if (logs.length === 0) return null;
@@ -39,43 +37,6 @@ function RuntimeLog({ logs }: { logs: string[] }) {
   );
 }
 
-function RuntimeControls({
-  phase,
-  statusTone,
-  busy,
-  onRestart,
-  onStop,
-}: {
-  phase: DshRuntimePhase;
-  statusTone: string;
-  busy: boolean;
-  onRestart: () => void;
-  onStop: () => void;
-}) {
-  return (
-    <div className="flex flex-shrink-0 items-center gap-1.5">
-      <span
-        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
-        style={{ background: "var(--rc-chip-inset-bg)", color: statusTone, boxShadow: "var(--rc-chip-inset-shadow)" }}
-      >
-        <span className={`h-1.5 w-1.5 rounded-full ${phase === "starting" ? "animate-pulse" : ""}`} style={{ background: statusTone }} />
-        {DSH_PHASE_LABELS[phase]}
-      </span>
-      {phase === "running" && (
-        <>
-          <Button variant="ghost" size="sm" onClick={onRestart} disabled={busy}>
-            <RefreshCw className="h-3.5 w-3.5" />
-            重启
-          </Button>
-          <Button variant="secondary" size="sm" onClick={onStop} disabled={busy}>
-            <Square className="h-3 w-3" />
-            停止
-          </Button>
-        </>
-      )}
-    </div>
-  );
-}
 
 export default function DeepSeekHarnessWorkspace() {
   const runtime = useDeepSeekHarnessRuntime();
@@ -145,51 +106,22 @@ export default function DeepSeekHarnessWorkspace() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-nm-bg">
-      {!isRunning && (
-        <header className="app-header flex flex-shrink-0 items-center justify-between gap-4 border-b border-nm-dark/10 px-6 pb-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl text-ink-primary"
-              style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
-            >
-              <DeepSeekIcon className="h-4.5 w-4.5" />
-            </div>
-            <h1 className="truncate text-[15px] font-semibold text-ink-primary">DeepSeek Harness</h1>
-          </div>
-          <RuntimeControls
-            phase={phase}
-            statusTone={statusTone}
-            busy={runtime.busy}
-            onRestart={() => void runtime.restart()}
-            onStop={() => void runtime.stop()}
-          />
-        </header>
-      )}
+      {!isRunning && <RuntimeControlBar>
+        <DshRuntimeControls
+          phase={phase}
+          statusTone={statusTone}
+          busy={runtime.busy}
+          onRestart={() => void runtime.restart()}
+          onStop={() => void runtime.stop()}
+        />
+      </RuntimeControlBar>}
 
       {isRunning ? (
-        <div className="relative min-h-0 flex-1 bg-white">
-          <iframe
-            key={runtime.snapshot?.url}
-            src={runtime.snapshot?.url ?? undefined}
-            title="DeepSeek Harness"
-            className="absolute inset-0 h-full w-full border-0"
-            allow="clipboard-read; clipboard-write"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"
-          />
-          <FloatingRuntimeControls
-            provider="dsh"
-            label="DSH"
-            initialPositionClassName="right-3 top-3 md:right-[11.5rem]"
-          >
-            <RuntimeControls
-              phase={phase}
-              statusTone={statusTone}
-              busy={runtime.busy}
-              onRestart={() => void runtime.restart()}
-              onStop={() => void runtime.stop()}
-            />
+        <DshRuntimeView key={runtime.snapshot?.url} url={runtime.snapshot?.url ?? ""}>
+          <FloatingRuntimeControls provider="dsh" label="DSH" initialPositionClassName="right-3 top-3 md:right-[11.5rem]">
+            <DshRuntimeControls phase={phase} statusTone={statusTone} busy={runtime.busy} onRestart={() => void runtime.restart()} onStop={() => void runtime.stop()} />
           </FloatingRuntimeControls>
-        </div>
+        </DshRuntimeView>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
           <div className="mx-auto max-w-4xl">

@@ -1,4 +1,14 @@
 export type DshRuntimeMode = "auto" | "bundled" | "external";
+export const DSH_CONTROLS_SURFACE = "dsh-runtime-controls";
+export const DSH_VIEWPORT_EVENT = "dsh:viewport";
+export const DSH_CONTROLS_INITIAL_SIZE = { width: 280, height: 64 };
+
+export interface DshViewBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 export type DshRuntimePhase = "stopped" | "starting" | "running" | "failed";
 
 export interface DshRuntimeConfig {

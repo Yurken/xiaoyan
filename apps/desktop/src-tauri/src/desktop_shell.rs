@@ -480,7 +480,7 @@ fn position_dock(app: &AppHandle) {
     let Some(window) = app.get_webview_window("assistant-dock") else {
         return;
     };
-    let main_window = app.get_webview_window("main");
+    let main_window = app.get_window("main");
     let monitor = main_window
         .as_ref()
         .and_then(|main| main.current_monitor().ok().flatten())
@@ -836,7 +836,7 @@ fn setup_tray(app: &mut App) -> anyhow::Result<()> {
         .menu(&menu)
         .on_menu_event(move |app, event| match event.id.as_ref() {
             "show" => {
-                if let Some(window) = app.get_webview_window("main") {
+                if let Some(window) = app.get_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
@@ -845,7 +845,7 @@ fn setup_tray(app: &mut App) -> anyhow::Result<()> {
                 if assistant_enabled() {
                     let _ = set_assistant_dock_visible(app, true);
                     let _ = show_assistant_panel(app, true);
-                } else if let Some(window) = app.get_webview_window("main") {
+                } else if let Some(window) = app.get_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
@@ -866,7 +866,7 @@ fn setup_tray(app: &mut App) -> anyhow::Result<()> {
                 ..
             } = event
             {
-                if let Some(window) = tray.app_handle().get_webview_window("main") {
+                if let Some(window) = tray.app_handle().get_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw, Square } from "lucide-react";
 import { Button } from "@research-copilot/ui";
-import PiWebIcon from "./PiWebIcon";
 import PiWebLaunchPanel from "./PiWebLaunchPanel";
 import { PI_WEB_PHASE_LABELS, type PiWebRuntimeConfig, type PiWebRuntimePhase } from "./shared";
 import { usePiWebRuntime } from "./usePiWebRuntime";
 import FloatingRuntimeControls from "../code-harness/FloatingRuntimeControls";
+import RuntimeControlBar from "../code-harness/RuntimeControlBar";
 
 function RuntimeControls({
   phase,
@@ -49,10 +49,9 @@ export default function PiWebWorkspace() {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-nm-bg">
       {!isRunning ? (
-        <header className="app-header flex flex-shrink-0 items-center justify-between gap-4 border-b border-nm-dark/10 px-6 pb-3">
-          <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-2xl" style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}><PiWebIcon className="h-4.5 w-4.5" /></span><h1 className="text-[15px] font-semibold text-ink-primary">Pi</h1></div>
+        <RuntimeControlBar>
           <RuntimeControls phase={phase} tone={tone} busy={runtime.busy} onRestart={() => void runtime.restart()} onStop={() => void runtime.stop()} />
-        </header>
+        </RuntimeControlBar>
       ) : null}
       {isRunning ? (
         <div className="relative min-h-0 flex-1 bg-white">

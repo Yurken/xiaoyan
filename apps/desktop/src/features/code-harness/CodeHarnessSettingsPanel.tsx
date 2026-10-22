@@ -1,10 +1,10 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { CODE_HARNESS_PATHS, isCodeHarnessPath, type CodeHarnessProvider } from "./shared";
 import { useCodeHarnessProvider } from "./useCodeHarnessProvider";
-import CodexIcon from "../codex/CodexIcon";
+// import CodexIcon from "../codex/CodexIcon";
 import DeepSeekIcon from "../deepseek-harness/DeepSeekIcon";
-import OpenCodeIcon from "../opencode/OpenCodeIcon";
-import PiWebIcon from "../pi-web/PiWebIcon";
+// import OpenCodeIcon from "../opencode/OpenCodeIcon";
+// import PiWebIcon from "../pi-web/PiWebIcon";
 
 const OPTIONS: Array<{
   id: CodeHarnessProvider;
@@ -18,6 +18,7 @@ const OPTIONS: Array<{
     description: "托管官方 DSH Web 页面，小妍只负责进程和容器。",
     icon: DeepSeekIcon,
   },
+  /* 暂停其他 Harness，保留配置以便将来恢复。
   {
     id: "codex",
     title: "Codex Harness",
@@ -36,6 +37,7 @@ const OPTIONS: Array<{
     description: "嵌入 Pi 的完整 Web 工作台、会话与技能管理。",
     icon: PiWebIcon,
   },
+  */
 ];
 
 export default function CodeHarnessSettingsPanel() {
@@ -55,7 +57,7 @@ export default function CodeHarnessSettingsPanel() {
   return (
     <div>
       <p className="mb-2 ml-1 text-xs font-medium text-ink-tertiary">代码助手</p>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid max-w-xl gap-3">
         {OPTIONS.map((option) => {
           const selected = provider === option.id;
           const Icon = option.icon;

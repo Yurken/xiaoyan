@@ -6,6 +6,14 @@ export const CODE_HARNESS_PROVIDERS = ["dsh", "codex", "opencode", "pi"] as cons
 
 export type CodeHarnessProvider = (typeof CODE_HARNESS_PROVIDERS)[number];
 
+// 当前只迭代 DSH；其余类型和集成保留，重新启用时恢复以下注册项。
+export const ACTIVE_CODE_HARNESS_PROVIDERS: readonly CodeHarnessProvider[] = [
+  "dsh",
+  // "codex",
+  // "opencode",
+  // "pi",
+];
+
 export interface FloatingRuntimeControlsPosition {
   x: number;
   y: number;
@@ -37,7 +45,8 @@ export function isCodeHarnessProvider(value: unknown): value is CodeHarnessProvi
 }
 
 export function normalizeCodeHarnessProvider(value: unknown): CodeHarnessProvider {
-  return isCodeHarnessProvider(value) ? value : DEFAULT_CODE_HARNESS_PROVIDER;
+  return isCodeHarnessProvider(value) && ACTIVE_CODE_HARNESS_PROVIDERS.includes(value)
+    ? value : DEFAULT_CODE_HARNESS_PROVIDER;
 }
 
 export function readCodeHarnessProvider(): CodeHarnessProvider {
@@ -51,12 +60,13 @@ export function readCodeHarnessProvider(): CodeHarnessProvider {
 
 export function persistCodeHarnessProvider(provider: CodeHarnessProvider) {
   if (typeof window === "undefined") return;
+  const active = normalizeCodeHarnessProvider(provider);
   try {
-    window.localStorage.setItem(CODE_HARNESS_PROVIDER_STORAGE_KEY, provider);
+    window.localStorage.setItem(CODE_HARNESS_PROVIDER_STORAGE_KEY, active);
   } catch {
     // 在受限 WebView 中仍保持本次会话内状态可用。
   }
-  window.dispatchEvent(new CustomEvent(CODE_HARNESS_PROVIDER_CHANGE_EVENT, { detail: provider }));
+  window.dispatchEvent(new CustomEvent(CODE_HARNESS_PROVIDER_CHANGE_EVENT, { detail: active }));
 }
 
 export function codeHarnessPath(provider: CodeHarnessProvider): string {

@@ -7,6 +7,9 @@ import AppErrorBoundary from "./components/AppErrorBoundary";
 import { useThemeInit } from "./hooks/useThemeInit";
 import "./index.css";
 
+const runtimeControls = new URLSearchParams(window.location.search).get("surface") === "dsh-runtime-controls";
+if (runtimeControls) document.documentElement.setAttribute("data-runtime-controls", "");
+
 // 生产环境下禁止文本选择，开发环境允许复制文字
 if (!import.meta.env.DEV) {
   document.documentElement.setAttribute("data-production", "");
@@ -91,10 +94,13 @@ function useWindowLabel(): WindowLabel {
 const AssistantDockWindow = lazy(() => import("./features/desktop-assistant/windows/AssistantDockWindow"));
 const AssistantPanelWindow = lazy(() => import("./features/desktop-assistant/windows/AssistantPanelWindow"));
 const CaptureOverlayWindow = lazy(() => import("./features/desktop-assistant/components/CaptureOverlay"));
+const DshFloatingControls = lazy(() => import("./features/deepseek-harness/DshFloatingControls"));
 
 function WindowRoot() {
   const label = useWindowLabel();
   useThemeInit({ followSystem: label === "assistant-panel" });
+
+  if (runtimeControls) return <Suspense fallback={null}><DshFloatingControls /></Suspense>;
 
   if (label === null) {
     return (
