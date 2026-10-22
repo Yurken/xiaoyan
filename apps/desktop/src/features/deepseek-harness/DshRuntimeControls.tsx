@@ -27,19 +27,19 @@ export default function DshRuntimeControls({
         {DSH_PHASE_LABELS[phase]}
       </span>
       {phase === "running" && (
-        <>
+        <div className="flex items-center gap-0.5">
           {onImportApi && <Button variant="ghost" size="sm" className="h-8 w-8 flex-shrink-0 !p-0" onClick={onImportApi} disabled={busy} aria-label="配置小妍 API" title="配置小妍 API">
             <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
           </Button>}
-          <Button variant="ghost" size="sm" onClick={onRestart} disabled={busy}>
+          <Button variant="ghost" size="sm" className="h-8 !gap-1 !px-1.5 !py-0" onClick={onRestart} disabled={busy}>
             <RefreshCw className="h-3.5 w-3.5" />
             重启
           </Button>
-          <Button variant="ghost" size="sm" onClick={onStop} disabled={busy}>
+          <Button variant="ghost" size="sm" className="h-8 !gap-1 !px-1.5 !py-0" onClick={onStop} disabled={busy}>
             <Square className="h-3 w-3" />
             停止
           </Button>
-        </>
+        </div>
       )}
     </div>
   );
