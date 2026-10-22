@@ -19,11 +19,15 @@ describe('AssistantDock', () => {
     expect(screen.queryByText('妍')).not.toBeInTheDocument()
   })
 
-  it('accepts copied Finder files from the companion context action', () => {
+  it('opens the context menu without immediately pasting files', () => {
     const onPasteFiles = vi.fn()
-    render(<AssistantDock variant="window" fileShelfCount={3} onPasteFiles={onPasteFiles} />)
+    const onOpenContextMenu = vi.fn()
+    render(<AssistantDock variant="window" fileShelfCount={3} onPasteFiles={onPasteFiles} onOpenContextMenu={onOpenContextMenu} />)
 
     fireEvent.contextMenu(screen.getByRole('button', { name: '桌面小妍' }))
+    expect(onOpenContextMenu).toHaveBeenCalledOnce()
+    expect(onPasteFiles).not.toHaveBeenCalled()
+    fireEvent.keyDown(screen.getByRole('button', { name: '桌面小妍' }), { key: 'v', metaKey: true })
     expect(onPasteFiles).toHaveBeenCalledOnce()
     expect(screen.getByText('3')).toBeInTheDocument()
   })

@@ -16,6 +16,7 @@ pub mod desktop_assistant_capture_overlay;
 pub mod desktop_assistant_file_shelf;
 pub mod desktop_assistant_inbox;
 pub mod desktop_assistant_sessions;
+pub mod desktop_assistant_navigation;
 pub mod desktop_assistant_source;
 pub mod desktop_assistant_terminology;
 pub mod evidence;

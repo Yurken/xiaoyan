@@ -14,7 +14,7 @@ import SettingsChangelogCard, { formatUpdateDate, getChangelogReleaseDate } from
 import FeedbackSection from "../features/settings/FeedbackSection";
 import DesktopAssistantSettingsSection from "../features/settings/DesktopAssistantSettingsSection";
 import LayoutSettingsSection from "../features/settings/LayoutSettingsSection";
-import { DEFAULT_SETTINGS, SETTINGS_ACTIVE_SECTION_STORAGE_KEY, SETTINGS_SECTIONS, type SettingsSectionKey } from "../features/settings/pageConfig";
+import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, type SettingsSectionKey } from "../features/settings/pageConfig";
 import { AgentChip, SectionIcon } from "../features/settings/shared";
 import { applyProviderPreset, detectPreset, type ProviderPresetId } from "../features/settings/providerPresets";
 import { useDataBackup } from "../features/settings/useDataBackup";
@@ -26,11 +26,9 @@ import { useSettingsCrypto } from "../features/settings/useSettingsCrypto";
 import { useSettingsHistory } from "../features/settings/useSettingsHistory";
 import { useSettingsMemories } from "../features/settings/useSettingsMemories";
 import { useLayoutSettingsController } from "../features/settings/useLayoutSettingsController";
-import { usePersistentStringState } from "../hooks/usePersistentStringState";
+import { useSettingsSection } from "../features/settings/useSettingsSection";
 import { getUpdateCurrentVersion, getUpdatePublishedAt } from "../lib/updateProgress";
 import type { LlmProvider } from "@research-copilot/types";
-
-const SETTINGS_SECTION_KEYS = SETTINGS_SECTIONS.map((section) => section.key);
 
 function SettingsTabBar({
   sections,
@@ -162,11 +160,7 @@ export default function Settings() {
     handleCheckUpdate,
     handleInstallUpdate,
   } = useSettingsController(DEFAULT_SETTINGS);
-  const [activeSection, setActiveSection] = usePersistentStringState<SettingsSectionKey>(
-    SETTINGS_ACTIVE_SECTION_STORAGE_KEY,
-    "assistant",
-    SETTINGS_SECTION_KEYS,
-  );
+  const [activeSection, setActiveSection] = useSettingsSection();
   // 「切换与管理」弹窗（由小妍配置弹层的「更多管理」触发）。
   const [configManageOpen, setConfigManageOpen] = useState(false);
   const {

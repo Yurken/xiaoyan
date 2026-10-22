@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "../helpers/render";
+import { renderWithRouter as render, screen, fireEvent, waitFor } from "../helpers/render";
 import { resetInvokeMock } from "../mocks/tauri";
 import { DEFAULT_SETTINGS } from "../../features/settings/pageConfig";
 import Settings from "../../pages/Settings";

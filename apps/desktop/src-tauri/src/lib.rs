@@ -138,6 +138,7 @@ use commands::{
         assistant_file_shelf_stash_paths,
     },
     desktop_assistant_sessions::{assistant_open_conversation, assistant_promote_session},
+    desktop_assistant_navigation::assistant_open_settings,
     desktop_assistant_source::{assistant_get_source_metadata, assistant_update_source_metadata},
     desktop_assistant_terminology::{
         assistant_delete_terminology_preference, assistant_list_terminology_preferences,
@@ -1012,6 +1013,7 @@ pub fn run() {
             assistant_file_shelf_reveal,
             assistant_promote_session,
             assistant_open_conversation,
+            assistant_open_settings,
             assistant_get_source_metadata,
             assistant_update_source_metadata,
             assistant_cleanup,
