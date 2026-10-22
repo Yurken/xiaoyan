@@ -23,7 +23,7 @@ pnpm dsh:verify-pin
 DSH_NODE_BINARY=/absolute/path/to/node pnpm dsh:prepare-runtime
 ```
 
-脚本使用固定的 pnpm 11.7.0，并从锁定 submodule 创建隔离的本地临时 clone，避免小妍 monorepo 的依赖参与上游模块解析。随后从该源码执行安装、构建和 `pnpm deploy`，递归物化 workspace 运行依赖并拒绝残留 symlink，最终生成：
+脚本使用固定的 pnpm 11.28.5，并从锁定 submodule 创建隔离的本地临时 clone，避免小妍 monorepo 的依赖参与上游模块解析。随后从该源码执行安装、构建和 `pnpm deploy`，递归物化 workspace 运行依赖并拒绝残留 symlink，最终生成：
 
 ```text
 apps/desktop/src-tauri/resources/dsh/runtime/
@@ -52,7 +52,7 @@ pnpm dsh:prepare-runtime:dev
 <app-data>/managed-runtimes/dsh/runtime/node <app-data>/managed-runtimes/dsh/runtime/lib/bin.js web --host 127.0.0.1 --port 0
 ```
 
-手动指定的 `dsh` 使用相同的 loopback 和随机端口参数。后端只接受 DSH 输出的 `http://127.0.0.1:<port>` URL，再交给页面 iframe。
+手动指定的 `dsh` 使用相同的 loopback、随机端口和 `--no-open` 参数。后端只接受 DSH 输出的 `http://127.0.0.1:<port>` URL，并完整保留认证查询参数，再交给应用内原生 WebView。新版 DSH 的 `SameSite=Strict` Cookie 需要顶层浏览上下文，不能依赖跨站 iframe 完成认证。
 
 小妍私有版本使用应用数据目录下的独立 `DSH_HOME`。本机版本默认使用用户的 `~/.dsh`，手动路径与其他数据目录位于高级设置。
 

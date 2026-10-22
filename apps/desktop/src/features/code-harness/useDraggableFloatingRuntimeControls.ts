@@ -11,6 +11,8 @@ import {
   type FloatingRuntimeControlsPosition,
 } from "./shared";
 
+import { readFloatingRuntimePosition, storeFloatingRuntimePosition } from "./floatingRuntimeControlsStorage";
+
 interface DragState {
   pointerId: number;
   startX: number;
@@ -18,34 +20,12 @@ interface DragState {
   origin: FloatingRuntimeControlsPosition;
 }
 
-function readStoredPosition(storageKey: string): FloatingRuntimeControlsPosition | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(storageKey);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<FloatingRuntimeControlsPosition>;
-    if (!Number.isFinite(parsed.x) || !Number.isFinite(parsed.y)) return null;
-    return { x: parsed.x as number, y: parsed.y as number };
-  } catch {
-    return null;
-  }
-}
-
-function storePosition(storageKey: string, position: FloatingRuntimeControlsPosition | null) {
-  if (typeof window === "undefined") return;
-  try {
-    if (position) window.localStorage.setItem(storageKey, JSON.stringify(position));
-    else window.localStorage.removeItem(storageKey);
-  } catch {
-    // 受限 WebView 中仍保留本次会话的位置。
-  }
-}
 
 export function useDraggableFloatingRuntimeControls(storageKey: string) {
   const containerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<DragState | null>(null);
-  const [position, setPosition] = useState<FloatingRuntimeControlsPosition | null>(() => readStoredPosition(storageKey));
+  const [position, setPosition] = useState<FloatingRuntimeControlsPosition | null>(() => readFloatingRuntimePosition(storageKey));
   const positionRef = useRef(position);
   const [dragging, setDragging] = useState(false);
 
@@ -64,7 +44,7 @@ export function useDraggableFloatingRuntimeControls(storageKey: string) {
     const next = clampPosition(candidate);
     positionRef.current = next;
     setPosition(next);
-    if (persist) storePosition(storageKey, next);
+    if (persist) storeFloatingRuntimePosition(storageKey, next);
     return next;
   }, [clampPosition, storageKey]);
 
@@ -83,7 +63,7 @@ export function useDraggableFloatingRuntimeControls(storageKey: string) {
     positionRef.current = null;
     setPosition(null);
     setDragging(false);
-    storePosition(storageKey, null);
+    storeFloatingRuntimePosition(storageKey, null);
   }, [storageKey]);
 
   const onPointerDown = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -117,7 +97,7 @@ export function useDraggableFloatingRuntimeControls(storageKey: string) {
     if (!dragState || dragState.pointerId !== event.pointerId) return;
     dragStateRef.current = null;
     setDragging(false);
-    if (positionRef.current) storePosition(storageKey, positionRef.current);
+    if (positionRef.current) storeFloatingRuntimePosition(storageKey, positionRef.current);
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   CODE_HARNESS_PROVIDER_CHANGE_EVENT,
   persistCodeHarnessProvider,
+  normalizeCodeHarnessProvider,
   readCodeHarnessProvider,
   type CodeHarnessProvider,
 } from "./shared";
@@ -21,7 +22,7 @@ export function useCodeHarnessProvider() {
 
   const setProvider = useCallback((next: CodeHarnessProvider) => {
     persistCodeHarnessProvider(next);
-    setProviderState(next);
+    setProviderState(normalizeCodeHarnessProvider(next));
   }, []);
 
   return { provider, setProvider };

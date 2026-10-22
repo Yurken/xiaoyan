@@ -54,7 +54,7 @@ describe("DeepSeekHarnessWorkspace", () => {
     render(<DeepSeekHarnessWorkspace />);
 
     expect(await screen.findByRole("heading", { name: "启动 DSH" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "DeepSeek Harness" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "DeepSeek Harness" })).not.toBeInTheDocument();
     expect(screen.queryByText("小妍代码")).not.toBeInTheDocument();
     expect(screen.getByText("DSH 已安装在小妍私有目录")).toBeInTheDocument();
     expect(screen.queryByText(/0\.1\.0-rc\.5/)).not.toBeInTheDocument();
@@ -82,19 +82,18 @@ describe("DeepSeekHarnessWorkspace", () => {
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("dsh_runtime_start"));
   });
 
-  it("embeds only the loopback URL returned by the backend", async () => {
+  it("preserves the authenticated loopback URL returned by the backend", async () => {
     invokeMock.mockResolvedValueOnce({
       ...stoppedSnapshot,
       phase: "running",
-      url: "http://127.0.0.1:63244",
+      url: "http://127.0.0.1:63244/?token=test-launch-token",
     });
     render(<DeepSeekHarnessWorkspace />);
 
     const frame = await screen.findByTitle("DeepSeek Harness");
-    expect(frame).toHaveAttribute("src", "http://127.0.0.1:63244");
+    expect(frame).toHaveAttribute("src", "http://127.0.0.1:63244/?token=test-launch-token");
     expect(frame).toHaveAttribute("sandbox", expect.stringContaining("allow-scripts"));
     expect(screen.getByRole("toolbar", { name: "DSH 运行控制" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "拖动 DSH 运行控制" })).toBeInTheDocument();
     expect(screen.getByText("运行中")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重启" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "停止" })).toBeInTheDocument();

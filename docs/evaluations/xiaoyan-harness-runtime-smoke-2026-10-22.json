@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-22",
+  "evaluation": "isolated-keyless-harness-transport",
+  "results": [
+    {
+      "provider": "dsh",
+      "version": "0.2.1-rc.2",
+      "passed": true,
+      "checks": [
+        "loopback_startup",
+        "unauthenticated_401",
+        "launch_token_exchange",
+        "authenticated_html"
+      ]
+    },
+    {
+      "provider": "codex",
+      "version": "0.163.0",
+      "passed": true,
+      "checks": [
+        "websocket_handshake",
+        "initialize",
+        "thread_list"
+      ]
+    },
+    {
+      "provider": "opencode",
+      "version": "1.19.3",
+      "passed": true,
+      "checks": [
+        "loopback_startup",
+        "global_health",
+        "html_page"
+      ]
+    },
+    {
+      "provider": "pi_web",
+      "version": "0.12.2",
+      "passed": true,
+      "checks": [
+        "loopback_startup",
+        "session_list",
+        "html_page"
+      ]
+    }
+  ],
+  "passed": true
+}

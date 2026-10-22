@@ -8,9 +8,9 @@ import Planner from "./Planner";
 import NoteReader from "./NoteReader";
 import PaperReader from "./PaperReader";
 import Code from "./Code";
-import Codex from "./Codex";
-import OpenCode from "./OpenCode";
-import PiWeb from "./PiWeb";
+// import Codex from "./Codex";
+// import OpenCode from "./OpenCode";
+// import PiWeb from "./PiWeb";
 
 function FocusLegacyRouteRedirect({ tab }: { tab: LegacyFreeTab }) {
   const normalized = tab === "copilot" || tab === "xiaoyan" ? "chat" : tab;
@@ -37,9 +37,14 @@ export default function FocusApp() {
           <Route path="/tools" element={<FocusLegacyRouteRedirect tab="tools" />} />
           <Route path="/experiment" element={<Navigate to="/" replace />} />
           <Route path="/code" element={<Code />} />
+          {/* 暂停其他 Harness，保留原注册。
           <Route path="/codex" element={<Codex />} />
           <Route path="/opencode" element={<OpenCode />} />
           <Route path="/pi" element={<PiWeb />} />
+          */}
+          <Route path="/codex" element={<Navigate to="/code" replace />} />
+          <Route path="/opencode" element={<Navigate to="/code" replace />} />
+          <Route path="/pi" element={<Navigate to="/code" replace />} />
           <Route path="/submission" element={<FocusLegacyRouteRedirect tab="submission" />} />
           <Route path="/notes/:id" element={<NoteReader />} />
           <Route path="/settings" element={<FocusSettingsWrapper />} />

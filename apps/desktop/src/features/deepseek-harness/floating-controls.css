@@ -1,0 +1,6 @@
+html[data-runtime-controls],
+html[data-runtime-controls] body,
+html[data-runtime-controls] #root {
+  background: transparent !important;
+  overflow: hidden;
+}

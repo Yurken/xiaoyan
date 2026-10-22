@@ -8,6 +8,9 @@ import App from "../../App";
 vi.mock("../../pages/Home", () => ({
   default: () => <div data-testid="home-page">首页</div>,
 }));
+vi.mock("../../pages/Code", () => ({
+  default: () => <div data-testid="dsh-page">DSH</div>,
+}));
 vi.mock("../../pages/Planner", () => ({
   default: () => <div data-testid="planner-page">规划</div>,
 }));
@@ -170,32 +173,17 @@ describe("App 路由与导航", () => {
     });
   });
 
-  it("代码助手切换为 Codex 后侧栏显示 Codex", async () => {
-    window.localStorage.setItem("rc:code-harness-provider", "codex");
+  it.each(["codex", "opencode", "pi"])("旧工具偏好 %s 应回到 DSH", async (provider) => {
+    window.localStorage.setItem("rc:code-harness-provider", provider);
     renderWithRouter(<App />);
-    await waitFor(() => {
-      expect(screen.getByLabelText("Codex")).toBeInTheDocument();
-    });
-    expect(screen.getByLabelText("Codex")).toHaveAttribute("href", "/codex");
-    expect(screen.getByLabelText("Codex").querySelector(".codex-icon")).toBeInTheDocument();
-    expect(screen.queryByLabelText("DSH")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("DSH")).toHaveAttribute("href", "/code"));
+    expect(screen.queryByLabelText("Codex")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("OpenCode")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Pi")).not.toBeInTheDocument();
   });
 
-  it("代码助手切换为 OpenCode 后侧栏显示 OpenCode", async () => {
-    window.localStorage.setItem("rc:code-harness-provider", "opencode");
-    renderWithRouter(<App />);
-    await waitFor(() => expect(screen.getByLabelText("OpenCode")).toBeInTheDocument());
-    expect(screen.getByLabelText("OpenCode")).toHaveAttribute("href", "/opencode");
-    expect(screen.getByLabelText("OpenCode").querySelector(".opencode-icon")).toBeInTheDocument();
-    expect(screen.queryByLabelText("DSH")).not.toBeInTheDocument();
-  });
-
-  it("代码助手切换为 Pi 后侧栏显示 Pi", async () => {
-    window.localStorage.setItem("rc:code-harness-provider", "pi");
-    renderWithRouter(<App />);
-    await waitFor(() => expect(screen.getByLabelText("Pi")).toBeInTheDocument());
-    expect(screen.getByLabelText("Pi")).toHaveAttribute("href", "/pi");
-    expect(screen.getByLabelText("Pi").querySelector(".pi-web-icon")).toBeInTheDocument();
-    expect(screen.queryByLabelText("DSH")).not.toBeInTheDocument();
+  it.each(["/codex", "/opencode", "/pi"])("暂停的路由 %s 应转到 DSH", async (path) => {
+    renderWithRouter(<App />, { initialEntries: [path] });
+    await waitFor(() => expect(screen.getByTestId("dsh-page")).toBeInTheDocument());
   });
 });

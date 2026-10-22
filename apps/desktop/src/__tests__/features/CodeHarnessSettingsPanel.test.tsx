@@ -1,15 +1,13 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import CodeHarnessSettingsPanel from "../../features/code-harness/CodeHarnessSettingsPanel";
 import { readCodeHarnessProvider } from "../../features/code-harness/shared";
 
 describe("CodeHarnessSettingsPanel", () => {
   beforeEach(() => localStorage.clear());
 
-  it("can switch the code harness to Codex", async () => {
-    const user = userEvent.setup();
+  it("only offers DSH while other integrations remain dormant", () => {
     render(
       <MemoryRouter>
         <CodeHarnessSettingsPanel />
@@ -17,16 +15,14 @@ describe("CodeHarnessSettingsPanel", () => {
     );
 
     expect(screen.getByRole("button", { name: /DeepSeek Harness/ })).toHaveAttribute("aria-pressed", "true");
-    await user.click(screen.getByRole("button", { name: /Codex Harness/ }));
-    expect(readCodeHarnessProvider()).toBe("codex");
-    expect(screen.getByRole("button", { name: /Codex Harness/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: /Codex|OpenCode|Pi/ })).not.toBeInTheDocument();
+    expect(readCodeHarnessProvider()).toBe("dsh");
   });
 
-  it("can switch the code harness to OpenCode", async () => {
-    const user = userEvent.setup();
+  it("falls back to DSH for a previously selected provider", () => {
+    localStorage.setItem("rc:code-harness-provider", "opencode");
     render(<MemoryRouter><CodeHarnessSettingsPanel /></MemoryRouter>);
-    await user.click(screen.getByRole("button", { name: /OpenCode/ }));
-    expect(readCodeHarnessProvider()).toBe("opencode");
-    expect(screen.getByRole("button", { name: /OpenCode/ })).toHaveAttribute("aria-pressed", "true");
+    expect(readCodeHarnessProvider()).toBe("dsh");
+    expect(screen.getByRole("button", { name: /DeepSeek Harness/ })).toHaveAttribute("aria-pressed", "true");
   });
 });
