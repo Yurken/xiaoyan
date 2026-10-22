@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
+import { CodeHarnessActivityContext } from "../../features/code-harness/useCodeHarnessActivity";
 import { useDeepSeekHarnessRuntime } from "../../features/deepseek-harness/useDeepSeekHarnessRuntime";
 import type { DshRuntimeSnapshot } from "../../features/deepseek-harness/shared";
 
@@ -58,5 +60,19 @@ describe("useDeepSeekHarnessRuntime", () => {
     });
 
     expect(result.current.snapshot).toEqual(runningSnapshot);
+  });
+
+  it("页面隐藏时不轮询，回到前台立即刷新一次", async () => {
+    let mockActive = false;
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <CodeHarnessActivityContext.Provider value={mockActive}>{children}</CodeHarnessActivityContext.Provider>
+    );
+
+    const { rerender } = renderHook(() => useDeepSeekHarnessRuntime(), { wrapper });
+    expect(vi.mocked(invoke)).not.toHaveBeenCalled();
+
+    mockActive = true;
+    rerender();
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith("dsh_runtime_status"));
   });
 });

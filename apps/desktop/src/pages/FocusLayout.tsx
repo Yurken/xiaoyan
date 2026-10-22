@@ -4,13 +4,10 @@ import FocusHome from "../features/focus/FocusHome";
 import FocusWorkbench from "../features/focus/FocusWorkbench";
 import FocusSettingsWrapper from "../features/focus/FocusSettingsWrapper";
 import { type LegacyFreeTab } from "../features/focus/shared";
+import CodeHarnessKeepAlive from "../features/code-harness/CodeHarnessKeepAlive";
 import Planner from "./Planner";
 import NoteReader from "./NoteReader";
 import PaperReader from "./PaperReader";
-import Code from "./Code";
-import Codex from "./Codex";
-import OpenCode from "./OpenCode";
-import PiWeb from "./PiWeb";
 
 function FocusLegacyRouteRedirect({ tab }: { tab: LegacyFreeTab }) {
   const normalized = tab === "copilot" || tab === "xiaoyan" ? "chat" : tab;
@@ -20,7 +17,7 @@ function FocusLegacyRouteRedirect({ tab }: { tab: LegacyFreeTab }) {
 export default function FocusApp() {
   return (
     <div className="flex h-full bg-nm-bg">
-      <main className="flex-1 min-w-0 overflow-hidden">
+      <main className="relative flex-1 min-w-0 overflow-hidden">
         <Routes>
           <Route path="/" element={<FocusHome />} />
           <Route path="/workbench/:interestId" element={<FocusWorkbench />} />
@@ -36,15 +33,17 @@ export default function FocusApp() {
           <Route path="/copilot" element={<FocusLegacyRouteRedirect tab="copilot" />} />
           <Route path="/tools" element={<FocusLegacyRouteRedirect tab="tools" />} />
           <Route path="/experiment" element={<Navigate to="/" replace />} />
-          <Route path="/code" element={<Code />} />
-          <Route path="/codex" element={<Codex />} />
-          <Route path="/opencode" element={<OpenCode />} />
-          <Route path="/pi" element={<PiWeb />} />
+          {/* 代码 Harness 页面由 CodeHarnessKeepAlive 常驻渲染：这里只声明路由，避免切页卸载内嵌应用。 */}
+          <Route path="/code" element={null} />
+          <Route path="/codex" element={null} />
+          <Route path="/opencode" element={null} />
+          <Route path="/pi" element={null} />
           <Route path="/submission" element={<FocusLegacyRouteRedirect tab="submission" />} />
           <Route path="/notes/:id" element={<NoteReader />} />
           <Route path="/settings" element={<FocusSettingsWrapper />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <CodeHarnessKeepAlive />
       </main>
       <Link to="/settings" className="fixed bottom-5 left-5 z-50">
         <button

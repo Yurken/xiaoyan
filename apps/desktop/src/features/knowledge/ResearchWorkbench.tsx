@@ -13,6 +13,7 @@ import type { AgentPlanStep, AgentRun, ChatMessage, ChatSession, KnowledgeNote, 
 import Tools from "../../pages/Tools";
 import Writing from "../../pages/Writing";
 import Code from "../../pages/Code";
+import CodeHarnessTabPanel from "../code-harness/CodeHarnessTabPanel";
 import Submission from "../../pages/Submission";
 import Knowledge from "../../pages/Knowledge";
 import { LearningPathView } from "./InterestsPanel";
@@ -562,12 +563,13 @@ export default function ResearchWorkbench({ interest, activeTab = "overview", on
         </div>
       )}
 
-      {/* ── 官方 DeepSeek Harness 代码工作区 ── */}
-      {activeTab === "experiment" && (
-        <div className="flex-1 min-h-0 overflow-hidden pt-2">
-          <Code />
-        </div>
-      )}
+      {/* ── 官方 DeepSeek Harness 代码工作区：常驻，切页签只隐藏，避免 iframe 重新加载 ── */}
+      <CodeHarnessTabPanel
+        active={activeTab === "experiment"}
+        className="flex-1 min-h-0 overflow-hidden pt-2"
+      >
+        <Code />
+      </CodeHarnessTabPanel>
 
       {/* ── 投稿 ── */}
       {activeTab === "submission" && (

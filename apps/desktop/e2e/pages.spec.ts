@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { TAURI_MOCK_SCRIPT } from "./helpers/mock-tauri";
 
 test.describe("首页", () => {
@@ -105,7 +105,51 @@ test.describe("DSH 页面", () => {
   test("应显示启动按钮", async ({ page }) => {
     await expect(page.getByRole("button", { name: "启动 DSH" })).toBeVisible();
   });
+
+  test("切到其他页面再回来时保持原有状态，不重新加载", async ({ page }) => {
+    await page.getByRole("button", { name: "高级配置" }).click();
+    await expect(page.getByLabel(/使用其他本机 DSH/)).toBeVisible();
+
+    await page.getByLabel("首页").click();
+    await expect(page).toHaveURL("/");
+    // 常驻宿主会把隐藏的 DSH 页面留在 DOM 中，因此这里按链接角色定位侧栏入口。
+    await page.getByRole("link", { name: "DSH" }).click();
+    await expect(page).toHaveURL("/code");
+
+    // 高级配置保持展开说明页面没有被卸载重建，内嵌应用同样不会重新加载。
+    await expect(page.getByLabel(/使用其他本机 DSH/)).toBeVisible();
+  });
+
+  test("隐藏的常驻页面不遮挡当前页面", async ({ page }) => {
+    // 在代码页时，主区域命中的就是常驻宿主。
+    await expect
+      .poll(async () => hitTestTarget(page), { timeout: 5000 })
+      .toBe("keep-alive");
+
+    await page.getByLabel("首页").click();
+    await expect(page).toHaveURL("/");
+
+    // 切换到首页后宿主只隐藏：主区域命中首页内容，而不是保活层。
+    await expect.poll(async () => hitTestTarget(page), { timeout: 5000 }).toBe("page");
+    await expect(page.getByTestId("code-harness-keep-alive")).toHaveCount(1);
+  });
 });
+
+/** 命中主区域中心点的元素属于常驻宿主、页面内容还是其他层。 */
+async function hitTestTarget(page: Page): Promise<string> {
+  const box = await page.locator(".app-main").boundingBox();
+  if (!box) return "none";
+  return page.evaluate(
+    ({ x, y }) => {
+      const element = document.elementFromPoint(x, y);
+      if (!element) return "none";
+      if (element.closest("[data-testid='code-harness-keep-alive']")) return "keep-alive";
+      if (element.closest(".app-main")) return "page";
+      return "other";
+    },
+    { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+  );
+}
 
 test.describe("Codex 页面", () => {
   test.beforeEach(async ({ page }) => {

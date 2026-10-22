@@ -71,9 +71,13 @@ export function codeHarnessPath(provider: CodeHarnessProvider): string {
   return CODE_HARNESS_PATHS[provider];
 }
 
-export function isCodeHarnessPath(pathname: string): boolean {
+export function codeHarnessProviderForPath(pathname: string): CodeHarnessProvider | null {
   const normalized = pathname.replace(/\/+$/, "") || "/";
-  return Object.values(CODE_HARNESS_PATHS).includes(normalized);
+  return CODE_HARNESS_PROVIDERS.find((provider) => CODE_HARNESS_PATHS[provider] === normalized) ?? null;
+}
+
+export function isCodeHarnessPath(pathname: string): boolean {
+  return codeHarnessProviderForPath(pathname) !== null;
 }
 
 export function floatingRuntimeControlsStorageKey(provider: CodeHarnessProvider): string {

@@ -14,6 +14,7 @@ import {
   Wrench,
 } from "lucide-react";
 import RouteErrorBoundary from "./components/RouteErrorBoundary";
+import CodeHarnessKeepAlive from "./features/code-harness/CodeHarnessKeepAlive";
 import { useCodeHarnessProvider } from "./features/code-harness/useCodeHarnessProvider";
 import { CODE_HARNESS_LABELS, CODE_HARNESS_PATHS, type CodeHarnessProvider } from "./features/code-harness/shared";
 import CodexIcon from "./features/codex/CodexIcon";
@@ -32,10 +33,6 @@ const Knowledge = lazy(() => import("./pages/Knowledge"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Tools = lazy(() => import("./pages/Tools"));
 const Submission = lazy(() => import("./pages/Submission"));
-const Code = lazy(() => import("./pages/Code"));
-const Codex = lazy(() => import("./pages/Codex"));
-const OpenCode = lazy(() => import("./pages/OpenCode"));
-const PiWeb = lazy(() => import("./pages/PiWeb"));
 const Writing = lazy(() => import("./pages/Writing"));
 const ResearchTheme = lazy(() => import("./pages/ResearchTheme"));
 const FocusApp = lazy(() => import("./pages/FocusLayout"));
@@ -229,10 +226,11 @@ export default function App() {
             <Route path="/experiment" element={<Navigate to="/" replace />} />
             <Route path="/research" element={<Navigate to="/" replace />} />
             <Route path="/tools" element={<RouteErrorBoundary><Tools /></RouteErrorBoundary>} />
-            <Route path="/code" element={<RouteErrorBoundary><Code /></RouteErrorBoundary>} />
-            <Route path="/codex" element={<RouteErrorBoundary><Codex /></RouteErrorBoundary>} />
-            <Route path="/opencode" element={<RouteErrorBoundary><OpenCode /></RouteErrorBoundary>} />
-            <Route path="/pi" element={<RouteErrorBoundary><PiWeb /></RouteErrorBoundary>} />
+            {/* 代码 Harness 页面由 CodeHarnessKeepAlive 常驻渲染：这里只声明路由，避免切页卸载内嵌应用。 */}
+            <Route path="/code" element={null} />
+            <Route path="/codex" element={null} />
+            <Route path="/opencode" element={null} />
+            <Route path="/pi" element={null} />
             <Route path="/chat" element={<RouteErrorBoundary><Copilot /></RouteErrorBoundary>} />
             <Route path="/xiaoyan" element={<Navigate to="/chat" replace />} />
             <Route path="/copilot" element={<Navigate to="/chat" replace />} />
@@ -245,6 +243,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+        <CodeHarnessKeepAlive />
       </main>
       <UpdateNotification {...autoUpdate} />
       {quickStartDialog}

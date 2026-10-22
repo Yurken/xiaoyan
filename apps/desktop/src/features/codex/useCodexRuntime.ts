@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useCodeHarnessActivity } from "../code-harness/useCodeHarnessActivity";
 import {
   DEFAULT_CODEX_CONFIG,
   formatCodexError,
@@ -9,6 +10,7 @@ import {
 } from "./shared";
 
 export function useCodexRuntime() {
+  const active = useCodeHarnessActivity();
   const [snapshot, setSnapshot] = useState<CodexRuntimeSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -46,16 +48,17 @@ export function useCodexRuntime() {
   }, []);
 
   useEffect(() => {
+    if (!active) return;
     void refresh();
-  }, [refresh]);
+  }, [active, refresh]);
 
   useEffect(() => {
-    if (!snapshot) return;
+    if (!active || !snapshot) return;
     const missingRuntime = snapshot.phase === "stopped" && !snapshot.pathAvailable && !snapshot.bundledAvailable;
     if (!["starting", "running"].includes(snapshot.phase) && !missingRuntime) return;
     const interval = window.setInterval(() => void refresh(), 1500);
     return () => window.clearInterval(interval);
-  }, [refresh, snapshot]);
+  }, [active, refresh, snapshot]);
 
   const perform = useCallback(async (
     action: () => Promise<CodexRuntimeSnapshot>,

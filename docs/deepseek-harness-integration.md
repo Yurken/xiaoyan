@@ -56,6 +56,15 @@ pnpm dsh:prepare-runtime:dev
 
 小妍私有版本使用应用数据目录下的独立 `DSH_HOME`。本机版本默认使用用户的 `~/.dsh`，手动路径与其他数据目录位于高级设置。
 
+## 页面容器与保活
+
+内嵌的 DSH Web 是完整应用，iframe 一旦卸载就会整体重新加载；后端进程本来就不随路由停止，所以页面容器负责保活：
+
+- 路由级的四个代码 Harness 页面由 `features/code-harness/CodeHarnessKeepAlive.tsx` 常驻渲染，`App.tsx` 与 `FocusLayout.tsx` 里的 `/code`、`/codex`、`/opencode`、`/pi` 只声明路径、不再承载页面组件；切页时隐藏而非卸载。
+- 工作台“代码”页签是另一处挂载点，用 `features/code-harness/CodeHarnessTabPanel.tsx` 做同样的保活，隐藏时不占据页签布局。
+- 隐藏期间 `useCodeHarnessActivity` 让对应运行时暂停状态轮询，回到前台立即刷新一次快照。
+- 隐藏用 `visibility` 而不是 `display: none`（页签场景除外），保留 iframe 的实际视口尺寸，避免重新展示时按 0×0 重排。
+
 ## 复用小妍 API
 
 代码页的“配置小妍 API”先保存当前运行方式，再把小妍代码角色实际生效的主模型同步为 DSH 的 `xiaoyan` provider。代码角色没有独立端点时，沿用全局 API，并保留代码角色的模型覆盖。

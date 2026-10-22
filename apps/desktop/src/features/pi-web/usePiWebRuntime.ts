@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useCodeHarnessActivity } from "../code-harness/useCodeHarnessActivity";
 import {
   DEFAULT_PI_WEB_CONFIG,
   formatPiWebError,
@@ -9,6 +10,7 @@ import {
 } from "./shared";
 
 export function usePiWebRuntime() {
+  const active = useCodeHarnessActivity();
   const [snapshot, setSnapshot] = useState<PiWebRuntimeSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -45,12 +47,12 @@ export function usePiWebRuntime() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { if (!active) return; void refresh(); }, [active, refresh]);
   useEffect(() => {
-    if (!snapshot || !["starting", "running"].includes(snapshot.phase)) return;
+    if (!active || !snapshot || !["starting", "running"].includes(snapshot.phase)) return;
     const timer = window.setInterval(() => void refresh(), 1500);
     return () => window.clearInterval(timer);
-  }, [refresh, snapshot]);
+  }, [active, refresh, snapshot]);
 
   const perform = useCallback(async (action: () => Promise<PiWebRuntimeSnapshot>) => {
     const request = ++sequence.current;

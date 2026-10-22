@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useCodeHarnessActivity } from "../code-harness/useCodeHarnessActivity";
 import {
   DEFAULT_DSH_CONFIG,
   formatDshError,
@@ -9,6 +10,7 @@ import {
 } from "./shared";
 
 export function useDeepSeekHarnessRuntime() {
+  const active = useCodeHarnessActivity();
   const [snapshot, setSnapshot] = useState<DshRuntimeSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -46,14 +48,15 @@ export function useDeepSeekHarnessRuntime() {
   }, []);
 
   useEffect(() => {
+    if (!active) return;
     void refresh();
-  }, [refresh]);
+  }, [active, refresh]);
 
   useEffect(() => {
-    if (!snapshot || !["starting", "running"].includes(snapshot.phase)) return;
+    if (!active || !snapshot || !["starting", "running"].includes(snapshot.phase)) return;
     const interval = window.setInterval(() => void refresh(), 1500);
     return () => window.clearInterval(interval);
-  }, [refresh, snapshot]);
+  }, [active, refresh, snapshot]);
 
   const perform = useCallback(async (
     action: () => Promise<DshRuntimeSnapshot>,

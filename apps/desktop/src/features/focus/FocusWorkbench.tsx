@@ -23,6 +23,7 @@ import Copilot from "../../pages/Copilot";
 import Writing from "../../pages/Writing";
 import Tools from "../../pages/Tools";
 import Code from "../../pages/Code";
+import CodeHarnessTabPanel from "../code-harness/CodeHarnessTabPanel";
 import Submission from "../../pages/Submission";
 import {
   BASE_INTEREST_TABS,
@@ -185,7 +186,8 @@ export default function FocusWorkbench() {
       case "chat":
         return <Copilot hideFolders />;
       case "experiment":
-        return <Code />;
+        // 代码页由 CodeHarnessTabPanel 常驻渲染，切页签时不能随 switch 一起卸载。
+        return null;
       case "submission":
         return <Submission />;
       case "tools":
@@ -244,7 +246,12 @@ export default function FocusWorkbench() {
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {isFree ? (
-          FreePage
+          <>
+            <CodeHarnessTabPanel active={freeTab === "experiment"} className="h-full min-h-0">
+              <Code />
+            </CodeHarnessTabPanel>
+            {FreePage}
+          </>
         ) : loadingInterest ? (
           <div className="flex h-full items-center justify-center gap-2 text-ink-tertiary">
             <Loader2 className="w-5 h-5 animate-spin" />
