@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import type * as FileSystem from "@tauri-apps/plugin-fs";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
@@ -66,6 +67,7 @@ export function useWritingPdfPreview(pdfPath: string | null, {
   const { scope, pdfDoc, pdfError } = preview;
   const committedScope = useRef<PreviewScope | null>(null);
   const owner = useRef<PreviewLifetime | null>(null);
+  const fileSystem = useRef<Promise<typeof FileSystem> | null>(null);
 
   useLayoutEffect(() => {
     committedScope.current = scope;
@@ -103,7 +105,11 @@ export function useWritingPdfPreview(pdfPath: string | null, {
     async function load() {
       if (!scope.pdfPath) return;
       try {
-        const { readFile } = await import("@tauri-apps/plugin-fs");
+        // Rapid source changes share one pending native-module load.
+        const { readFile } = await (fileSystem.current ??= import("@tauri-apps/plugin-fs").catch((error: unknown) => {
+          fileSystem.current = null;
+          throw error;
+        }));
         if (!isCurrent(lifetime)) return;
         const bytes = await readFile(scope.pdfPath);
         if (!isCurrent(lifetime)) return;
