@@ -5,7 +5,8 @@ import type { CodexRuntimeConfig } from "./shared";
 import { useCodexRuntime } from "./useCodexRuntime";
 import CodexLaunchPanel from "./CodexLaunchPanel";
 import CodexRuntimeControls from "./CodexRuntimeControls";
-import FloatingRuntimeControls from "../code-harness/FloatingRuntimeControls";
+import RuntimeWebFrame from "../code-harness/RuntimeWebFrame";
+import { RUNTIME_WEB_FRAME_SANDBOX_WITHOUT_POPUPS } from "../code-harness/shared";
 
 export default function CodexWorkspace() {
   const runtime = useCodexRuntime();
@@ -48,19 +49,15 @@ export default function CodexWorkspace() {
       )}
 
       {isRunning ? (
-        <div className="relative min-h-0 flex-1 bg-white">
-          <iframe
-            key={runtime.snapshot?.url}
-            src={runtime.snapshot?.url ?? undefined}
-            title="Codex Web"
-            className="absolute inset-0 h-full w-full border-0"
-            allow="clipboard-read; clipboard-write"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-modals"
-          />
-          <FloatingRuntimeControls provider="codex" label="Codex">
-            <CodexRuntimeControls phase={phase} statusTone={statusTone} busy={runtime.busy} onRestart={() => void runtime.restart()} onStop={() => void runtime.stop()} />
-          </FloatingRuntimeControls>
-        </div>
+        <RuntimeWebFrame
+          provider="codex"
+          label="Codex"
+          title="Codex Web"
+          url={runtime.snapshot?.url ?? null}
+          sandbox={RUNTIME_WEB_FRAME_SANDBOX_WITHOUT_POPUPS}
+        >
+          <CodexRuntimeControls phase={phase} statusTone={statusTone} busy={runtime.busy} onRestart={() => void runtime.restart()} onStop={() => void runtime.stop()} />
+        </RuntimeWebFrame>
       ) : (
         <CodexLaunchPanel runtime={runtime} draft={draft} onDraftChange={updateDraft} />
       )}

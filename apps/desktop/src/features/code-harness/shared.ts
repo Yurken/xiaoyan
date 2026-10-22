@@ -2,6 +2,14 @@ export const CODE_HARNESS_PROVIDER_STORAGE_KEY = "rc:code-harness-provider";
 export const CODE_HARNESS_PROVIDER_CHANGE_EVENT = "rc:code-harness-provider-change";
 export const FLOATING_RUNTIME_CONTROLS_MARGIN = 12;
 
+/** 允许内嵌页面开新窗口的 Harness（DSH / OpenCode / Pi）使用的 iframe sandbox。 */
+export const RUNTIME_WEB_FRAME_SANDBOX =
+  "allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox";
+
+/** 不允许内嵌页面开新窗口的 Harness（Codex）使用的 iframe sandbox。 */
+export const RUNTIME_WEB_FRAME_SANDBOX_WITHOUT_POPUPS =
+  "allow-scripts allow-same-origin allow-forms allow-downloads allow-modals";
+
 export const CODE_HARNESS_PROVIDERS = ["dsh", "codex", "opencode", "pi"] as const;
 
 export type CodeHarnessProvider = (typeof CODE_HARNESS_PROVIDERS)[number];

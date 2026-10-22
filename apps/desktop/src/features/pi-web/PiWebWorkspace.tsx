@@ -5,7 +5,8 @@ import PiWebIcon from "./PiWebIcon";
 import PiWebLaunchPanel from "./PiWebLaunchPanel";
 import { PI_WEB_PHASE_LABELS, type PiWebRuntimeConfig, type PiWebRuntimePhase } from "./shared";
 import { usePiWebRuntime } from "./usePiWebRuntime";
-import FloatingRuntimeControls from "../code-harness/FloatingRuntimeControls";
+import RuntimeWebFrame from "../code-harness/RuntimeWebFrame";
+import { RUNTIME_WEB_FRAME_SANDBOX } from "../code-harness/shared";
 
 function RuntimeControls({
   phase,
@@ -55,12 +56,9 @@ export default function PiWebWorkspace() {
         </header>
       ) : null}
       {isRunning ? (
-        <div className="relative min-h-0 flex-1 bg-white">
-          <iframe key={runtime.snapshot?.url} src={runtime.snapshot?.url ?? undefined} title="Pi" className="absolute inset-0 h-full w-full border-0" allow="clipboard-read; clipboard-write" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox" />
-          <FloatingRuntimeControls provider="pi" label="Pi">
-            <RuntimeControls phase={phase} tone={tone} busy={runtime.busy} onRestart={() => void runtime.restart()} onStop={() => void runtime.stop()} />
-          </FloatingRuntimeControls>
-        </div>
+        <RuntimeWebFrame provider="pi" label="Pi" title="Pi" url={runtime.snapshot?.url ?? null} sandbox={RUNTIME_WEB_FRAME_SANDBOX}>
+          <RuntimeControls phase={phase} tone={tone} busy={runtime.busy} onRestart={() => void runtime.restart()} onStop={() => void runtime.stop()} />
+        </RuntimeWebFrame>
       ) : <PiWebLaunchPanel runtime={runtime} draft={draft} onDraftChange={updateDraft} />}
     </div>
   );

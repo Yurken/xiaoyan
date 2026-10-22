@@ -18,7 +18,8 @@ import {
 import { useDeepSeekHarnessRuntime } from "./useDeepSeekHarnessRuntime";
 import RuntimeExecutableSettings from "../code-harness/RuntimeExecutableSettings";
 import RuntimeSourceSummary from "../code-harness/RuntimeSourceSummary";
-import FloatingRuntimeControls from "../code-harness/FloatingRuntimeControls";
+import RuntimeWebFrame from "../code-harness/RuntimeWebFrame";
+import { RUNTIME_WEB_FRAME_SANDBOX } from "../code-harness/shared";
 import XiaoyanApiImportSection from "../code-harness/XiaoyanApiImportSection";
 
 function RuntimeLog({ logs }: { logs: string[] }) {
@@ -167,29 +168,22 @@ export default function DeepSeekHarnessWorkspace() {
       )}
 
       {isRunning ? (
-        <div className="relative min-h-0 flex-1 bg-white">
-          <iframe
-            key={runtime.snapshot?.url}
-            src={runtime.snapshot?.url ?? undefined}
-            title="DeepSeek Harness"
-            className="absolute inset-0 h-full w-full border-0"
-            allow="clipboard-read; clipboard-write"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"
+        <RuntimeWebFrame
+          provider="dsh"
+          label="DSH"
+          title="DeepSeek Harness"
+          url={runtime.snapshot?.url ?? null}
+          sandbox={RUNTIME_WEB_FRAME_SANDBOX}
+          initialPositionClassName="right-3 top-3 md:right-[11.5rem]"
+        >
+          <RuntimeControls
+            phase={phase}
+            statusTone={statusTone}
+            busy={runtime.busy}
+            onRestart={() => void runtime.restart()}
+            onStop={() => void runtime.stop()}
           />
-          <FloatingRuntimeControls
-            provider="dsh"
-            label="DSH"
-            initialPositionClassName="right-3 top-3 md:right-[11.5rem]"
-          >
-            <RuntimeControls
-              phase={phase}
-              statusTone={statusTone}
-              busy={runtime.busy}
-              onRestart={() => void runtime.restart()}
-              onStop={() => void runtime.stop()}
-            />
-          </FloatingRuntimeControls>
-        </div>
+        </RuntimeWebFrame>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
           <div className="mx-auto max-w-4xl">

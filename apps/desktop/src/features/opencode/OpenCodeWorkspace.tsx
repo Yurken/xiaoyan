@@ -5,7 +5,8 @@ import OpenCodeIcon from "./OpenCodeIcon";
 import OpenCodeLaunchPanel from "./OpenCodeLaunchPanel";
 import { OPENCODE_PHASE_LABELS, type OpenCodeRuntimeConfig, type OpenCodeRuntimePhase } from "./shared";
 import { useOpenCodeRuntime } from "./useOpenCodeRuntime";
-import FloatingRuntimeControls from "../code-harness/FloatingRuntimeControls";
+import RuntimeWebFrame from "../code-harness/RuntimeWebFrame";
+import { RUNTIME_WEB_FRAME_SANDBOX } from "../code-harness/shared";
 
 function RuntimeControls({ phase, tone, busy, onRestart, onStop }: { phase: OpenCodeRuntimePhase; tone: string; busy: boolean; onRestart: () => void; onStop: () => void }) {
   return (
@@ -32,7 +33,7 @@ export default function OpenCodeWorkspace() {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-nm-bg">
       {!isRunning && <header className="app-header flex flex-shrink-0 items-center justify-between gap-4 border-b border-nm-dark/10 px-6 pb-3"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-2xl" style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}><OpenCodeIcon className="h-4.5 w-4.5" /></span><h1 className="text-[15px] font-semibold text-ink-primary">OpenCode</h1></div><RuntimeControls phase={phase} tone={tone} busy={runtime.busy} onRestart={() => void runtime.restart()} onStop={() => void runtime.stop()} /></header>}
-      {isRunning ? <div className="relative min-h-0 flex-1 bg-white"><iframe key={runtime.snapshot?.url} src={runtime.snapshot?.url ?? undefined} title="OpenCode Web" className="absolute inset-0 h-full w-full border-0" allow="clipboard-read; clipboard-write" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox" /><FloatingRuntimeControls provider="opencode" label="OpenCode"><RuntimeControls phase={phase} tone={tone} busy={runtime.busy} onRestart={() => void runtime.restart()} onStop={() => void runtime.stop()} /></FloatingRuntimeControls></div> : <OpenCodeLaunchPanel runtime={runtime} draft={draft} onDraftChange={updateDraft} />}
+      {isRunning ? <RuntimeWebFrame provider="opencode" label="OpenCode" title="OpenCode Web" url={runtime.snapshot?.url ?? null} sandbox={RUNTIME_WEB_FRAME_SANDBOX}><RuntimeControls phase={phase} tone={tone} busy={runtime.busy} onRestart={() => void runtime.restart()} onStop={() => void runtime.stop()} /></RuntimeWebFrame> : <OpenCodeLaunchPanel runtime={runtime} draft={draft} onDraftChange={updateDraft} />}
     </div>
   );
 }
