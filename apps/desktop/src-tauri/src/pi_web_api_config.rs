@@ -1,4 +1,5 @@
-use crate::dsh_api_config::XiaoyanApiProfile;
+use crate::dsh_api_config::{XiaoyanApiModel, XiaoyanApiProfile};
+use crate::llm::{image_capability_from_model_id, input_modalities};
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 use std::{
@@ -78,6 +79,8 @@ fn merge_auth_file(path: &Path, profile: &XiaoyanApiProfile) -> Result<(), Strin
 }
 
 fn render_provider(profile: &XiaoyanApiProfile) -> Value {
+    // Pi 的 model-config 把缺省的 input 收口成 ["text"]，写死文本会让小妍的
+    // 多模态模型一律拒绝贴图；按能力判定写入，只有非对话模型族才只留文本。
     json!({
         "name": "Xiaoyan",
         "baseUrl": profile.base_url,
@@ -85,7 +88,7 @@ fn render_provider(profile: &XiaoyanApiProfile) -> Value {
         "models": [{
             "id": profile.model,
             "name": profile.model,
-            "input": ["text"],
+            "input": input_modalities(image_capability_from_model_id(&profile.model)),
             "cost": {
                 "input": 0,
                 "output": 0,
@@ -197,7 +200,7 @@ mod tests {
             base_url: "https://gateway.example/v1".to_string(),
             api_key: "sk-secret-should-not-land".to_string(),
             model: "research-model".to_string(),
-            models: vec!["research-model".to_string()],
+            models: vec![XiaoyanApiModel::new("research-model")],
         }
     }
 
@@ -263,12 +266,38 @@ mod tests {
             base_url: "https://api.anthropic.com".to_string(),
             api_key: "secret".to_string(),
             model: "claude".to_string(),
-            models: vec!["claude".to_string()],
+            models: vec![XiaoyanApiModel::new("claude")],
         };
         write_pi_web_api_configuration(&directory, &profile).expect("written");
         let models = fs::read_to_string(directory.join("models.json")).expect("read models");
         assert!(models.contains("anthropic-messages"));
         assert!(models.contains("https://api.anthropic.com"));
+        assert_eq!(
+            declared_input(&models),
+            json!(["text", "image"]),
+            "多模态模型必须声明可接收图片输入，否则 Pi 一律拒绝贴图"
+        );
         let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn keeps_non_chat_models_text_only() {
+        let directory = test_dir();
+        let profile = XiaoyanApiProfile {
+            protocol: "openai-completions",
+            base_url: "https://gateway.example/v1".to_string(),
+            api_key: "secret".to_string(),
+            model: "text-embedding-v3".to_string(),
+            models: vec![XiaoyanApiModel::new("text-embedding-v3")],
+        };
+        write_pi_web_api_configuration(&directory, &profile).expect("written");
+        let models = fs::read_to_string(directory.join("models.json")).expect("read models");
+        assert_eq!(declared_input(&models), json!(["text"]));
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    fn declared_input(models: &str) -> Value {
+        let parsed: Value = serde_json::from_str(models).expect("parse models json");
+        parsed["providers"]["xiaoyan"]["models"][0]["input"].clone()
     }
 }

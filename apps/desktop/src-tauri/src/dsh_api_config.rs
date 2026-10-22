@@ -1,4 +1,7 @@
-use crate::llm::LlmClient;
+use crate::llm::{
+    image_capability_from_listing, image_capability_from_model_id, resolve_image_capability,
+    ImageCapability, LlmClient,
+};
 use serde::Serialize;
 use serde_json::Value as JsonValue;
 use serde_yaml::{Mapping, Value};
@@ -23,7 +26,32 @@ pub(crate) struct XiaoyanApiProfile {
     pub(crate) base_url: String,
     pub(crate) api_key: String,
     pub(crate) model: String,
-    pub models: Vec<String>,
+    pub models: Vec<XiaoyanApiModel>,
+}
+
+/// DSH `models` 列表里的一条：模型 id 加上小妍能确认的图片输入能力。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct XiaoyanApiModel {
+    pub(crate) id: String,
+    pub(crate) image: ImageCapability,
+}
+
+impl XiaoyanApiModel {
+    /// 仅按模型名判定能力，用于网关列表没有回答的入口。
+    pub(crate) fn new(id: &str) -> Self {
+        Self {
+            id: id.to_string(),
+            image: image_capability_from_model_id(id),
+        }
+    }
+
+    /// 网关列表声明的能力优先于模型名。
+    fn resolved(id: &str, listing: ImageCapability) -> Self {
+        Self {
+            id: id.to_string(),
+            image: resolve_image_capability(listing, id),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -94,7 +122,7 @@ pub(crate) fn resolve_xiaoyan_api(
         base_url: base_url.trim().trim_end_matches('/').to_string(),
         api_key: api_key.trim().to_string(),
         model: model.trim().to_string(),
-        models: vec![model.trim().to_string()],
+        models: vec![XiaoyanApiModel::new(model.trim())],
     })
 }
 
@@ -107,12 +135,13 @@ fn normalize_anthropic_base_url(base_url: &str) -> String {
         .to_string()
 }
 
-/// 查询远端可用的模型列表。失败时回退到当前默认模型，避免阻塞 DSH 配置写入。
-pub(crate) async fn fetch_available_models(profile: &XiaoyanApiProfile) -> Vec<String> {
+/// 查询远端可用的模型列表，并读出网关逐条声明的输入模态。
+/// 失败时回退到当前默认模型，避免阻塞 DSH 配置写入。
+pub(crate) async fn fetch_available_models(profile: &XiaoyanApiProfile) -> Vec<XiaoyanApiModel> {
     let url = match profile.protocol {
         "openai-completions" => format!("{}/models", profile.base_url),
         "anthropic-messages" => format!("{}/v1/models", profile.base_url),
-        _ => return vec![profile.model.clone()],
+        _ => return vec![XiaoyanApiModel::new(&profile.model)],
     };
 
     let client = reqwest::Client::new();
@@ -122,34 +151,44 @@ pub(crate) async fn fetch_available_models(profile: &XiaoyanApiProfile) -> Vec<S
             .get(&url)
             .header("x-api-key", &profile.api_key)
             .header("anthropic-version", "2023-06-01"),
-        _ => return vec![profile.model.clone()],
+        _ => return vec![XiaoyanApiModel::new(&profile.model)],
     };
 
     match request.send().await {
         Ok(response) if response.status().is_success() => {
             match response.json::<JsonValue>().await {
                 Ok(json) => {
-                    let mut ids: Vec<String> = json
+                    let mut models: Vec<XiaoyanApiModel> = json
                         .get("data")
                         .and_then(JsonValue::as_array)
                         .map(|items| {
                             items
                                 .iter()
                                 .filter_map(|item| {
-                                    item.get("id").and_then(JsonValue::as_str).map(String::from)
+                                    item.get("id").and_then(JsonValue::as_str).map(|id| {
+                                        XiaoyanApiModel::resolved(
+                                            id,
+                                            image_capability_from_listing(item),
+                                        )
+                                    })
                                 })
                                 .collect()
                         })
                         .unwrap_or_default();
 
-                    if ids.is_empty() {
-                        ids.push(profile.model.clone());
+                    if models.is_empty() {
+                        models.push(XiaoyanApiModel::new(&profile.model));
                     } else {
-                        // 保持当前默认模型在首位，DSH 默认选中它
-                        ids.retain(|id| id != &profile.model);
-                        ids.insert(0, profile.model.clone());
+                        // 保持当前默认模型在首位，DSH 默认选中它；它自带的模态声明一并保留。
+                        let default = models
+                            .iter()
+                            .find(|model| model.id == profile.model)
+                            .cloned()
+                            .unwrap_or_else(|| XiaoyanApiModel::new(&profile.model));
+                        models.retain(|model| model.id != profile.model);
+                        models.insert(0, default);
                     }
-                    return ids;
+                    return models;
                 }
                 Err(error) => {
                     crate::append_diagnostic_log(&format!(
@@ -166,13 +205,11 @@ pub(crate) async fn fetch_available_models(profile: &XiaoyanApiProfile) -> Vec<S
             ));
         }
         Err(error) => {
-            crate::append_diagnostic_log(&format!(
-                "[dsh_api_config] fetch models failed: {error}"
-            ));
+            crate::append_diagnostic_log(&format!("[dsh_api_config] fetch models failed: {error}"));
         }
     }
 
-    vec![profile.model.clone()]
+    vec![XiaoyanApiModel::new(&profile.model)]
 }
 
 pub(crate) fn write_dsh_api_configuration(
@@ -229,10 +266,21 @@ fn render_settings(path: &Path, profile: &XiaoyanApiProfile) -> Result<String, S
     let models: Vec<Value> = profile
         .models
         .iter()
-        .map(|id| {
+        .map(|entry| {
             let mut model = Mapping::new();
-            model.insert(Value::String("id".to_string()), Value::String(id.clone()));
-            model.insert(Value::String("name".to_string()), Value::String(id.clone()));
+            model.insert(
+                Value::String("id".to_string()),
+                Value::String(entry.id.clone()),
+            );
+            model.insert(
+                Value::String("name".to_string()),
+                Value::String(entry.id.clone()),
+            );
+            // 能确定能力时逐条表态：即使用户之后在 DSH 界面收紧网关默认值，
+            // 多模态模型仍然收图，embedding 一类非对话模型仍然被提前拒。
+            if let Some(input) = declared_input(entry.image) {
+                model.insert(Value::String("input".to_string()), string_sequence(input));
+            }
             Value::Mapping(model)
         })
         .collect();
@@ -254,9 +302,13 @@ fn render_settings(path: &Path, profile: &XiaoyanApiProfile) -> Result<String, S
         Value::String("baseURL".to_string()),
         Value::String(profile.base_url.clone()),
     );
+    route.insert(Value::String("models".to_string()), Value::Sequence(models));
+    // 网关模型的命名无法可靠判定能力，DSH 也从不探测端点：没有这条声明时 pi-ai 把模型
+    // 按 text-only 收口，用户贴任何图片都会在发出请求前被拒（历史缺陷）。
+    // 因此未逐条表态的模型默认允许 text + image，多报的代价只是 provider 报错。
     route.insert(
-        Value::String("models".to_string()),
-        Value::Sequence(models),
+        Value::String("defaultInput".to_string()),
+        string_sequence(&["text", "image"]),
     );
 
     let section_key = Value::String("llm-pi-ai".to_string());
@@ -268,6 +320,24 @@ fn render_settings(path: &Path, profile: &XiaoyanApiProfile) -> Result<String, S
     root.insert(section_key, Value::Mapping(section));
 
     serialize_yaml(root, "DSH 模型配置")
+}
+
+/// 逐条写入 DSH 的 `input`：未知能力返回 `None`，交给网关级 `defaultInput`。
+fn declared_input(capability: ImageCapability) -> Option<&'static [&'static str]> {
+    match capability {
+        ImageCapability::Vision => Some(&["text", "image"]),
+        ImageCapability::TextOnly => Some(&["text"]),
+        ImageCapability::Unknown => None,
+    }
+}
+
+fn string_sequence(tokens: &[&str]) -> Value {
+    Value::Sequence(
+        tokens
+            .iter()
+            .map(|token| Value::String((*token).to_string()))
+            .collect(),
+    )
 }
 
 fn read_yaml_mapping(path: &Path, label: &str) -> Result<Mapping, String> {
@@ -440,7 +510,7 @@ mod tests {
             base_url: "https://gateway.example/v1".to_string(),
             api_key: "test-secret".to_string(),
             model: "research-model".to_string(),
-            models: vec!["research-model".to_string()],
+            models: vec![XiaoyanApiModel::new("research-model")],
         };
 
         let result = write_dsh_api_configuration(&directory, &profile)
@@ -481,6 +551,57 @@ mod tests {
     }
 
     #[test]
+    fn declares_image_input_so_gateway_models_stop_refusing_it() {
+        let directory = test_dir();
+        let profile = XiaoyanApiProfile {
+            protocol: "openai-completions",
+            base_url: "https://gateway.example/v1".to_string(),
+            api_key: "test-secret".to_string(),
+            model: "qwen3-vl-plus".to_string(),
+            models: vec![
+                XiaoyanApiModel::new("qwen3-vl-plus"),
+                XiaoyanApiModel::new("text-embedding-v3"),
+                XiaoyanApiModel::new("deepseek-v4-flash"),
+            ],
+        };
+
+        write_dsh_api_configuration(&directory, &profile).expect("configuration should be written");
+        let settings: Value = serde_yaml::from_str(
+            &fs::read_to_string(directory.join("settings.yaml")).expect("read settings"),
+        )
+        .expect("parse settings");
+        let route = &settings["llm-pi-ai"]["providers"]["xiaoyan"];
+
+        // 网关级兜底：命名判不出来的模型也允许图片输入，不再于发出请求前一律拒绝。
+        assert_eq!(
+            route["defaultInput"].as_sequence().map(|items| items.len()),
+            Some(2)
+        );
+        let models = route["models"].as_sequence().expect("models sequence");
+        let declared_input = |index: usize| -> Vec<String> {
+            models[index]["input"]
+                .as_sequence()
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        assert_eq!(
+            declared_input(0),
+            vec!["text".to_string(), "image".to_string()]
+        );
+        assert_eq!(declared_input(1), vec!["text".to_string()]);
+        // 判不出能力时不逐条表态，交给 defaultInput。
+        assert!(models[2].get("input").is_none());
+
+        fs::remove_dir_all(directory).expect("clean test directory");
+    }
+
+    #[test]
     fn writes_versioned_credentials_layout_for_a_fresh_data_home() {
         let directory = test_dir();
         let profile = XiaoyanApiProfile {
@@ -488,11 +609,10 @@ mod tests {
             base_url: "https://gateway.example/v1".to_string(),
             api_key: "test-secret".to_string(),
             model: "research-model".to_string(),
-            models: vec!["research-model".to_string()],
+            models: vec![XiaoyanApiModel::new("research-model")],
         };
 
-        write_dsh_api_configuration(&directory, &profile)
-            .expect("configuration should be written");
+        write_dsh_api_configuration(&directory, &profile).expect("configuration should be written");
         let credentials: Value = serde_yaml::from_str(
             &fs::read_to_string(directory.join(".credentials.yaml")).expect("read credentials"),
         )
@@ -525,11 +645,10 @@ mod tests {
             base_url: "https://gateway.example/v1".to_string(),
             api_key: "test-secret".to_string(),
             model: "research-model".to_string(),
-            models: vec!["research-model".to_string()],
+            models: vec![XiaoyanApiModel::new("research-model")],
         };
 
-        write_dsh_api_configuration(&directory, &profile)
-            .expect("configuration should be written");
+        write_dsh_api_configuration(&directory, &profile).expect("configuration should be written");
         let credentials: Value = serde_yaml::from_str(
             &fs::read_to_string(directory.join(".credentials.yaml")).expect("read credentials"),
         )
@@ -568,11 +687,10 @@ mod tests {
             base_url: "https://gateway.example/v1".to_string(),
             api_key: "test-secret".to_string(),
             model: "research-model".to_string(),
-            models: vec!["research-model".to_string()],
+            models: vec![XiaoyanApiModel::new("research-model")],
         };
 
-        write_dsh_api_configuration(&directory, &profile)
-            .expect("configuration should be written");
+        write_dsh_api_configuration(&directory, &profile).expect("configuration should be written");
         let credentials: Value = serde_yaml::from_str(
             &fs::read_to_string(directory.join(".credentials.yaml")).expect("read credentials"),
         )

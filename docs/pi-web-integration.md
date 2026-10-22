@@ -23,6 +23,7 @@
 - OpenAI-compatible 端点映射为 `openai-completions`。
 - Anthropic-compatible 端点映射为 `anthropic-messages`。
 - provider 与模型写入当前 Pi 数据目录的 `models.json` 和 `settings.json`，不删除其他 provider。
+- 模型条目的 `input` 按 `llm/model_capability.rs` 的判定写入：embedding、rerank、语音、图片生成等非对话模型只声明 `text`，其余声明 `text, image`。Pi 的 model-config 把缺省 `input` 收口成 `["text"]`，写死文本会让多模态模型一律拒绝贴图。
 - API Key 写入当前数据目录的 `auth.json`，不经过前端状态或日志；Unix 下文件以 `0600` 权限原子替换。
 - 同步只允许在小妍管理的 Pi 进程停止时执行，避免与运行中的配置写入竞争。
 

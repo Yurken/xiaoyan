@@ -1,4 +1,4 @@
-use crate::dsh_api_config::XiaoyanApiProfile;
+use crate::dsh_api_config::{XiaoyanApiModel, XiaoyanApiProfile};
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::{
@@ -215,7 +215,7 @@ mod tests {
             base_url: "https://gateway.example/v1".to_string(),
             api_key: "sk-secret-should-not-land".to_string(),
             model: "research-model".to_string(),
-            models: vec!["research-model".to_string()],
+            models: vec![XiaoyanApiModel::new("research-model")],
         }
     }
 
@@ -273,7 +273,7 @@ mod tests {
             base_url: "https://api.anthropic.com".to_string(),
             api_key: "secret".to_string(),
             model: "claude".to_string(),
-            models: vec!["claude".to_string()],
+            models: vec![XiaoyanApiModel::new("claude")],
         };
         let error = write_opencode_api_configuration(&directory, &auth_path, &profile)
             .expect_err("rejected");

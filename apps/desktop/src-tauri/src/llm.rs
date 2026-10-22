@@ -4,9 +4,14 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+mod model_capability;
 mod shared;
 mod transport;
 
+pub(crate) use self::model_capability::{
+    image_capability_from_listing, image_capability_from_model_id, input_modalities,
+    resolve_image_capability, ImageCapability,
+};
 pub(crate) use self::shared::explain_vision_error;
 use self::shared::{
     build_anthropic_tools, build_anthropic_user_messages,

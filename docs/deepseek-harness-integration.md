@@ -63,6 +63,8 @@ pnpm dsh:prepare-runtime:dev
 - OpenAI-compatible 端点映射为 `openai-completions`。
 - Anthropic-compatible 端点映射为 `anthropic-messages`。
 - provider 与模型写入当前 `DSH_HOME/settings.yaml`，不删除其他 provider。
+- 同步模型列表时一并写入图片输入能力：`xiaoyan` provider 带 `defaultInput: [text, image]`，能确定能力的模型逐条写 `input`（多模态族 `[text, image]`，embedding、rerank、语音、图片生成等非对话族 `[text]`），判不出能力的模型不逐条表态。DSH 的 pi-ai 适配器把 `input` 当作对端点的事实声明，缺省按 text-only 收口；没有这条声明时，用户在 DSH 里贴任何图片都会在请求发出前被拒。
+- 能力来源依次为模型列表接口声明的模态字段（如 OpenRouter 的 `architecture.input_modalities`）与模型名族判定，集中在 `llm/model_capability.rs`。
 - API Key 以 `XIAOYAN_API_KEY` 写入当前 `DSH_HOME/.credentials.yaml`，不经过前端状态或日志；Unix 下文件以 `0600` 权限原子替换。
 - 同步只允许在小妍管理的 DSH 进程停止时执行，避免与运行中的配置写入竞争。
 
