@@ -57,7 +57,7 @@ describe("useWritingPdfExport", () => {
 
   it("同一 tick 的重复点击与选择、读取、写入期间的点击只创建一次保存，写入完成才报告成功", async () => {
     const picker = deferred<string | null>();
-    const reading = deferred<Uint8Array>();
+    const reading = deferred<typeof pdfBytes>();
     const writing = deferred<void>();
     saveMock.mockReturnValueOnce(picker.promise);
     readMock.mockReturnValueOnce(reading.promise);
@@ -168,7 +168,7 @@ describe("useWritingPdfExport", () => {
 
   it("目标与源相同时先读完整字节，再写入目标，不先截断源文件", async () => {
     saveMock.mockResolvedValueOnce(sourceA);
-    const reading = deferred<Uint8Array>();
+    const reading = deferred<typeof pdfBytes>();
     readMock.mockReturnValueOnce(reading.promise);
     const { result } = renderHook(() => useWritingPdfExport(sourceA));
     const job = startSave(result.current.savePdf);

@@ -123,7 +123,7 @@ describe("useWritingPdfPreview resource lifetime", () => {
   });
 
   it.each(["switch", "unmount"] as const)("文件读取期间发生 %s 时迟到字节不会创建旧 worker", async (change) => {
-    const reading = deferred<Uint8Array>();
+    const reading = deferred<typeof pdfBytes>();
     readMock.mockReturnValueOnce(reading.promise);
     const { rerender, unmount } = renderPreview();
     await waitFor(() => expect(readMock).toHaveBeenCalledWith(sourceA));
@@ -192,7 +192,7 @@ describe("useWritingPdfPreview resource lifetime", () => {
       await act(async () => { failedTask.reject(new Error("Temporary document load failure")); });
     }
     await waitFor(() => expect(result.current.pdfError).toBe(true));
-    const retryRead = deferred<Uint8Array>();
+    const retryRead = deferred<typeof pdfBytes>();
     readMock.mockReturnValueOnce(retryRead.promise);
     const originalRetry = result.current.retryPreview;
     act(() => {
