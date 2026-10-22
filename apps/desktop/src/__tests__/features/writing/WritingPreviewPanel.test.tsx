@@ -119,7 +119,7 @@ describe("WritingPreviewPanel PDF 预览与保存交互", () => {
     const { rerender } = renderPanel();
     await screen.findByRole("button", { name: "下载 PDF" });
     const oldTask = pdfRenderer.getDocument.mock.results[0].value;
-    const reading = deferred<Uint8Array>();
+    const reading = deferred<typeof pdfBytes>();
     readMock.mockReturnValueOnce(reading.promise);
     const nextSummary = { ...compileResult, pdfPath: "/synthetic/compile/next.pdf" };
     rerender(<WritingPreviewPanel blocks={blocks} compileResult={nextSummary} compact={false} />);
@@ -221,7 +221,7 @@ describe("WritingPreviewPanel PDF 预览与保存交互", () => {
   });
 
   it("读取失败后可重试同一 PDF，重试加载期间隐藏重试和下载，成功后恢复工具栏", async () => {
-    const reading = deferred<Uint8Array>();
+    const reading = deferred<typeof pdfBytes>();
     readMock.mockRejectedValueOnce(new Error("读取失败")).mockReturnValueOnce(reading.promise);
     renderPanel();
 
@@ -253,8 +253,8 @@ describe("WritingPreviewPanel PDF 预览与保存交互", () => {
   });
 
   it("预览重试仍失败时重新提供重试入口，下一次成功恢复同一 PDF", async () => {
-    const retryReading = deferred<Uint8Array>();
-    const finalReading = deferred<Uint8Array>();
+    const retryReading = deferred<typeof pdfBytes>();
+    const finalReading = deferred<typeof pdfBytes>();
     readMock.mockRejectedValueOnce(new Error("首次读取失败"))
       .mockReturnValueOnce(retryReading.promise)
       .mockReturnValueOnce(finalReading.promise);
@@ -326,7 +326,7 @@ describe("WritingPreviewPanel PDF 预览与保存交互", () => {
     expect(readMock).toHaveBeenCalledTimes(2);
 
     // Queue the preview read only after export has read its original source.
-    const reading = deferred<Uint8Array>();
+    const reading = deferred<typeof pdfBytes>();
     readMock.mockReturnValueOnce(reading.promise);
     fireEvent.click(screen.getByRole("button", { name: "重试预览" }));
     expect(screen.getByRole("status", { name: "正在加载 PDF 预览" })).toBeInTheDocument();
@@ -392,7 +392,7 @@ describe("WritingPreviewPanel PDF 预览与保存交互", () => {
     expect(container.contains(alert)).toBe(false);
     expect(screen.getByTitle("退出全屏")).toBeEnabled();
     expect(oldTask.destroy).toHaveBeenCalledTimes(1);
-    const reading = deferred<Uint8Array>();
+    const reading = deferred<typeof pdfBytes>();
     readMock.mockReturnValueOnce(reading.promise);
     fireEvent.click(screen.getByRole("button", { name: "重试预览" }));
     const loading = screen.getByRole("status", { name: "正在加载 PDF 预览" });
