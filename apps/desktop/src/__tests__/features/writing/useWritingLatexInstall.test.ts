@@ -1,4 +1,4 @@
-import { StrictMode, createElement, useEffect, type PropsWithChildren } from "react";
+import { useEffect } from "react";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useWritingLatexInstall } from "../../../features/writing/useWritingLatexInstall";
@@ -62,10 +62,6 @@ async function finish(gate: Gate, job: Promise<void>, failure?: string) {
     else gate.resolve();
     await job;
   });
-}
-
-function StrictWrapper({ children }: PropsWithChildren) {
-  return createElement(StrictMode, null, children);
 }
 
 describe("useWritingLatexInstall", () => {
@@ -329,11 +325,12 @@ describe("useWritingLatexInstall", () => {
     const effectJobs: Promise<void>[] = [];
     const { result } = renderHook(() => {
       const installer = useWritingLatexInstall(input);
+      const { openLatexInstaller } = installer;
       useEffect(() => {
-        effectJobs.push(installer.openLatexInstaller());
-      }, [installer.openLatexInstaller]);
+        effectJobs.push(openLatexInstaller());
+      }, [openLatexInstaller]);
       return installer;
-    }, { wrapper: StrictWrapper });
+    }, { reactStrictMode: true });
 
     expect(effectJobs).toHaveLength(2);
     expect(getInvokeMock()).toHaveBeenCalledTimes(1);

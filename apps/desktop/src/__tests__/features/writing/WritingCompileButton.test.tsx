@@ -113,20 +113,24 @@ describe("WritingCompileButton", () => {
   });
 
   it("切换到另一个 ready 文稿立即清提示，A→B→A 不复活且按钮 DOM 保持不变", () => {
+    const timers = vi.spyOn(globalThis, "setTimeout");
+    const clearTimer = vi.spyOn(globalThis, "clearTimeout");
     const view = renderButton({ compileStatus: "compiling" });
     const button = screen.getByRole("button");
     view.update({ compileStatus: "ready" });
     expect(expectComplete()).toBe(button);
-    button.focus();
+    const flashTimer = timers.mock.results[timers.mock.calls.findIndex(([, delay]) => delay === 3000)]?.value;
+    expect(flashTimer).toBeDefined();
+    act(() => { button.focus(); });
 
     view.update({ draftId: "draft-b" });
     expect(expectNormal()).toBe(button);
     expect(button).toHaveFocus();
-    expect(vi.getTimerCount()).toBe(0);
+    expect(clearTimer).toHaveBeenCalledWith(flashTimer);
     view.update({ draftId: "draft-a" });
     expect(expectNormal()).toBe(button);
     expect(button).toHaveFocus();
-    expect(vi.getTimerCount()).toBe(0);
+    expect(clearTimer).toHaveBeenCalledWith(flashTimer);
   });
 
   it("文稿切换的第一次 render 就清除旧成功提示", () => {
