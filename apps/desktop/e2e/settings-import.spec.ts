@@ -78,7 +78,7 @@ test("导入后读取失败保护正式配置，重新读取后继续编辑保�
   await expect(page.getByText(/synthetic readback unavailable/).first()).toBeVisible();
   await screenshot(page, testInfo, "settings-import-narrow-error");
   await page.getByRole("button", { name: "取消", exact: true }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "配置已导入，重新读取失败" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "配置已导入，但读取最新设置失败" })).toBeVisible();
   await showConnection(page);
   await expect(connectionUrl(page)).toBeDisabled();
   await expect(page.getByText("重新读取后继续编辑", { exact: false })).toBeVisible();
