@@ -1,7 +1,7 @@
 //! 桌面助手临时会话保存与主窗口接续命令。
 
 use sqlx::SqlitePool;
-use tauri::{command, Emitter, Manager, State};
+use tauri::{command, Emitter, State};
 
 use crate::services::desktop_assistant::session_service::{
     AssistantSessionPromotionInput, AssistantSessionPromotionResult, AssistantSessionService,
@@ -28,12 +28,7 @@ pub async fn assistant_open_conversation(
     conversation_id: String,
 ) -> Result<(), String> {
     let conversation_id = validated_conversation_id(&state.db, &conversation_id).await?;
-    let main = app
-        .get_webview_window("main")
-        .ok_or_else(|| "主窗口尚未创建".to_string())?;
-    main.show().map_err(|error| error.to_string())?;
-    let _ = main.unminimize();
-    main.set_focus().map_err(|error| error.to_string())?;
+    super::desktop_assistant_navigation::focus_main_window(&app)?;
     app.emit_to(
         "main",
         "assistant:open-conversation",

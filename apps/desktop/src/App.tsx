@@ -62,6 +62,7 @@ import QuickStartDialog from "./features/onboarding/QuickStartDialog";
 import { useFirstRunQuickStart } from "./features/onboarding/useFirstRunQuickStart";
 import { SETTINGS_ACTIVE_SECTION_STORAGE_KEY } from "./features/settings/pageConfig";
 import { useAssistantConversationHandoff } from "./features/desktop-assistant/hooks";
+import { useAssistantSettingsHandoff } from "./features/desktop-assistant/hooks/useAssistantSettingsHandoff";
 import { writePersistentValue } from "./hooks/usePersistentStringState";
 
 function buildNavItems(provider: CodeHarnessProvider) {
@@ -94,6 +95,7 @@ export default function App() {
   useInterestPlanEventBridge();
   useKeyboardShortcuts();
   useAssistantConversationHandoff();
+  useAssistantSettingsHandoff();
   const location = useLocation();
   const navigate = useNavigate();
   const [layoutMode, setCurrentLayoutMode] = useState<LayoutMode>(() => getLayoutMode());

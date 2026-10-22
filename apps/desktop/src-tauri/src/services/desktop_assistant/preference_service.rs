@@ -71,7 +71,7 @@ pub struct AssistantRuntimePreferences {
 impl Default for AssistantRuntimePreferences {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled: false,
             diagnostic_logging_enabled: false,
         }
     }
@@ -337,7 +337,7 @@ impl AssistantPreferenceService {
             let value: String = row.get("value");
             match key.as_str() {
                 ASSISTANT_ENABLED_KEY => {
-                    preferences.enabled = value.parse::<bool>().unwrap_or(true);
+                    preferences.enabled = value.parse::<bool>().unwrap_or(false);
                 }
                 DIAGNOSTIC_LOGGING_ENABLED_KEY => {
                     preferences.diagnostic_logging_enabled = value.parse::<bool>().unwrap_or(false);
@@ -834,34 +834,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn runtime_preferences_default_enabled_without_diagnostics_and_round_trip() {
-        let pool = setup().await;
-        assert_eq!(
-            AssistantPreferenceService::load_runtime(&pool)
-                .await
-                .unwrap(),
-            AssistantRuntimePreferences::default()
-        );
-
-        let saved = AssistantPreferenceService::save_runtime(&pool, false, true)
-            .await
-            .unwrap();
-        assert_eq!(
-            saved,
-            AssistantRuntimePreferences {
-                enabled: false,
-                diagnostic_logging_enabled: true,
-            }
-        );
-        assert_eq!(
-            AssistantPreferenceService::load_runtime(&pool)
-                .await
-                .unwrap(),
-            saved
-        );
-    }
-
-    #[tokio::test]
     async fn dock_placement_round_trips_ignores_malformed_values_and_can_be_cleared() {
         let pool = setup().await;
         assert!(AssistantPreferenceService::load_dock_placement(&pool)
@@ -1029,3 +1001,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "preference_runtime_tests.rs"]
+mod runtime_tests;

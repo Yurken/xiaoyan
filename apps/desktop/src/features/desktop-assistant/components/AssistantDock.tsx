@@ -18,6 +18,7 @@ interface AssistantDockProps {
   onDragStart?: () => void
   onDragEnd?: () => void
   onPasteFiles?: () => void
+  onOpenContextMenu?: () => void
   fileDropActive?: boolean
   fileShelfBusy?: boolean
   fileShelfCount?: number
@@ -60,6 +61,7 @@ export function AssistantDock({
   onDragStart,
   onDragEnd,
   onPasteFiles,
+  onOpenContextMenu,
   fileDropActive = false,
   fileShelfBusy = false,
   fileShelfCount = 0,
@@ -223,13 +225,13 @@ export function AssistantDock({
       onMouseDown={handleMouseDown}
       role="button"
       aria-label="桌面小妍"
-      title="拖入文件暂存 · 复制文件后右键粘贴"
+      title="点击打开面板 · 拖动调整位置 · 右键打开菜单"
       tabIndex={0}
       onContextMenu={(event) => {
-        if (!onPasteFiles) return
+        if (!onOpenContextMenu) return
         event.preventDefault()
         event.stopPropagation()
-        onPasteFiles()
+        onOpenContextMenu()
       }}
       onKeyDown={(e) => {
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'v' && onPasteFiles) {

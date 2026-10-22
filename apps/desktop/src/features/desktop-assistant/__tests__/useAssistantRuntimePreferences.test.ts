@@ -25,6 +25,14 @@ describe('useAssistantRuntimePreferences', () => {
     })
   })
 
+  it('stays disabled before preferences load and when loading fails', async () => {
+    getInvokeMock().mockRejectedValue(new Error('unavailable'))
+    const { result } = renderHook(() => useAssistantRuntimePreferences())
+    expect(result.current.preferences.enabled).toBe(false)
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.preferences.enabled).toBe(false)
+  })
+
   it('persists the total switch and assistant-only diagnostics setting', async () => {
     getInvokeMock().mockImplementation(async (command: string, args?: unknown) => {
       if (command === 'assistant_get_runtime_preferences') {

@@ -30,7 +30,7 @@ const ASSISTANT_DOCK_WIDTH: i32 = 128;
 const ASSISTANT_DOCK_HEIGHT: i32 = 136;
 static REGISTERED_ASSISTANT_SHORTCUT: OnceLock<Mutex<String>> = OnceLock::new();
 static REGISTERED_DIRECT_SHORTCUTS: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
-static ASSISTANT_ENABLED: AtomicBool = AtomicBool::new(true);
+static ASSISTANT_ENABLED: AtomicBool = AtomicBool::new(false);
 static ASSISTANT_DIAGNOSTIC_LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
 
 fn registered_shortcut() -> &'static Mutex<String> {

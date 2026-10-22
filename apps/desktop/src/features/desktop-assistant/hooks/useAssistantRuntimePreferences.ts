@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AssistantRuntimePreferences } from '../shared'
 
 const DEFAULT_RUNTIME_PREFERENCES: AssistantRuntimePreferences = {
-  enabled: true,
+  enabled: false,
   diagnostic_logging_enabled: false,
 }
 
