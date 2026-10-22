@@ -35,7 +35,7 @@ export default function NoteListItem({
   return (
     <div
       className={clsx(
-        "group relative flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-150",
+        "group rc-list-row relative flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-150",
         selectionMode && "cursor-pointer",
         selected && "ring-2 ring-apple-blue",
       )}
@@ -51,7 +51,7 @@ export default function NoteListItem({
           <button
             type="button"
             onClick={openNote}
-            className="truncate text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue"
+            className="rc-list-row__title truncate text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue"
           >
             {note.title}
           </button>
@@ -69,7 +69,7 @@ export default function NoteListItem({
       </div>
 
       <div className="flex flex-shrink-0 items-center gap-3">
-        <span className="text-xs text-ink-tertiary">
+        <span className="rc-list-row__meta text-xs text-ink-tertiary">
           {new Date(note.created_at).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
         </span>
         {selectionMode ? (
@@ -85,7 +85,7 @@ export default function NoteListItem({
             <Check className="h-3.5 w-3.5" strokeWidth={3} />
           </span>
         ) : (
-          <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="rc-list-row__actions flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
             <button
               type="button"
               onClick={openNote}

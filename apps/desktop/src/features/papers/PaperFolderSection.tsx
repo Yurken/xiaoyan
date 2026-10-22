@@ -76,7 +76,10 @@ export function PaperGroupControls({
             : undefined;
           return (
             <button key={key} type="button" onClick={(e) => { e.stopPropagation(); onSortKeyChange(groupKey, key); }}
-              className="rounded-lg px-2 py-0.5 text-[10px] transition-all"
+              className={
+                "rounded-lg px-2 py-0.5 text-[10px] transition-all"
+                + (active ? (isAscending ? " rc-tone-success" : " rc-tone-neutral") : "")
+              }
               title={tooltip}
               style={{ background: activeColor ?? "var(--rc-surface)", color: active ? "#fff" : "#999",
                 boxShadow: active ? "inset 1px 1px 2px rgba(0,0,0,0.2)" : "var(--rc-chip-shadow)", fontWeight: active ? 600 : 400 }}>
@@ -169,14 +172,15 @@ export default function PaperFolderSection({ node, ctx }: { node: InterestTreeNo
   ];
 
   return (
-    <div className="rounded-[24px] transition-shadow">
+    <div className="rc-section">
       <CollapsibleGroup
         title={title}
         subtitle={subtitle !== title ? `研究主题：${subtitle}` : undefined}
         countLabel={`${papers.length} 篇`}
         open={open}
         onOpenChange={setOpen}
-        bodyClassName="space-y-3"
+        headingClassName="rc-section-heading"
+        bodyClassName="space-y-3 rc-stack-list"
         actions={
           confirmDelete ? (
             <>
@@ -217,7 +221,7 @@ export default function PaperFolderSection({ node, ctx }: { node: InterestTreeNo
         )}
 
         {papers.length === 0 && node.children.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-nm-dark/10 bg-white/25 py-8 text-center text-sm text-ink-tertiary">
+          <div className="rc-empty-state rounded-2xl border border-dashed border-nm-dark/10 bg-white/25 py-8 text-center text-sm text-ink-tertiary">
             这个文件夹下还没有论文，上传 PDF 或在论文右键菜单中移动到这里。
           </div>
         ) : (
@@ -225,7 +229,7 @@ export default function PaperFolderSection({ node, ctx }: { node: InterestTreeNo
         )}
 
         {node.children.length > 0 && (
-          <div className="space-y-3 border-l-2 border-nm-dark/10 pl-3">
+          <div className="rc-stack-list space-y-3 border-l-2 border-nm-dark/10 pl-3">
             {node.children.map((child) => (
               <PaperFolderSection key={child.interest.id} node={child} ctx={ctx} />
             ))}

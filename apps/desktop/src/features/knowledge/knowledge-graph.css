@@ -267,3 +267,61 @@ html[data-style="modern-minimal"] .knowledge-graph-evidence-empty {
 html[data-style="modern-minimal"] .knowledge-graph-node[aria-pressed="true"] {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--kg-node-color) 20%, transparent);
 }
+
+/* ── 极简 · 图谱侧栏区块化 ─────────────────────────────────────────
+   画布与节点保留“面”（它们是功能性内容），其余统计条、结论卡、引用卡、
+   时间线都收成「区块标题 + 发丝线 + 平铺行」。 */
+html[data-style="modern-minimal"] .knowledge-graph-metric {
+  min-height: 0;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+html[data-style="modern-minimal"] .knowledge-graph-metric__icon {
+  background: transparent;
+  box-shadow: none;
+  color: var(--rc-text-muted);
+}
+
+html[data-style="modern-minimal"] .knowledge-graph-metric__value {
+  color: var(--rc-text);
+  font-weight: 600;
+}
+
+html[data-style="modern-minimal"] .knowledge-graph-alert {
+  border: 0;
+  border-left: 2px solid var(--rc-tone-danger-border);
+  border-radius: 0;
+  background: transparent;
+}
+
+html[data-style="modern-minimal"] .knowledge-graph-claim-bundle,
+html[data-style="modern-minimal"] .knowledge-graph-citation-card,
+html[data-style="modern-minimal"] .knowledge-graph-timeline-event,
+html[data-style="modern-minimal"] .knowledge-graph-evidence-link,
+html[data-style="modern-minimal"] .knowledge-graph-provenance {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding-inline: 0;
+}
+
+html[data-style="modern-minimal"] .knowledge-graph-claim-bundle + .knowledge-graph-claim-bundle,
+html[data-style="modern-minimal"] .knowledge-graph-citation-card + .knowledge-graph-citation-card,
+html[data-style="modern-minimal"] .knowledge-graph-timeline-event + .knowledge-graph-timeline-event,
+html[data-style="modern-minimal"] .knowledge-graph-provenance + .knowledge-graph-provenance {
+  border-top: 1px solid var(--rc-border);
+}
+
+html[data-style="modern-minimal"] .knowledge-graph-claim-status,
+html[data-style="modern-minimal"] .knowledge-graph-relation-pill,
+html[data-style="modern-minimal"] .knowledge-graph-timeline-event__kind {
+  background: var(--rc-tone-neutral-bg);
+  color: var(--rc-tone-neutral-text);
+}
+
+html[data-style="modern-minimal"] .knowledge-graph-modal-surface {
+  border-radius: 14px;
+}

@@ -88,8 +88,11 @@ export default function ThemeModuleGrid({ progress }: ThemeModuleGridProps) {
             <Link
               key={module.key}
               to={module.to}
-              className="group rounded-2xl px-3 py-3 transition-shadow hover:shadow-md"
-              style={{ background: "var(--rc-surface)", boxShadow: "var(--rc-card-flat-shadow)" }}
+              className="group rc-module-tile rounded-2xl px-3 py-3 transition-shadow hover:shadow-md"
+              style={{
+                background: "var(--rc-module-tile-bg, var(--rc-surface))",
+                boxShadow: "var(--rc-card-flat-shadow)",
+              }}
             >
               <div className="flex items-center justify-between">
                 <Icon className={`h-4 w-4 ${module.iconColor}`} />

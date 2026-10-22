@@ -1,5 +1,6 @@
 import { FilePlus, Trophy } from "lucide-react";
 import { Button, Card } from "@research-copilot/ui";
+import { useThemeStyle } from "../../hooks/useThemeStyle";
 import RejectionRecoveryPanel from "./RejectionRecoveryPanel";
 import SubmissionTimelineStrip from "./SubmissionTimelineStrip";
 import {
@@ -11,6 +12,17 @@ import {
   type RejectionRecoveryTarget,
   type Submission,
 } from "./shared";
+
+/** 列头计数徽标的配色：极简下走语义中性令牌，拟态沿用状态色。 */
+function countBadgeStyle(
+  isMinimalStyle: boolean,
+  statusConfig: { bg: string; color: string },
+): { background: string; color: string } {
+  if (isMinimalStyle) {
+    return { background: "var(--rc-tone-neutral-bg)", color: "var(--rc-tone-neutral-text)" };
+  }
+  return { background: statusConfig.bg, color: statusConfig.color };
+}
 
 interface KanbanWorkspaceProps {
   submissions: Submission[];
@@ -27,6 +39,7 @@ export default function KanbanWorkspace({
   onMoveSubmission,
   onPrepareTransfer,
 }: KanbanWorkspaceProps) {
+  const isMinimalStyle = useThemeStyle() === "modern-minimal";
   const copyBibtex = (submission: Submission) => {
     const year = new Date().getFullYear();
     const entryType = submission.venueType === "journal" ? "@article" : "@inproceedings";
@@ -54,23 +67,23 @@ export default function KanbanWorkspace({
           return (
             <div
               key={key}
-              className="flex-shrink-0 w-56 rounded-3xl p-3"
+              className="rc-kanban-col flex-shrink-0 w-56 rounded-3xl p-3"
               style={{ background: "var(--rc-card-inset-bg)", boxShadow: "var(--rc-card-inset-shadow)" }}
             >
-              <div className="flex items-center justify-between mb-3 px-1">
+              <div className="rc-section-heading flex items-center justify-between mb-3 px-1">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ background: statusConfig.color }} />
-                  <span className="text-sm font-semibold text-ink-primary">{label}</span>
+                  <span className="rc-section-title text-sm font-semibold text-ink-primary">{label}</span>
                 </div>
                 <span
                   className="text-xs font-medium px-2 py-0.5 rounded-full"
-                  style={{ background: statusConfig.bg, color: statusConfig.color }}
+                  style={countBadgeStyle(isMinimalStyle, statusConfig)}
                 >
                   {items.length}
                 </span>
               </div>
 
-              <div className="space-y-2.5 min-h-[120px]">
+              <div className="rc-stack-list space-y-2.5 min-h-[120px]">
                 {items.map((submission) => (
                   <Card
                     padding="sm"
@@ -81,7 +94,7 @@ export default function KanbanWorkspace({
                     <p className="text-sm font-medium text-ink-primary leading-snug line-clamp-3">{submission.title}</p>
                     <div className="mt-1.5 flex items-center gap-1.5">
                       <span
-                        className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
+                        className="rc-tone-neutral text-[10px] font-medium px-1.5 py-0.5 rounded-md"
                         style={{
                           background: submission.venueType === "conference" ? "rgba(0,122,255,0.10)" : "rgba(175,82,222,0.10)",
                           color: submission.venueType === "conference" ? "#007AFF" : "#AF52DE",
@@ -109,7 +122,7 @@ export default function KanbanWorkspace({
                           <span className="text-[11px] font-medium" style={{ color: "#34C759" }}>已录用</span>
                         </div>
                         <button
-                          className="text-[10px] font-medium px-1.5 py-0.5 rounded-md transition-colors"
+                          className="rc-tone-success text-[10px] font-medium px-1.5 py-0.5 rounded-md transition-colors"
                           style={{ background: "rgba(52,199,89,0.12)", color: "#34C759" }}
                           onClick={() => copyBibtex(submission)}
                           title="复制 BibTeX"
@@ -145,7 +158,7 @@ export default function KanbanWorkspace({
 
                 {items.length === 0 ? (
                   <div
-                    className="flex min-h-[88px] items-center justify-center rounded-2xl border p-5 opacity-55"
+                    className="rc-empty-state flex min-h-[88px] items-center justify-center rounded-2xl border p-5 opacity-55"
                     style={{ borderColor: "var(--rc-card-inset-outline)" }}
                   >
                     <p className="text-xs text-ink-tertiary">暂无</p>

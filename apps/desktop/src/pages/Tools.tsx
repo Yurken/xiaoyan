@@ -125,7 +125,7 @@ export default function Tools() {
   } = usePptGenerator();
 
   return (
-    <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
+    <div className="rc-page-surface h-full flex flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       <div className="app-header shrink-0 px-6 pb-3">
         {/* <div className="mb-3">
           <h1 className="text-lg font-semibold text-ink-primary">实用工具</h1>

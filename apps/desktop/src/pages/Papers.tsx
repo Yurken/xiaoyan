@@ -166,7 +166,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           style={{ background: "rgba(0,122,255,0.08)", backdropFilter: "blur(1px)", pointerEvents: "none" }}
         >
           <div
-            className="flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed px-12 py-10"
+            className="rc-drop-overlay flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed px-12 py-10"
             style={{ borderColor: "#007AFF", background: "var(--rc-card-bg)" }}
           >
             <FileDown className="h-10 w-10 text-apple-blue" />
@@ -190,7 +190,7 @@ export default function Papers({ hideFolders = false }: { hideFolders?: boolean 
           />
           <div className={clsx("min-w-0 flex-wrap items-center justify-end gap-2", view === "papers" ? "flex" : "hidden")}>
             <div
-              className="relative w-full overflow-hidden rounded-[24px] sm:w-[280px]"
+              className="rc-search-shell relative w-full overflow-hidden rounded-[24px] sm:w-[280px]"
               style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
             >
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />

@@ -81,7 +81,7 @@ export default function Experiment({ experimentId }: ExperimentProps) {
   useDomainEventRefresh("experiment:created", () => { loadExperiment(); });
 
   return (
-    <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
+    <div className="rc-page-surface flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       {/* Header + horizontal segmented tabs */}
       <div className="app-header flex items-center justify-between flex-shrink-0 px-6 pb-3 border-b border-nm-dark/10">
         <CapsuleTabs

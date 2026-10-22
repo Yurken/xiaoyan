@@ -30,7 +30,7 @@ interface InsetSurfaceProps {
 function InsetSurface({ children, className }: InsetSurfaceProps) {
   return (
     <div
-      className={clsx("min-w-0 rounded-[18px] px-3.5 py-3", className)}
+      className={clsx("rc-module-tile min-w-0 rounded-[18px] px-3.5 py-3", className)}
       style={{
         background: "var(--rc-card-inset-bg)",
         border: "1px solid var(--rc-card-inset-outline)",
@@ -44,7 +44,7 @@ function InsetSurface({ children, className }: InsetSurfaceProps) {
 
 function SectionHeading({ title, description, action }: SectionHeadingProps) {
   return (
-    <div className="flex items-end justify-between gap-3">
+    <div className="rc-section-heading flex items-end justify-between gap-3">
       <div className="min-w-0">
         <h2 className="text-base font-semibold text-ink-primary">{title}</h2>
         <p className="mt-1 text-xs leading-5 text-ink-tertiary">{description}</p>

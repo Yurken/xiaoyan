@@ -37,7 +37,7 @@ export default function NoteCard({
     <Card
       padding="sm"
       className={clsx(
-        "relative flex flex-col gap-3 transition-shadow",
+        "rc-list-block relative flex flex-col gap-3 transition-shadow",
         selectionMode && "cursor-pointer",
         selected && "ring-2 ring-apple-blue",
       )}
@@ -48,7 +48,7 @@ export default function NoteCard({
           <button
             type="button"
             onClick={openNote}
-            className="line-clamp-2 text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue"
+            className="rc-list-row__title line-clamp-2 text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue"
           >
             {note.title}
           </button>

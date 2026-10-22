@@ -248,7 +248,7 @@ export default function KnowledgeGraphWorkspace({
         onCreateCitation={createCitation}
       />
 
-      <div className="grid gap-5 xl:grid-cols-[1.2fr,0.8fr]">
+      <div className="rc-grid-list grid gap-5 xl:grid-cols-[1.2fr,0.8fr]">
         <KnowledgeClaimPanel
           bundles={view.claimBundles}
           busy={busy}

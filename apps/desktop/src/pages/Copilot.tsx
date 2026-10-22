@@ -322,7 +322,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
 
   return (
     <>
-      <div className="relative flex h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
+      <div className="rc-page-surface relative flex h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
         <CopilotSessionSidebar
           sessions={sessions.sessions}
           interests={sessions.interests}

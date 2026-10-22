@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { BookOpen, Eye, FlaskConical, Loader2 } from "lucide-react";
 import { Button } from "@research-copilot/ui";
 import type { Paper } from "@research-copilot/types";
+import { useThemeStyle } from "../../hooks/useThemeStyle";
 
 interface PaperCompactRowProps {
   paper: Paper;
@@ -16,6 +17,14 @@ interface PaperCompactRowProps {
 const canStartAnalyze = (status: string) => !["analyzing", "parsing", "uploaded"].includes(status);
 const requiresReanalyzeConfirm = (paper: Paper) => paper.status === "analyzed" || paper.status === "reproduced";
 
+/** 行内元信息：作者 · 年份 · 期刊/会议，极简下与标题同一行排布。 */
+function buildMeta(paper: Paper): string {
+  return [paper.authors, paper.year ? String(paper.year) : "", paper.venue]
+    .map((part) => (part ?? "").trim())
+    .filter((part) => part.length > 0)
+    .join(" · ");
+}
+
 export default function PaperCompactRow({
   paper,
   detailPaperId,
@@ -28,6 +37,9 @@ export default function PaperCompactRow({
   const [confirmReanalyze, setConfirmReanalyze] = useState(false);
   const hasReproductionResult = paper.status === "reproduced" || Boolean(paper.reproduction_guide);
   const hasDetail = Boolean(paper.analysis || paper.reproduction_guide || ["parsed", "failed", "error"].includes(paper.status));
+  // 行内元信息与重要度圆点是极简清单专用的新增内容，拟态保持改造前的 DOM 结构。
+  const isMinimalStyle = useThemeStyle() === "modern-minimal";
+  const meta = isMinimalStyle ? buildMeta(paper) : "";
 
   const openReader = () => navigate(`/papers/${paper.id}/reader`);
 
@@ -39,31 +51,56 @@ export default function PaperCompactRow({
     onAnalyze(paper.id);
   };
 
+  // 拟态保持改造前的 DOM：标题直接作为行内的 flex 子项；
+  // 极简才把标题与元信息包进一列，让两行文本上下叠放。
+  const titleExtraClassName = isMinimalStyle ? "block w-full" : "min-w-0 flex-1";
+  const titleNode = paper.file_path ? (
+    <button
+      type="button"
+      onClick={openReader}
+      className={`rc-list-row__title ${titleExtraClassName} truncate text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue`}
+      title="打开批注阅读"
+    >
+      {paper.title}
+    </button>
+  ) : (
+    <span className={`rc-list-row__title ${titleExtraClassName} truncate text-sm font-semibold text-ink-primary`}>
+      {paper.title}
+    </span>
+  );
+
   return (
     <article
       data-paper-compact-row
       data-testid="paper-compact-row"
-      className="group relative flex min-w-0 items-center gap-3 rounded-2xl border px-3 py-2.5 transition-colors"
+      className="group rc-list-row relative flex min-w-0 items-center gap-3 rounded-2xl border px-3 py-2.5 transition-colors"
       style={{
         background: "var(--rc-card-bg)",
         borderColor: "var(--rc-card-outline)",
         boxShadow: "var(--rc-card-shadow)",
       }}
     >
-      {paper.file_path ? (
-        <button
-          type="button"
-          onClick={openReader}
-          className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue"
-          title="打开批注阅读"
-        >
-          {paper.title}
-        </button>
+      {isMinimalStyle && paper.importance_color ? (
+        <span
+          aria-hidden="true"
+          className="h-1.5 w-1.5 flex-shrink-0 rounded-full"
+          style={{ background: paper.importance_color }}
+        />
+      ) : null}
+
+      {isMinimalStyle ? (
+        <div className="min-w-0 flex-1">
+          {titleNode}
+          {meta ? <p className="rc-list-row__meta mt-0.5 truncate text-xs text-ink-tertiary">{meta}</p> : null}
+        </div>
       ) : (
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-primary">{paper.title}</span>
+        titleNode
       )}
 
-      <div className="flex flex-shrink-0 items-center gap-1" aria-label={`${paper.title} 的操作`}>
+      <div
+        className="rc-list-row__actions flex flex-shrink-0 items-center gap-1"
+        aria-label={`${paper.title} 的操作`}
+      >
         {paper.file_path ? (
           <button
             type="button"
@@ -79,7 +116,11 @@ export default function PaperCompactRow({
           size="sm"
           onClick={startAnalyze}
           disabled={!canStartAnalyze(paper.status)}
-          className="h-8 whitespace-nowrap px-2.5"
+          className={
+            paper.status === "analyzed" || paper.status === "reproduced"
+              ? "rc-tone-success h-8 whitespace-nowrap px-2.5"
+              : "h-8 whitespace-nowrap px-2.5"
+          }
           style={paper.status === "analyzed" || paper.status === "reproduced" ? { background: "#34C759", borderColor: "#34C759" } : undefined}
         >
           {paper.status === "analyzing" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}

@@ -22,13 +22,13 @@ import {
 function surfaceStyle(variant: "inset" | "soft" | "outset" = "inset") {
   if (variant === "outset") {
     return {
-      background: "var(--rc-bg)",
+      background: "var(--rc-module-tile-bg, var(--rc-bg))",
       border: "1px solid var(--rc-border)",
       boxShadow: "var(--rc-card-flat-shadow)",
     };
   }
   return {
-    background: variant === "inset" ? "var(--rc-card-inset-bg)" : "rgb(var(--rc-bg-rgb) / 0.14)",
+    background: variant === "inset" ? "var(--rc-card-inset-bg)" : "var(--rc-module-tile-bg, rgb(var(--rc-bg-rgb) / 0.14))",
     border: "1px solid var(--rc-card-inset-outline)",
     boxShadow: variant === "inset" ? "var(--rc-card-inset-shadow)" : "var(--rc-card-flat-shadow)",
   };
@@ -60,13 +60,13 @@ function ToneTag({ label, tone }: { label: string; tone: WorkbenchAgendaItem["to
 
 export function AgendaTimeline({ items }: { items: WorkbenchAgendaItem[] }) {
   return (
-    <ol className="grid gap-3">
+    <ol className="rc-flat-rows grid gap-3">
       {items.map((item, index) => (
         <li key={item.id}>
           <Link
             to={item.action.to}
             state={item.action.state}
-            className="group relative grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-3 rounded-[20px] p-3.5 pr-10 transition-transform hover:-translate-y-0.5"
+            className="group rc-module-tile relative grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-3 rounded-[20px] p-3.5 pr-10 transition-transform hover:-translate-y-0.5"
             style={surfaceStyle("soft")}
           >
             <span
@@ -97,9 +97,9 @@ export function AgendaTimeline({ items }: { items: WorkbenchAgendaItem[] }) {
 
 export function InterestBoard({ items }: { items: WorkbenchInterestItem[] }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="rc-grid-list grid gap-3 md:grid-cols-2">
       {items.map((item) => (
-        <Link key={item.id} to={item.action.to} state={item.action.state} className="group relative flex min-h-[176px] flex-col rounded-[22px] p-4 transition-transform hover:-translate-y-0.5" style={surfaceStyle("soft")}>
+        <Link key={item.id} to={item.action.to} state={item.action.state} className="group rc-module-tile relative flex min-h-[176px] flex-col rounded-[22px] p-4 transition-transform hover:-translate-y-0.5" style={surfaceStyle("soft")}>
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-apple-blue" style={iconTintStyle()}>
@@ -137,9 +137,9 @@ export function InterestBoard({ items }: { items: WorkbenchInterestItem[] }) {
 
 export function HandoffQueue({ items }: { items: WorkbenchHandoffItem[] }) {
   return (
-    <div className="grid gap-3">
+    <div className="rc-flat-rows grid gap-3">
       {items.map((item) => (
-        <Link key={item.id} to={item.action.to} state={item.action.state} className="group relative grid grid-cols-[2.25rem_minmax(0,1fr)] items-start gap-3 rounded-[20px] p-3.5 pr-10 transition-transform hover:-translate-y-0.5" style={surfaceStyle("soft")}>
+        <Link key={item.id} to={item.action.to} state={item.action.state} className="group rc-module-tile relative grid grid-cols-[2.25rem_minmax(0,1fr)] items-start gap-3 rounded-[20px] p-3.5 pr-10 transition-transform hover:-translate-y-0.5" style={surfaceStyle("soft")}>
           <span className="flex h-9 w-9 items-center justify-center rounded-[14px] text-apple-blue" style={iconTintStyle()}>
             <MessageSquareText className="h-4 w-4" />
           </span>
@@ -163,9 +163,9 @@ export function HandoffQueue({ items }: { items: WorkbenchHandoffItem[] }) {
 
 export function RiskAlertList({ items }: { items: WorkbenchRiskItem[] }) {
   return (
-    <div className="grid gap-3">
+    <div className="rc-flat-rows grid gap-3">
       {items.map((item) => (
-        <Link key={item.id} to={item.action.to} state={item.action.state} className="group relative rounded-[20px] border-l-4 border-apple-red px-4 py-3.5 transition-transform hover:-translate-y-0.5" style={surfaceStyle("soft")}>
+        <Link key={item.id} to={item.action.to} state={item.action.state} className="group rc-module-tile relative rounded-[20px] border-l-4 border-apple-red px-4 py-3.5 transition-transform hover:-translate-y-0.5" style={surfaceStyle("soft")}>
           <div className="flex items-start gap-3 pr-8">
             <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl text-apple-red" style={iconTintStyle("red")}>
               <AlertTriangle className="h-4 w-4" />
@@ -191,12 +191,12 @@ export function RiskAlertList({ items }: { items: WorkbenchRiskItem[] }) {
 
 export function AssetShelf({ items }: { items: WorkbenchAssetItem[] }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3">
+    <div className="rc-grid-list grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3">
       {items.map((item, index) => {
         const Icon = index % 3 === 0 ? FileText : index % 3 === 1 ? BookOpenCheck : Layers3;
 
         return (
-          <Link key={item.id} to={item.action.to} state={item.action.state} className="group relative flex min-h-[148px] min-w-0 flex-col overflow-hidden rounded-[22px] p-4 transition-transform hover:-translate-y-0.5" style={surfaceStyle("soft")}>
+          <Link key={item.id} to={item.action.to} state={item.action.state} className="group rc-module-tile relative flex min-h-[148px] min-w-0 flex-col overflow-hidden rounded-[22px] p-4 transition-transform hover:-translate-y-0.5" style={surfaceStyle("soft")}>
             <div className="flex items-start justify-between gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-2xl text-apple-blue" style={iconTintStyle()}>
                 <Icon className="h-4 w-4" />

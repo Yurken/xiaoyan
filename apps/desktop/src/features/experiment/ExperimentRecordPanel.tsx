@@ -178,7 +178,7 @@ export function ExperimentRecordPanel({
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
+    <div className="rc-page-surface flex flex-col h-full overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       <div className="flex flex-col h-full">
         <div className="flex flex-1 min-h-0 overflow-hidden max-lg:flex-col">
           {/* Left: list */}

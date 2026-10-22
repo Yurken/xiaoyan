@@ -166,7 +166,7 @@ export default function NoteReader() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center" style={{ background: "var(--rc-surface)" }}>
+      <div className="rc-page-surface flex h-full items-center justify-center" style={{ background: "var(--rc-surface)" }}>
         <Loader2 className="h-6 w-6 animate-spin text-ink-tertiary" />
       </div>
     );
@@ -174,7 +174,7 @@ export default function NoteReader() {
 
   if (loadError) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3" style={{ background: "var(--rc-surface)" }}>
+      <div className="rc-page-surface flex h-full flex-col items-center justify-center gap-3" style={{ background: "var(--rc-surface)" }}>
         <p className="text-sm font-semibold text-ink-primary">{loadError}</p>
         <Button size="sm" variant="secondary" onClick={() => navigate("/knowledge")}>
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -185,7 +185,7 @@ export default function NoteReader() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
+    <div className="rc-page-surface flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       {/* ── Toolbar ────────────────────────────────────────── */}
       <div className="flex flex-shrink-0 items-center gap-3 border-b px-5 py-2.5" style={{ borderColor: "var(--rc-border)" }}>
         <button

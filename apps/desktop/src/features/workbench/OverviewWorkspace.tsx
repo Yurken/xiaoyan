@@ -84,7 +84,7 @@ export default function OverviewWorkspace({ model, beforeQuickActions }: Overvie
         ) : null}
 
         {normalSections.length > 0 ? (
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.04fr)_minmax(320px,0.96fr)]">
+          <div className="rc-overview-columns grid gap-4 xl:grid-cols-[minmax(0,1.04fr)_minmax(320px,0.96fr)]">
             {normalSections.map((section) => (
               <OverviewSection key={section.type} section={section} model={model} />
             ))}

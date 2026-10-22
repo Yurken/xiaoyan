@@ -10,9 +10,10 @@ import PaperFolderSection, {
   type PaperGroup,
 } from "./PaperFolderSection";
 import { buildFolderSelectOptions, type InterestTreeNode } from "./interestTree";
-import type { PaperSortDirection, PaperSortKey, PaperTaskProgress } from "./shared";
+import type { PaperDisplayMode, PaperSortDirection, PaperSortKey, PaperTaskProgress } from "./shared";
 import type { NoteDraft } from "../knowledge/NoteEditorModal";
 import { usePaperDisplayMode } from "./usePaperDisplayMode";
+import { useThemeStyle } from "../../hooks/useThemeStyle";
 
 interface PapersListPanelProps {
   papers: Paper[];
@@ -58,6 +59,10 @@ export function PapersListPanel(props: PapersListPanelProps) {
     onMovePaper, onReorderPaper, onCreateFolder, onMoveFolder,
   } = props;
   const [displayMode, setDisplayMode] = usePaperDisplayMode();
+  const themeStyle = useThemeStyle();
+  // 极简风格下论文库固定为单列清单，卡片模式只在拟态下保留。
+  const isMinimalStyle = themeStyle === "modern-minimal";
+  const effectiveDisplayMode: PaperDisplayMode = isMinimalStyle ? "minimal" : displayMode;
 
   const groupMap = useMemo(() => {
     const map = new Map<string, PaperGroup>();
@@ -72,7 +77,7 @@ export function PapersListPanel(props: PapersListPanelProps) {
 
   const ctx: PaperFolderContext = {
     groupMap, interests, interestMap, paperNotesMap, folderOptions,
-    detailPaperId, deletingPaperId, deletingGroupId, savingEdit, displayMode, taskProgressByPaperId,
+    detailPaperId, deletingPaperId, deletingGroupId, savingEdit, displayMode: effectiveDisplayMode, taskProgressByPaperId,
     getSortKey, getSortDirection,
     onSortKeyChange,
     resolveGroupPaperIds,
@@ -97,7 +102,7 @@ export function PapersListPanel(props: PapersListPanelProps) {
 
   if (loadError && !hasLoadedContent) {
     return (
-      <Card className="flex flex-col items-center gap-4 py-20 text-center">
+      <Card className="rc-empty-state flex flex-col items-center gap-4 py-20 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-3xl"
           style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
           <AlertCircle className="h-8 w-8 text-apple-red" />
@@ -109,7 +114,7 @@ export function PapersListPanel(props: PapersListPanelProps) {
 
   if (papers.length === 0 && interests.length === 0) {
     return (
-      <Card className="flex flex-col items-center gap-4 py-20 text-center">
+      <Card className="rc-empty-state flex flex-col items-center gap-4 py-20 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-3xl"
           style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}>
           <FileText className="h-8 w-8 text-ink-tertiary" />
@@ -121,21 +126,23 @@ export function PapersListPanel(props: PapersListPanelProps) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="rc-section-stack space-y-3">
       <div className="flex items-center justify-between gap-2 px-1">
         <p className="text-xs text-ink-tertiary">右键论文可移动到文件夹；文件夹支持子级整理。</p>
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setDisplayMode((mode) => (mode === "card" ? "minimal" : "card"))}
-            className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-ink-tertiary transition-colors hover:text-ink-primary"
-            style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
-            title={displayMode === "card" ? "切换为极简展示" : "切换为卡片展示"}
-            aria-label={displayMode === "card" ? "切换为极简展示" : "切换为卡片展示"}
-          >
-            {displayMode === "card" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
-            <span className="hidden sm:inline">{displayMode === "card" ? "极简展示" : "卡片展示"}</span>
-          </button>
+          {isMinimalStyle ? null : (
+            <button
+              type="button"
+              onClick={() => setDisplayMode((mode) => (mode === "card" ? "minimal" : "card"))}
+              className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-ink-tertiary transition-colors hover:text-ink-primary"
+              style={{ background: "var(--rc-chip-bg)", boxShadow: "var(--rc-chip-shadow)" }}
+              title={displayMode === "card" ? "切换为极简展示" : "切换为卡片展示"}
+              aria-label={displayMode === "card" ? "切换为极简展示" : "切换为卡片展示"}
+            >
+              {displayMode === "card" ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+              <span className="hidden sm:inline">{displayMode === "card" ? "极简展示" : "卡片展示"}</span>
+            </button>
+          )}
           <NewFolderButton label="新建文件夹" onCreate={(name) => onCreateFolder(name, null)} />
         </div>
       </div>
@@ -145,13 +152,11 @@ export function PapersListPanel(props: PapersListPanelProps) {
       ))}
 
       {ungroupedPapers.length > 0 && (
-        <section
-          className="space-y-3 rounded-[24px] transition-shadow"
-        >
-          <div className="flex items-center justify-between gap-2 px-1">
-            <div>
-              <p className="text-sm font-semibold text-ink-primary">未归档论文</p>
-              <p className="mt-0.5 text-xs text-ink-tertiary">暂未绑定文件夹，可从论文右键菜单移动归档。</p>
+        <section className="rc-section">
+          <div className="rc-section-head flex items-center justify-between gap-2 px-1">
+            <div className="min-w-0">
+              <p className="rc-section-title text-sm font-semibold text-ink-primary">未归档论文</p>
+              <p className="rc-section-desc mt-0.5 text-xs text-ink-tertiary">暂未绑定文件夹，可从论文右键菜单移动归档。</p>
             </div>
             <PaperGroupControls
               groupKey="ungrouped"
@@ -160,7 +165,9 @@ export function PapersListPanel(props: PapersListPanelProps) {
               onSortKeyChange={onSortKeyChange}
             />
           </div>
-          {ungroupedPapers.map((p) => <CtxPaperCard key={p.id} ctx={ctx} paper={p} groupKey="ungrouped" />)}
+          <div className="rc-stack-list space-y-3">
+            {ungroupedPapers.map((p) => <CtxPaperCard key={p.id} ctx={ctx} paper={p} groupKey="ungrouped" />)}
+          </div>
         </section>
       )}
     </div>

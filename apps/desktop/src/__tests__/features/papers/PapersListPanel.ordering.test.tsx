@@ -57,6 +57,7 @@ describe("PapersListPanel paper ordering and move menu", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.removeItem("rc:papers:display-mode");
+    window.localStorage.removeItem("rc_style");
   });
 
   it("should render paper cards as non-draggable", () => {
@@ -114,5 +115,19 @@ describe("PapersListPanel paper ordering and move menu", () => {
     expect(screen.getAllByTestId("paper-compact-row")).toHaveLength(3);
     expect(document.querySelector("[data-paper-card]")).toBeNull();
     expect(window.localStorage.getItem("rc:papers:display-mode")).toBe("minimal");
+  });
+
+  it("极简风格下固定为单列清单并隐藏卡片/清单切换入口", () => {
+    window.localStorage.setItem("rc_style", "modern-minimal");
+
+    try {
+      renderWithRouter(<PapersListPanel {...defaultProps} />);
+
+      expect(screen.queryByRole("button", { name: /切换为/ })).toBeNull();
+      expect(screen.getAllByTestId("paper-compact-row")).toHaveLength(3);
+      expect(document.querySelector("[data-paper-card]")).toBeNull();
+    } finally {
+      window.localStorage.removeItem("rc_style");
+    }
   });
 });

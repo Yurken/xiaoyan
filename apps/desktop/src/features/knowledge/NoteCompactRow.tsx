@@ -35,7 +35,7 @@ export default function NoteCompactRow({
     <article
       data-testid="note-compact-row"
       className={clsx(
-        "group flex min-w-0 items-center gap-3 rounded-2xl border px-3 py-2.5 transition-colors",
+        "group rc-list-row rc-list-row--compact flex min-w-0 items-center gap-3 rounded-2xl border px-3 py-2.5 transition-colors",
         selectionMode && "cursor-pointer",
         selected && "ring-2 ring-apple-blue",
       )}
@@ -49,7 +49,7 @@ export default function NoteCompactRow({
       <button
         type="button"
         onClick={openNote}
-        className="min-w-0 flex-1 truncate text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue"
+        className="rc-list-row__title min-w-0 flex-1 truncate text-left text-sm font-semibold text-ink-primary transition-colors hover:text-apple-blue"
       >
         {note.title}
       </button>
@@ -66,7 +66,7 @@ export default function NoteCompactRow({
           <Check className="h-3.5 w-3.5" strokeWidth={3} />
         </span>
       ) : (
-        <div className="flex flex-shrink-0 items-center gap-1" aria-label={`${note.title} 的操作`}>
+        <div className="rc-list-row__actions flex flex-shrink-0 items-center gap-1" aria-label={`${note.title} 的操作`}>
           <button
             type="button"
             onClick={openNote}

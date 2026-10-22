@@ -73,7 +73,7 @@ export default function CorpusPanel() {
       <div className="flex items-center gap-2">
         <div
           ref={searchRef}
-          className="relative flex flex-1 items-center overflow-hidden rounded-[24px]"
+          className="rc-search-shell relative flex flex-1 items-center overflow-hidden rounded-[24px]"
           style={{ background: "var(--rc-chip-inset-bg)", boxShadow: "var(--rc-chip-inset-shadow)" }}
         >
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary" />
@@ -104,7 +104,7 @@ export default function CorpusPanel() {
       {loading ? (
         <p className="px-1 py-10 text-center text-sm text-ink-tertiary">加载中…</p>
       ) : filtered.length === 0 ? (
-        <Card padding="lg" variant="inset" className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+        <Card padding="lg" variant="inset" className="rc-empty-state flex flex-col items-center justify-center gap-2 py-12 text-center">
           <BookMarked className="h-6 w-6 text-apple-blue" />
           <p className="text-sm font-semibold text-ink-primary">{query ? "没有匹配的语料" : "语料库还是空的"}</p>
           <p className="max-w-md text-xs leading-5 text-ink-tertiary">
@@ -112,7 +112,7 @@ export default function CorpusPanel() {
           </p>
         </Card>
       ) : (
-        <div className="space-y-2.5">
+        <div className="rc-stack-list space-y-2.5">
           {filtered.map((entry) => (
             <Card key={entry.id} padding="sm" className="group">
               <p className="rc-selectable text-sm leading-6 text-ink-primary">{entry.text}</p>

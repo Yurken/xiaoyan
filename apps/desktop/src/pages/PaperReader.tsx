@@ -231,7 +231,7 @@ export default function PaperReader() {
   const drawText = mode === "text-annotation" && isTextStyle(annotateTool);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
+    <div className="rc-page-surface flex h-full flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
       <ReaderToolbar
         leftOpen={leftOpen}
         onToggleLeft={() => setLeftOpen((v) => !v)}

@@ -2,8 +2,20 @@ const KEY = "rc_style";
 
 export type ThemeStyle = "neumorphic" | "modern-minimal";
 
+const THEME_STYLES: readonly ThemeStyle[] = ["neumorphic", "modern-minimal"];
+
+function isThemeStyle(value: string | null): value is ThemeStyle {
+  return THEME_STYLES.some((style) => style === value);
+}
+
+/** 读取已保存的界面风格。空值和非法值回退拟态，不抛错。 */
 export function getThemeStyle(): ThemeStyle {
-  // 界面风格已锁定为「拟态」：忽略历史存值，始终返回 neumorphic（设置页不再提供切换）。
+  try {
+    const stored = localStorage.getItem(KEY);
+    if (isThemeStyle(stored)) return stored;
+  } catch {
+    // 存储不可用时保持默认拟态。
+  }
   return "neumorphic";
 }
 

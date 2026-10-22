@@ -1,6 +1,7 @@
 :root {
   color-scheme: dark;
   --rc-accent: #007aff;
+  --rc-accent-rgb: 0 122 255;
   --rc-bg: #090B10;
   --rc-bg-rgb: 9 11 16;
   --rc-surface: #11151C;
@@ -246,232 +247,250 @@ html[data-theme="light"] {
   --rc-nm-elevated-bg: linear-gradient(145deg, #F5F7FA, #E6EAF0);
 }
 
+/* ── 极简 · 黑白平面 ──────────────────────────────────────────────
+   与拟态共享同一套结构，但视觉语言完全独立：黑白灰为主色，没有拟态光影，
+   也没有模块卡片。页面靠 1px 发丝线、留白和字重分层；强调色在深色下是纸白、
+   在浅色下是墨黑。拟态风格（未带 data-style 或 data-style="neumorphic"）不受影响。 */
 html[data-style="modern-minimal"] {
   color-scheme: dark;
-  --rc-bg: #0d1014;
-  --rc-bg-rgb: 13 16 20;
-  --rc-surface: #13171d;
-  --rc-surface-rgb: 19 23 29;
-  --rc-elevated: #171b21;
-  --rc-elevated-rgb: 23 27 33;
-  --rc-border: rgba(42, 47, 57, 0.92);
-  --rc-border-rgb: 42 47 57;
-  --rc-border-strong-rgb: 67 74 87;
-  --rc-sidebar-divider-rgb: 42 47 57;
+  --rc-accent: #FFFFFF;
+  --rc-accent-rgb: 255 255 255;
+  --rc-card-radius: 12px;
+  --rc-page-wash: none;
+
+  /* 底色：纸黑 → 石墨三级灰阶 */
+  --rc-bg: #0A0A0A;
+  --rc-bg-rgb: 10 10 10;
+  --rc-surface: #151515;
+  --rc-surface-rgb: 21 21 21;
+  --rc-elevated: #1D1D1D;
+  --rc-elevated-rgb: 29 29 29;
+  --rc-border: #262626;
+  --rc-border-rgb: 38 38 38;
+  --rc-border-strong-rgb: 74 74 74;
+  --rc-sidebar-divider-rgb: 38 38 38;
   --rc-sidebar-shadow-rgb: 0 0 0;
-  --rc-text: #f5f3ee;
-  --rc-text-rgb: 245 243 238;
-  --rc-text-soft: #bcc3cf;
-  --rc-text-soft-rgb: 188 195 207;
-  --rc-text-muted: #7e8796;
-  --rc-text-muted-rgb: 126 135 150;
-  --rc-page-wash:
-    radial-gradient(circle at 10% 0%, rgba(0, 122, 255, 0.07), transparent 32%),
-    radial-gradient(circle at 88% 0%, rgba(255, 255, 255, 0.02), transparent 24%);
-  --rc-inset-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-  --rc-raised-shadow: 0 4px 12px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.05);
-  --rc-flat-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --rc-chart-grid: rgba(255, 255, 255, 0.07);
+
+  /* 文字：主文近白、次级中灰、弱化深灰 */
+  --rc-text: #F5F5F5;
+  --rc-text-rgb: 245 245 245;
+  --rc-text-soft: #B4B4B4;
+  --rc-text-soft-rgb: 180 180 180;
+  --rc-text-muted: #7C7C7C;
+  --rc-text-muted-rgb: 124 124 124;
+
+  --rc-chat-user-bg: #1F1F1F;
+  --rc-chat-user-text: #F5F5F5;
+  --rc-chat-user-shadow: none;
+  --rc-code-block-bg: #101010;
+  --rc-code-block-border: rgba(255, 255, 255, 0.08);
+  --rc-code-block-text: #E6E6E6;
+
+  /* 平面：卡片容器只剩排版，不再有底色、边界和投影 */
   --rc-card-bg: transparent;
-  --rc-card-inset-bg: #13171d;
-  --rc-chip-bg: transparent;
+  --rc-card-inset-bg: transparent;
+  --rc-module-tile-bg: transparent;
+  --rc-panel-bg-soft: transparent;
+  --rc-panel-border: transparent;
+  --rc-nm-card-bg: #151515;
+  --rc-nm-surface-bg: #101010;
+  --rc-nm-elevated-bg: #1D1D1D;
+
+  /* 可点小控件保留一层浅灰底，保证点击面可辨识 */
+  --rc-chip-bg: #1A1A1A;
+  --rc-chip-inset-bg: #161616;
   --rc-chip-shadow: none;
-  --rc-chip-inset-bg: transparent;
   --rc-chip-inset-shadow: none;
-  --rc-header-bg: #0d1014;
-  --rc-sidebar-bg: #0d1014;
-  --rc-card-outline: rgba(255, 255, 255, 0.08);
-  --rc-card-inset-outline: rgba(255, 255, 255, 0.04);
+  --rc-header-bg: #0A0A0A;
+  --rc-sidebar-bg: #111111;
+  --rc-control-bg: #121212;
+  --rc-control-border: #2A2A2A;
+  --rc-control-shadow: none;
+  --rc-control-focus-shadow: 0 0 0 1px rgba(255, 255, 255, 0.45);
+  --rc-dropdown-trigger-bg: #1A1A1A;
+  --rc-dropdown-trigger-border: #2A2A2A;
+  --rc-dropdown-trigger-shadow: none;
+  --rc-dropdown-trigger-shadow-active: none;
+  --rc-dropdown-menu-bg: #1A1A1A;
+  --rc-dropdown-menu-border: #2A2A2A;
+  --rc-dropdown-menu-shadow: none;
+
+  /* 按钮：主按钮纸白填充配墨黑文字，次按钮只有发丝边界 */
+  --rc-button-primary-bg: #F5F5F5;
+  --rc-button-primary-text: #0A0A0A;
+  --rc-button-primary-bg-hover: #FFFFFF;
+  --rc-button-primary-border: transparent;
+  --rc-button-primary-shadow: none;
+  --rc-button-primary-shadow-hover: none;
+  --rc-button-secondary-bg: transparent;
+  --rc-button-secondary-bg-hover: #1A1A1A;
+  --rc-button-secondary-border: #2A2A2A;
+  --rc-button-secondary-text: #E5E5E5;
+  --rc-button-secondary-shadow: none;
+  --rc-button-secondary-shadow-hover: none;
+  --rc-button-ghost-bg-hover: rgba(255, 255, 255, 0.06);
+  --rc-button-ghost-shadow-hover: none;
+  --rc-button-ghost-text: #8C8C8C;
+  --rc-button-danger-bg: #B42318;
+  --rc-button-danger-shadow: none;
+
+  --rc-icon-button-bg: #1A1A1A;
+  --rc-icon-button-border: #262626;
+  --rc-icon-button-shadow: none;
+  --rc-icon-button-shadow-hover: none;
+  --rc-icon-button-shadow-active: none;
+  --rc-icon-button-color: #C8C8C8;
+  --rc-badge-bg: #1A1A1A;
+  --rc-badge-text: #C8C8C8;
+  --rc-badge-shadow: none;
+  --rc-badge-outline: #2A2A2A;
+  --rc-badge-border: #2A2A2A;
+  --rc-info-chip-bg: rgba(255, 255, 255, 0.08);
+  --rc-info-chip-text: #F0F0F0;
+  --rc-info-chip-border: transparent;
+  --rc-info-chip-shadow: none;
+  --rc-info-chip-bg-hover: rgba(255, 255, 255, 0.12);
+  --rc-info-chip-shadow-hover: none;
+  --rc-nav-item-hover-bg: rgba(255, 255, 255, 0.05);
+  --rc-nav-item-active-text: #FFFFFF;
+  --rc-nav-item-active-bg: #1D1D1D;
+  --rc-nav-item-active-border: transparent;
+  --rc-nav-item-active-shadow: none;
+  --rc-modal-backdrop: rgba(0, 0, 0, 0.7);
+  --rc-modal-bg: #161616;
+  --rc-modal-shadow: none;
+  --rc-toggle-on-bg: #F5F5F5;
+  --rc-toggle-knob-bg: #0A0A0A;
+  --rc-toggle-knob-shadow: none;
+  --rc-list-item-hover-bg: rgba(255, 255, 255, 0.04);
+
+  /* 语义色：保留红/绿/橙的语义，但在纸黑底上压暗一档，不与黑白主色抢视觉 */
+  --rc-tone-danger-bg: rgba(190, 60, 50, 0.16);
+  --rc-tone-danger-text: #DF7C72;
+  --rc-tone-danger-border: rgba(190, 60, 50, 0.32);
+  --rc-tone-warning-bg: rgba(165, 110, 25, 0.16);
+  --rc-tone-warning-text: #D2A252;
+  --rc-tone-warning-border: rgba(165, 110, 25, 0.32);
+  --rc-tone-success-bg: rgba(40, 120, 75, 0.18);
+  --rc-tone-success-text: #6FBA8D;
+  --rc-tone-success-border: rgba(40, 120, 75, 0.34);
+  --rc-tone-neutral-bg: rgba(255, 255, 255, 0.06);
+  --rc-tone-neutral-text: #B4B4B4;
+  --rc-tone-neutral-border: #2A2A2A;
+  /* 语义 badge 统一走压暗令牌，不改拟态的 --rc-badge-* */
+  --rc-badge-success-bg: var(--rc-tone-success-bg);
+  --rc-badge-success-text: var(--rc-tone-success-text);
+  --rc-badge-warning-bg: var(--rc-tone-warning-bg);
+  --rc-badge-warning-text: var(--rc-tone-warning-text);
+  --rc-badge-danger-bg: var(--rc-tone-danger-bg);
+  --rc-badge-danger-text: var(--rc-tone-danger-text);
+  --rc-badge-purple-bg: var(--rc-tone-neutral-bg);
+  --rc-badge-purple-text: var(--rc-tone-neutral-text);
+
+  /* 没有任何双向光影：所有拟态投影在极简里都归零 */
+  --rc-inset-shadow: none;
+  --rc-raised-shadow: none;
+  --rc-flat-shadow: none;
+  --rc-card-outline: transparent;
+  --rc-card-inset-outline: transparent;
   --rc-card-shadow: none;
   --rc-card-raised-shadow: none;
   --rc-card-flat-shadow: none;
   --rc-card-flat-shadow-sm: none;
   --rc-card-inset-shadow: none;
-  --rc-panel-bg-soft: #0d1014;
-  --rc-panel-border: var(--rc-border);
   --rc-panel-shadow: none;
-  --rc-control-bg: transparent;
-  --rc-control-border: rgba(255, 255, 255, 0.1);
-  --rc-control-shadow: none;
-  --rc-control-focus-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
-  --rc-dropdown-trigger-bg: transparent;
-  --rc-dropdown-trigger-border: var(--rc-control-border);
-  --rc-dropdown-trigger-shadow: none;
-  --rc-dropdown-trigger-shadow-active: none;
-  --rc-dropdown-menu-bg: #13171d;
-  --rc-dropdown-menu-border: var(--rc-border);
-  --rc-dropdown-menu-shadow: var(--rc-raised-shadow);
-  --rc-button-primary-bg: #ffffff;
-  --rc-button-primary-text: #0d1014;
-  --rc-button-primary-bg-hover: #e0e0e0;
-  --rc-button-primary-border: transparent;
-  --rc-button-primary-shadow: none;
-  --rc-button-primary-shadow-hover: none;
-  --rc-button-secondary-bg: transparent;
-  --rc-button-secondary-bg-hover: #1f252e;
-  --rc-button-secondary-border: rgba(255, 255, 255, 0.1);
-  --rc-button-secondary-shadow: none;
-  --rc-button-secondary-shadow-hover: none;
-  --rc-button-secondary-text: var(--rc-text-soft);
-  --rc-button-ghost-bg-hover: #1f252e;
-  --rc-button-ghost-text: var(--rc-text-muted);
-  --rc-icon-button-bg: transparent;
-  --rc-icon-button-border: transparent;
-  --rc-icon-button-shadow: none;
-  --rc-icon-button-shadow-hover: none;
-  --rc-icon-button-shadow-active: none;
-  --rc-icon-button-color: var(--rc-text-soft);
-  --rc-badge-bg: #1f252e;
-  --rc-badge-text: var(--rc-text-soft);
-  --rc-badge-shadow: none;
-  --rc-badge-border: transparent;
-  --rc-badge-outline: transparent;
-  --rc-info-chip-bg: #1f252e;
-  --rc-info-chip-text: #f5f3ee;
-  --rc-info-chip-border: transparent;
-  --rc-info-chip-shadow: none;
-  --rc-info-chip-bg-hover: #2a313d;
-  --rc-info-chip-shadow-hover: none;
-  --rc-nav-item-hover-bg: #1f252e;
-  --rc-nav-item-active-text: var(--rc-text);
-  --rc-nav-item-active-bg: #1f252e;
-  --rc-nav-item-active-border: transparent;
-  --rc-nav-item-active-shadow: none;
-  --rc-modal-backdrop: rgba(0, 0, 0, 0.78);
-  --rc-text-secondary: var(--rc-text-soft);
-  --rc-modal-bg: var(--rc-elevated);
-  --rc-modal-shadow: var(--rc-card-shadow);
-  --rc-button-danger-bg: linear-gradient(180deg, #ff655b, #d92b21);
-  --rc-button-danger-shadow: none;
-  --rc-badge-success-bg: rgba(52, 199, 89, 0.16);
-  --rc-badge-success-text: #3DDC74;
-  --rc-badge-warning-bg: rgba(255, 149, 0, 0.16);
-  --rc-badge-warning-text: #FFB340;
-  --rc-badge-danger-bg: rgba(255, 59, 48, 0.16);
-  --rc-badge-danger-text: #FF6961;
-  --rc-badge-purple-bg: rgba(175, 82, 222, 0.18);
-  --rc-badge-purple-text: #C77DFF;
-  --rc-toggle-on-bg: #30D158;
-  --rc-toggle-knob-bg: #FFFFFF;
-  --rc-toggle-knob-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
-  --rc-list-item-hover-bg: var(--rc-nav-item-hover-bg);
-  --rc-chart-grid: rgba(255, 255, 255, 0.08);
-  --rc-nm-card-bg: #13171d;
-  --rc-nm-surface-bg: #0d1014;
-  --rc-nm-elevated-bg: #171b21;
 }
 
 html[data-style="modern-minimal"][data-theme="light"] {
   color-scheme: light;
-  --rc-bg: #fdfdfc;
-  --rc-bg-rgb: 253 253 252;
-  --rc-surface: #ffffff;
-  --rc-surface-rgb: 255 255 255;
-  --rc-elevated: #ffffff;
-  --rc-elevated-rgb: 255 255 255;
-  --rc-border: rgba(0, 0, 0, 0.08);
-  --rc-border-rgb: 235 235 235;
-  --rc-border-strong-rgb: 200 200 200;
-  --rc-sidebar-divider-rgb: 235 235 235;
-  --rc-sidebar-shadow-rgb: 0 0 0;
-  --rc-text: #111827;
-  --rc-text-rgb: 17 24 39;
-  --rc-text-soft: #4b5563;
-  --rc-text-soft-rgb: 75 85 99;
-  --rc-text-muted: #9ca3af;
-  --rc-text-muted-rgb: 156 163 175;
-  --rc-page-wash:
-    radial-gradient(circle at 0% 0%, rgba(0, 122, 255, 0.03), transparent 30%),
-    radial-gradient(circle at 100% 0%, rgba(0, 0, 0, 0.02), transparent 28%);
-  --rc-inset-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
-  --rc-raised-shadow: 0 4px 12px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.03);
-  --rc-flat-shadow: 0 2px 6px rgba(0, 0, 0, 0.03), 0 0 0 1px rgba(0, 0, 0, 0.03);
-  --rc-card-bg: #ffffff;
-  --rc-card-inset-bg: #f9fafb;
-  --rc-chip-bg: transparent;
-  --rc-chip-shadow: none;
-  --rc-chip-inset-bg: transparent;
-  --rc-chip-inset-shadow: none;
-  --rc-header-bg: #ffffff;
-  --rc-sidebar-bg: #ffffff;
-  --rc-card-outline: rgba(0, 0, 0, 0.05);
-  --rc-card-inset-outline: rgba(0, 0, 0, 0.03);
-  --rc-card-shadow: none;
-  --rc-card-raised-shadow: none;
-  --rc-card-flat-shadow: none;
-  --rc-card-flat-shadow-sm: none;
-  --rc-card-inset-shadow: none;
-  --rc-panel-bg-soft: rgba(255, 255, 255, 0.95);
-  --rc-panel-border: var(--rc-border);
-  --rc-panel-shadow: none;
-  --rc-control-bg: transparent;
-  --rc-control-border: rgba(0, 0, 0, 0.1);
-  --rc-control-shadow: none;
-  --rc-control-focus-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
-  --rc-dropdown-trigger-bg: transparent;
-  --rc-dropdown-trigger-border: var(--rc-control-border);
-  --rc-dropdown-trigger-shadow: none;
-  --rc-dropdown-trigger-shadow-active: none;
-  --rc-dropdown-menu-bg: #ffffff;
-  --rc-dropdown-menu-border: var(--rc-border);
-  --rc-dropdown-menu-shadow: var(--rc-raised-shadow);
-  --rc-button-primary-bg: #000000;
-  --rc-button-primary-text: #ffffff;
-  --rc-button-primary-bg-hover: #333333;
-  --rc-button-primary-border: transparent;
-  --rc-button-primary-shadow: none;
-  --rc-button-primary-shadow-hover: none;
-  --rc-button-secondary-bg: transparent;
-  --rc-button-secondary-bg-hover: #f3f4f6;
-  --rc-button-secondary-border: rgba(0, 0, 0, 0.1);
-  --rc-button-secondary-shadow: none;
-  --rc-button-secondary-shadow-hover: none;
-  --rc-button-secondary-text: var(--rc-text-soft);
-  --rc-button-ghost-bg-hover: #f3f4f6;
-  --rc-button-ghost-text: var(--rc-text-muted);
-  --rc-icon-button-bg: transparent;
-  --rc-icon-button-border: transparent;
-  --rc-icon-button-shadow: none;
-  --rc-icon-button-shadow-hover: none;
-  --rc-icon-button-shadow-active: none;
-  --rc-icon-button-color: var(--rc-text-soft);
-  --rc-badge-bg: #f3f4f6;
-  --rc-badge-text: var(--rc-text-soft);
-  --rc-badge-shadow: none;
-  --rc-badge-border: transparent;
-  --rc-badge-outline: transparent;
-  --rc-info-chip-bg: #f3f4f6;
-  --rc-info-chip-text: #111827;
-  --rc-info-chip-border: transparent;
-  --rc-info-chip-shadow: none;
-  --rc-info-chip-bg-hover: #e5e7eb;
-  --rc-info-chip-shadow-hover: none;
-  --rc-nav-item-hover-bg: #f3f4f6;
-  --rc-nav-item-active-text: var(--rc-text);
-  --rc-nav-item-active-bg: #f3f4f6;
-  --rc-nav-item-active-border: transparent;
-  --rc-nav-item-active-shadow: none;
-  --rc-modal-backdrop: rgba(245, 245, 245, 0.65);
-  --rc-text-secondary: var(--rc-text-soft);
-  --rc-modal-bg: var(--rc-elevated);
-  --rc-modal-shadow: var(--rc-card-shadow);
-  --rc-button-danger-bg: linear-gradient(180deg, #ff655b, #d92b21);
-  --rc-button-danger-shadow: none;
-  --rc-badge-success-bg: rgba(52, 199, 89, 0.14);
-  --rc-badge-success-text: #1A9E3F;
-  --rc-badge-warning-bg: rgba(255, 149, 0, 0.14);
-  --rc-badge-warning-text: #C07000;
-  --rc-badge-danger-bg: rgba(255, 59, 48, 0.14);
-  --rc-badge-danger-text: #D92B21;
-  --rc-badge-purple-bg: rgba(175, 82, 222, 0.14);
-  --rc-badge-purple-text: #8B32C2;
-  --rc-toggle-on-bg: #34C759;
-  --rc-toggle-knob-bg: #FFFFFF;
-  --rc-toggle-knob-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-  --rc-list-item-hover-bg: var(--rc-nav-item-hover-bg);
+  --rc-accent: #111111;
+  --rc-accent-rgb: 17 17 17;
+
+  --rc-bg: #FFFFFF;
+  --rc-bg-rgb: 255 255 255;
+  --rc-surface: #F6F6F6;
+  --rc-surface-rgb: 246 246 246;
+  --rc-elevated: #EFEFEF;
+  --rc-elevated-rgb: 239 239 239;
+  --rc-border: #E5E5E5;
+  --rc-border-rgb: 229 229 229;
+  --rc-border-strong-rgb: 190 190 190;
+  --rc-sidebar-divider-rgb: 229 229 229;
   --rc-chart-grid: rgba(0, 0, 0, 0.06);
-  --rc-nm-card-bg: #ffffff;
-  --rc-nm-surface-bg: #f3f4f6;
-  --rc-nm-elevated-bg: #ffffff;
+
+  --rc-text: #111111;
+  --rc-text-rgb: 17 17 17;
+  --rc-text-soft: #525252;
+  --rc-text-soft-rgb: 82 82 82;
+  /* 极简浅色下的弱化文字压深一档：12px meta 也需要 ≥4.5:1 的对比度 */
+  --rc-text-muted: #6E6E6E;
+  --rc-text-muted-rgb: 110 110 110;
+
+  --rc-chat-user-bg: #F2F2F2;
+  --rc-chat-user-text: #111111;
+  --rc-code-block-bg: #F7F7F7;
+  --rc-code-block-border: rgba(0, 0, 0, 0.08);
+  --rc-code-block-text: #1A1A1A;
+
+  --rc-nm-card-bg: #FFFFFF;
+  --rc-nm-surface-bg: #F6F6F6;
+  --rc-nm-elevated-bg: #EFEFEF;
+  --rc-chip-bg: #F2F2F2;
+  --rc-chip-inset-bg: #F2F2F2;
+  --rc-header-bg: #FFFFFF;
+  --rc-sidebar-bg: #F4F4F4;
+  --rc-control-bg: #FFFFFF;
+  --rc-control-border: #E0E0E0;
+  --rc-control-focus-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  --rc-dropdown-trigger-bg: #F2F2F2;
+  --rc-dropdown-trigger-border: #E5E5E5;
+  --rc-dropdown-menu-bg: #FFFFFF;
+  --rc-dropdown-menu-border: #E5E5E5;
+
+  --rc-button-primary-bg: #111111;
+  --rc-button-primary-text: #FFFFFF;
+  --rc-button-primary-bg-hover: #000000;
+  --rc-button-secondary-bg: #FFFFFF;
+  --rc-button-secondary-bg-hover: #F2F2F2;
+  --rc-button-secondary-border: #E0E0E0;
+  --rc-button-secondary-text: #111111;
+  --rc-button-ghost-bg-hover: rgba(0, 0, 0, 0.05);
+  --rc-button-ghost-text: #6B6B6B;
+
+  --rc-icon-button-bg: #F2F2F2;
+  --rc-icon-button-border: #E5E5E5;
+  --rc-icon-button-color: #444444;
+  --rc-badge-bg: #F2F2F2;
+  --rc-badge-text: #444444;
+  --rc-badge-outline: #E5E5E5;
+  --rc-badge-border: #E5E5E5;
+  --rc-info-chip-bg: #EFEFEF;
+  --rc-info-chip-text: #111111;
+  --rc-info-chip-bg-hover: #E5E5E5;
+
+  --rc-nav-item-hover-bg: rgba(0, 0, 0, 0.04);
+  --rc-nav-item-active-text: #111111;
+  --rc-nav-item-active-bg: #EFEFEF;
+  --rc-modal-backdrop: rgba(240, 240, 240, 0.72);
+  --rc-modal-bg: #FFFFFF;
+  --rc-toggle-on-bg: #111111;
+  --rc-toggle-knob-bg: #FFFFFF;
+  --rc-list-item-hover-bg: rgba(0, 0, 0, 0.03);
+
+  /* 语义色：白底上把红/绿/橙压暗到墨色系，保留可辨识的语义差异 */
+  --rc-tone-danger-bg: rgba(140, 35, 25, 0.09);
+  --rc-tone-danger-text: #8C2318;
+  --rc-tone-danger-border: rgba(140, 35, 25, 0.20);
+  --rc-tone-warning-bg: rgba(140, 90, 10, 0.10);
+  --rc-tone-warning-text: #7A5200;
+  --rc-tone-warning-border: rgba(140, 90, 10, 0.20);
+  --rc-tone-success-bg: rgba(20, 90, 55, 0.10);
+  --rc-tone-success-text: #14603C;
+  --rc-tone-success-border: rgba(20, 90, 55, 0.20);
+  --rc-tone-neutral-bg: #F1F1F1;
+  --rc-tone-neutral-text: #525252;
+  --rc-tone-neutral-border: #E5E5E5;
 }
 
 /* ── Liquid Glass · 暗色（参照 macOS 26 玻璃材质）─────────────────── */
@@ -784,24 +803,14 @@ html[data-style="liquid-glass"][data-theme="light"] {
     background: #3C4A5C;
   }
 
-  /* neumorphic light: cool gray scrollbar */
-  html:not([data-style="modern-minimal"])[data-theme="light"] ::-webkit-scrollbar-thumb {
+  /* light scrollbar follows the current cool gray, including minimal */
+  html[data-theme="light"] ::-webkit-scrollbar-thumb {
     background: #C4CAD3;
     border-radius: 999px;
   }
 
-  html:not([data-style="modern-minimal"])[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
     background: #A8B0BB;
-  }
-
-  /* modern-minimal light: warm scrollbar */
-  html[data-style="modern-minimal"][data-theme="light"] ::-webkit-scrollbar-thumb {
-    background: #c8c0b4;
-    border-radius: 999px;
-  }
-
-  html[data-style="modern-minimal"][data-theme="light"] ::-webkit-scrollbar-thumb:hover {
-    background: #b5ac9e;
   }
 
   ::selection {
@@ -948,8 +957,22 @@ html[data-style="liquid-glass"][data-theme="light"] {
     border: 1px solid var(--rc-control-border) !important;
   }
 
+  html[data-style="modern-minimal"] .shadow-nm-card,
+  html[data-style="modern-minimal"] .shadow-nm-raised,
+  html[data-style="modern-minimal"] .shadow-nm-flat,
+  html[data-style="modern-minimal"] .shadow-nm-sm,
+  html[data-style="modern-minimal"] .shadow-nm-inset,
+  html[data-style="modern-minimal"] .shadow-nm-pressed,
   html[data-style="modern-minimal"] .shadow-apple-blue,
-  html[data-style="modern-minimal"] .shadow-apple-blue-pressed {
+  html[data-style="modern-minimal"] .shadow-apple-blue-pressed,
+  html[data-style="modern-minimal"] .code-chat-msg__user-content,
+  html[data-style="modern-minimal"] [style*="-1px -1px"],
+  html[data-style="modern-minimal"] [style*="-2px -2px"],
+  html[data-style="modern-minimal"] [style*="-3px -3px"],
+  html[data-style="modern-minimal"] [style*="-4px -4px"],
+  html[data-style="modern-minimal"] [style*="-5px -5px"],
+  html[data-style="modern-minimal"] [style*="-6px -6px"],
+  html[data-style="modern-minimal"] [style*="-10px -10px"] {
     box-shadow: none !important;
   }
 
@@ -957,7 +980,7 @@ html[data-style="liquid-glass"][data-theme="light"] {
   html[data-style="modern-minimal"] textarea:focus {
     box-shadow: var(--rc-control-focus-shadow) !important;
     outline: none !important;
-    border-color: rgba(0, 122, 255, 0.42) !important;
+    border-color: var(--rc-accent) !important;
   }
 
   html[data-style="modern-minimal"] .border-black\/30 {
@@ -1161,6 +1184,10 @@ html[data-style="liquid-glass"][data-theme="light"] {
     -webkit-backdrop-filter: blur(24px) saturate(180%);
   }
 
+  .rc-style-swatch--raised {
+    box-shadow: 3px 3px 6px rgba(200, 205, 211, 0.85), -3px -3px 6px rgba(255, 255, 255, 0.95);
+  }
+
   .rc-panel-soft {
     background: var(--rc-panel-bg-soft);
     border: 1px solid var(--rc-panel-border);
@@ -1283,6 +1310,13 @@ html[data-style="liquid-glass"][data-theme="light"] {
     border: 1px solid var(--rc-card-inset-outline);
   }
 
+  html[data-style="modern-minimal"] .rc-home-metric-item,
+  html[data-style="modern-minimal"] .rc-home-asset-item {
+    background: transparent;
+    border: 1px solid transparent;
+    box-shadow: none;
+  }
+
   .rc-accent-chip--interactive:hover {
     background: var(--rc-info-chip-bg-hover);
     box-shadow: var(--rc-info-chip-shadow-hover);
@@ -1351,10 +1385,7 @@ html[data-style="liquid-glass"][data-theme="light"] {
   }
 
   html[data-style="modern-minimal"] .rc-focus-cta {
-    color: #ffffff;
-    background: var(--rc-accent);
     box-shadow: none;
-    border-radius: 0.75rem;
   }
 
   .rc-focus-btn-secondary {
@@ -1381,10 +1412,8 @@ html[data-style="liquid-glass"][data-theme="light"] {
   }
 
   html[data-style="modern-minimal"] .rc-focus-btn-secondary {
-    background: transparent;
     box-shadow: none;
-    border: 1px solid var(--rc-control-border);
-    border-radius: 0.75rem;
+    border: 1px solid var(--rc-border);
   }
 
   .rc-focus-back-btn {
@@ -1410,11 +1439,8 @@ html[data-style="liquid-glass"][data-theme="light"] {
   }
 
   html[data-style="modern-minimal"] .rc-focus-back-btn {
-    background: var(--rc-elevated);
     box-shadow: none;
     border: 1px solid var(--rc-border);
-    color: var(--rc-text-soft);
-    border-radius: 0.75rem;
   }
 
   .rc-focus-tab {
@@ -1462,9 +1488,7 @@ html[data-style="liquid-glass"][data-theme="light"] {
   }
 
   html[data-style="modern-minimal"] .rc-focus-tab--active {
-    background: var(--rc-accent);
     box-shadow: none;
-    color: #ffffff;
   }
 
   .rc-focus-stat-chip {
@@ -1482,6 +1506,532 @@ html[data-style="liquid-glass"][data-theme="light"] {
     box-shadow: none;
     border: 1px solid var(--rc-card-inset-outline);
   }
+}
+
+/* 极简平面：不再有模块卡片，内容直接平铺。
+   容器去掉圆角与内缩，列表相邻行用一条发丝线分隔，悬停只留一层极浅底色。
+   不进 @layer，才能压过 Tailwind 的大圆角与内边距。 */
+html[data-style="modern-minimal"] .rc-card,
+html[data-style="modern-minimal"] .rc-module-tile,
+html[data-style="modern-minimal"] .rc-focus-card,
+html[data-style="modern-minimal"] .rc-focus-card-inset,
+html[data-style="modern-minimal"] .rc-home-metric-item,
+html[data-style="modern-minimal"] .rc-home-asset-item,
+html[data-style="modern-minimal"] .rc-panel-soft,
+html[data-style="modern-minimal"] .writing-sidebar,
+html[data-style="modern-minimal"] .writing-sidebar-section,
+html[data-style="modern-minimal"] .writing-workspace,
+html[data-style="modern-minimal"] .agent-flow-shell,
+html[data-style="modern-minimal"] .agent-flow-card,
+html[data-style="modern-minimal"] .code-root,
+html[data-style="modern-minimal"] .code-editor-modal__surface,
+html[data-style="modern-minimal"] .rounded-3xl,
+html[data-style="modern-minimal"] [class*="rounded-[18px]"],
+html[data-style="modern-minimal"] [class*="rounded-[20px]"],
+html[data-style="modern-minimal"] [class*="rounded-[22px]"],
+html[data-style="modern-minimal"] [class*="rounded-[24px]"],
+html[data-style="modern-minimal"] [class*="rounded-[28px]"] {
+  border-radius: var(--rc-card-radius, 12px);
+}
+
+/* 区块化：卡片不再向内缩，内容与页面左边缘对齐；纵向留白收紧成列表节奏 */
+html[data-style="modern-minimal"] .rc-card {
+  padding-inline: 0 !important;
+  padding-block: 1rem !important;
+  box-shadow: none !important;
+}
+
+/* 平铺列表：相邻项之间只留一条发丝线，不再每项单独围一张卡。
+   列表项自身带内联 border（宽高都写在行内），这里用 !important 才能补出分隔线。 */
+html[data-style="modern-minimal"] .rc-flat-rows > * + * {
+  border-top: 1px solid var(--rc-border) !important;
+}
+
+html[data-style="modern-minimal"] .rc-module-tile:hover,
+html[data-style="modern-minimal"] .rc-card:hover {
+  transform: none;
+  box-shadow: none !important;
+}
+
+html[data-style="modern-minimal"] .rc-module-tile:hover {
+  background: var(--rc-surface) !important;
+}
+
+/* 平铺行的悬停底色不做圆角，避免“看起来还是一张卡” */
+html[data-style="modern-minimal"] .rc-module-tile {
+  border-radius: 0 !important;
+}
+
+html[data-style="modern-minimal"] .agent-flow-shell,
+html[data-style="modern-minimal"] .agent-flow-card {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* 弹窗里的卡片仍需要一块浮起来的面板，否则表单会直接压在遮罩后面的页面上 */
+html[data-style="modern-minimal"] .fixed.inset-0 .rc-card {
+  padding: 1.25rem !important;
+  border-radius: 14px !important;
+  background: var(--rc-modal-bg) !important;
+  border: 1px solid var(--rc-border) !important;
+  box-shadow: 0 18px 40px rgb(var(--rc-sidebar-shadow-rgb) / 0.16) !important;
+}
+
+html[data-style="modern-minimal"] button[class*="rounded-[24px]"] {
+  box-shadow: none !important;
+}
+
+/* ── 极简 · 黑白主色 ─────────────────────────────────────────────
+   正文底不再走渐变，强调色统一收成墨黑（浅色）或纸白（深色），
+   组件里写死的品牌蓝浅底也一并收成中性灰。 */
+html[data-style="modern-minimal"] body {
+  background: var(--rc-bg);
+}
+
+html[data-style="modern-minimal"] ::selection {
+  background: rgb(var(--rc-accent-rgb) / 0.16);
+  color: var(--rc-text);
+}
+
+html[data-style="modern-minimal"] ::-webkit-scrollbar-thumb,
+html[data-style="modern-minimal"][data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #3A3A3A;
+}
+
+html[data-style="modern-minimal"][data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #D4D4D4;
+}
+
+/* 品牌蓝实色填充 → 强调色；深色下强调是纸白，文字要反相成墨黑 */
+html[data-style="modern-minimal"] .bg-apple-blue {
+  background-image: none !important;
+  background-color: var(--rc-accent) !important;
+}
+
+html[data-style="modern-minimal"]:not([data-theme="light"]) .bg-apple-blue {
+  color: var(--rc-bg) !important;
+}
+
+/* 写死的蓝色浅底（标签底色、序号圆点、图标底）统一收成中性灰 */
+html[data-style="modern-minimal"] [style*="background"][style*="122,255"],
+html[data-style="modern-minimal"] [style*="background"][style*="122, 255"],
+html[data-style="modern-minimal"] [style*="background"][style*="007AFF"] {
+  background-color: rgb(var(--rc-accent-rgb) / 0.08) !important;
+}
+
+/* 写死的品牌蓝文字同样收成强调色，避免黑白版式里漏出蓝色 */
+html[data-style="modern-minimal"] [style*="color"][style*="007AFF"]:not([style*="background"]),
+html[data-style="modern-minimal"] [style*="color"][style*="0,122,255"]:not([style*="background"]),
+html[data-style="modern-minimal"] [style*="color"][style*="0, 122, 255"]:not([style*="background"]) {
+  color: var(--rc-accent) !important;
+}
+
+/* 浅蓝底标签同时又写着蓝字的（计数徽标、档位标签、结论标签等）：
+   底色已被收成中性灰，文字也必须一起收，否则浅底浅字读不出来。
+   带 rc-tone-* 的标签自己管颜色，这里不抢。 */
+html[data-style="modern-minimal"] [style*="background"][style*="color"][style*="122,255"]:not([class*="rc-tone-"]),
+html[data-style="modern-minimal"] [style*="background"][style*="color"][style*="122, 255"]:not([class*="rc-tone-"]),
+html[data-style="modern-minimal"] [style*="background"][style*="color"][style*="007AFF"]:not([class*="rc-tone-"]) {
+  color: var(--rc-accent) !important;
+}
+
+/* 版面：区块标题下压一条发丝线，和列表行一起构成平铺的目录感 */
+html[data-style="modern-minimal"] .rc-section-heading {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--rc-border);
+}
+
+/* 单栏阅读节奏：极简里工作台不再左右分栏，区块自上而下铺开 */
+html[data-style="modern-minimal"] .rc-overview-columns {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ── 极简 · 列表化版式基座 ────────────────────────────────────────
+   全站统一成「区块标题 + 发丝线 + 平铺行」：只有输入框、按钮、下拉、
+   弹窗、代码编辑器保留“面”，其余容器一律没有底色、边界和投影。
+   这些类在拟态下没有任何样式，因此 TSX 里可以直接挂上而不影响拟态。 */
+
+/* 1) 用内联令牌拼出来的伪卡片：去掉圆角、投影与边界。
+      真正的 .rc-card / .rc-module-tile 圆角沿用 --rc-card-radius。 */
+html[data-style="modern-minimal"] [style*="var(--rc-card-inset-bg)"]:not(.rc-card):not(.rc-module-tile),
+html[data-style="modern-minimal"] [style*="var(--rc-module-tile-bg"]:not(.rc-card):not(.rc-module-tile),
+html[data-style="modern-minimal"] [style*="var(--rc-card-inset-shadow)"]:not(.rc-card):not(.rc-module-tile),
+html[data-style="modern-minimal"] [style*="var(--rc-card-flat-shadow)"]:not(.rc-card):not(.rc-module-tile),
+html[data-style="modern-minimal"] [style*="var(--rc-card-raised-shadow)"]:not(.rc-card):not(.rc-module-tile) {
+  border-radius: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* 2) 半透明白色填充在极简里既不是面也不是光影，统一收成透明；
+      hover 变体改成极浅的表面色，保证仍有可点击反馈。 */
+html[data-style="modern-minimal"] .bg-white\/25,
+html[data-style="modern-minimal"] .bg-white\/30,
+html[data-style="modern-minimal"] .bg-white\/35,
+html[data-style="modern-minimal"] .bg-white\/40,
+html[data-style="modern-minimal"] .bg-white\/45,
+html[data-style="modern-minimal"] .bg-white\/50,
+html[data-style="modern-minimal"] .bg-white\/55,
+html[data-style="modern-minimal"] .bg-white\/60,
+html[data-style="modern-minimal"] .bg-white\/70,
+html[data-style="modern-minimal"] .bg-white\/75,
+html[data-style="modern-minimal"] .bg-white\/80,
+html[data-style="modern-minimal"] .bg-white\/85 {
+  background-color: transparent !important;
+}
+
+html[data-style="modern-minimal"] [class*="hover:bg-white/"]:hover {
+  background-color: var(--rc-surface) !important;
+}
+
+/* 原先靠半透明白底 + 灰边撑出来的“伪卡片”，一旦底色透明就不该再留边框 */
+html[data-style="modern-minimal"] [class*="bg-white/"][class*="border-nm-dark/"] {
+  border-color: transparent !important;
+}
+
+html[data-style="modern-minimal"][data-theme="light"] [class*="bg-white/"]:not([class*="border"]) {
+  border: 0 !important;
+}
+
+html[data-style="modern-minimal"][data-theme="light"] [class*="bg-white/"][class*="border-nm-dark/"] {
+  border-color: transparent !important;
+}
+
+html[data-style="modern-minimal"] .bg-nm-card,
+html[data-style="modern-minimal"] .bg-nm-surface {
+  background-color: transparent !important;
+}
+
+/* 3) 写死的语义色浅底 → 压暗后的语义令牌（红 / 橙 / 绿） */
+html[data-style="modern-minimal"] [style*="background"][style*="255, 59, 48"]:not(input):not(textarea):not(select),
+html[data-style="modern-minimal"] [style*="background"][style*="255,59,48"]:not(input):not(textarea):not(select) {
+  background-color: var(--rc-tone-danger-bg) !important;
+}
+
+html[data-style="modern-minimal"] [style*="background"][style*="255, 149, 0"]:not(input):not(textarea):not(select),
+html[data-style="modern-minimal"] [style*="background"][style*="255,149,0"]:not(input):not(textarea):not(select) {
+  background-color: var(--rc-tone-warning-bg) !important;
+}
+
+html[data-style="modern-minimal"] [style*="background"][style*="52, 199, 89"]:not(input):not(textarea):not(select),
+html[data-style="modern-minimal"] [style*="background"][style*="52,199,89"]:not(input):not(textarea):not(select),
+html[data-style="modern-minimal"] [style*="background"][style*="34C759"]:not(input):not(textarea):not(select) {
+  background-color: var(--rc-tone-success-bg) !important;
+}
+
+html[data-style="modern-minimal"] [style*="color"][style*="34C759"]:not([style*="background"]) {
+  color: var(--rc-tone-success-text) !important;
+}
+
+/* 自绘标签里写死的「压暗版」红/橙/绿文字（toneStyle 等）：
+   极简下统一换成语义文字令牌，保证浅底/深底都过 AA。
+   React 会把 hex 序列化成 rgb()，手写 HTML 则保留 hex，两种都要覆盖。 */
+html[data-style="modern-minimal"] [style*="color"][style*="217, 43, 33"]:not([class*="rc-tone-"]),
+html[data-style="modern-minimal"] [style*="color"][style*="D92B21"]:not([class*="rc-tone-"]),
+html[data-style="modern-minimal"] [style*="color"][style*="d92b21"]:not([class*="rc-tone-"]) {
+  color: var(--rc-tone-danger-text) !important;
+}
+
+html[data-style="modern-minimal"] [style*="color"][style*="192, 112, 0"]:not([class*="rc-tone-"]),
+html[data-style="modern-minimal"] [style*="color"][style*="C07000"]:not([class*="rc-tone-"]),
+html[data-style="modern-minimal"] [style*="color"][style*="c07000"]:not([class*="rc-tone-"]) {
+  color: var(--rc-tone-warning-text) !important;
+}
+
+html[data-style="modern-minimal"] [style*="color"][style*="26, 158, 63"]:not([class*="rc-tone-"]),
+html[data-style="modern-minimal"] [style*="color"][style*="1A9E3F"]:not([class*="rc-tone-"]),
+html[data-style="modern-minimal"] [style*="color"][style*="1a9e3f"]:not([class*="rc-tone-"]) {
+  color: var(--rc-tone-success-text) !important;
+}
+
+/* 4) 分区：区块标题 + 发丝线；区块之间用 32px 留白，不用边框隔开 */
+html[data-style="modern-minimal"] .rc-section {
+  padding-block: 16px !important;
+  padding-inline: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-style="modern-minimal"] .rc-section-stack > .rc-section + .rc-section {
+  margin-top: 32px;
+}
+
+html[data-style="modern-minimal"] .rc-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rc-border);
+}
+
+html[data-style="modern-minimal"] .rc-section-title {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  line-height: 1.4 !important;
+  letter-spacing: -0.01em;
+  color: var(--rc-text) !important;
+}
+
+html[data-style="modern-minimal"] .rc-section-desc {
+  margin-top: 4px !important;
+  font-size: 12px !important;
+  line-height: 1.55 !important;
+  color: var(--rc-text-muted) !important;
+}
+
+/* 5) 列表行：左右不内缩，行间只有一条发丝线，操作区默认隐藏 */
+html[data-style="modern-minimal"] .rc-stack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0 !important;
+}
+
+/* 列表容器里原有的 space-y-* 间距收掉，分隔全部交给发丝线 */
+html[data-style="modern-minimal"] .rc-stack-list > * + * {
+  margin-top: 0 !important;
+}
+
+/* 列表里的 .rc-card 不再是卡片，而是平铺的一段内容 */
+html[data-style="modern-minimal"] .rc-stack-list > .rc-card {
+  padding-block: 12px !important;
+  border-radius: 0 !important;
+}
+
+html[data-style="modern-minimal"] .rc-stack-list > .rc-card + .rc-card {
+  border-top: 1px solid var(--rc-border);
+}
+
+html[data-style="modern-minimal"] .rc-list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding-inline: 0 !important;
+  padding-block: 12px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent;
+  box-shadow: none !important;
+  transition: background-color 140ms ease;
+}
+
+html[data-style="modern-minimal"] .rc-list-row--compact {
+  padding-block: 10px !important;
+}
+
+html[data-style="modern-minimal"] .rc-list-row + .rc-list-row {
+  border-top: 1px solid var(--rc-border) !important;
+}
+
+html[data-style="modern-minimal"] .rc-list-row:hover {
+  background-color: var(--rc-surface) !important;
+}
+
+/* 当前项：实底浅灰 + 正文色文字，不加边框 */
+html[data-style="modern-minimal"] .rc-list-row--active {
+  background-color: var(--rc-nav-item-active-bg) !important;
+  color: var(--rc-text) !important;
+  box-shadow: none !important;
+}
+
+/* 多行内容块（笔记卡片等）：同样没有卡片面，只用发丝线分隔 */
+html[data-style="modern-minimal"] .rc-list-block {
+  padding-block: 12px !important;
+  padding-inline: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-style="modern-minimal"] .rc-list-row__title {
+  min-width: 0;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.45 !important;
+  color: var(--rc-text) !important;
+}
+
+html[data-style="modern-minimal"] .rc-list-row__meta {
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+  color: var(--rc-text-muted) !important;
+}
+
+html[data-style="modern-minimal"] .rc-list-row__actions {
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+html[data-style="modern-minimal"] .rc-list-row:hover .rc-list-row__actions,
+html[data-style="modern-minimal"] .rc-list-row:focus-within .rc-list-row__actions {
+  opacity: 1;
+}
+
+/* 6) 卡片网格 → 单列清单 */
+html[data-style="modern-minimal"] .rc-grid-list {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0 !important;
+}
+
+/* 7) 统计块：只有标签、数值、注释，没有外框 */
+html[data-style="modern-minimal"] .rc-stat {
+  padding-block: 10px !important;
+  padding-inline: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-style="modern-minimal"] .rc-stat-label {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+  color: var(--rc-text-muted) !important;
+}
+
+html[data-style="modern-minimal"] .rc-stat-value {
+  margin-top: 2px;
+  font-size: 19px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  font-variant-numeric: tabular-nums;
+  color: var(--rc-text) !important;
+}
+
+html[data-style="modern-minimal"] .rc-stat-note {
+  margin-top: 2px;
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+  color: var(--rc-text-muted) !important;
+}
+
+/* 8) 空状态：不要虚线框和灰底，只留一行弱化文字 */
+html[data-style="modern-minimal"] .rc-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 0;
+  padding: 28px 12px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--rc-text-muted);
+}
+
+/* 9) 语义标签：给自绘标签直接用，避免每页重复写 rgba */
+html[data-style="modern-minimal"] .rc-tone-danger {
+  background: var(--rc-tone-danger-bg) !important;
+  color: var(--rc-tone-danger-text) !important;
+  box-shadow: none !important;
+}
+
+html[data-style="modern-minimal"] .rc-tone-warning {
+  background: var(--rc-tone-warning-bg) !important;
+  color: var(--rc-tone-warning-text) !important;
+  box-shadow: none !important;
+}
+
+html[data-style="modern-minimal"] .rc-tone-success {
+  background: var(--rc-tone-success-bg) !important;
+  color: var(--rc-tone-success-text) !important;
+  box-shadow: none !important;
+}
+
+html[data-style="modern-minimal"] .rc-tone-neutral {
+  background: var(--rc-tone-neutral-bg) !important;
+  color: var(--rc-tone-neutral-text) !important;
+  box-shadow: none !important;
+}
+
+/* 10) 控件圆角：输入 8px、按钮 10px、chip 保持胶囊，弹窗 14px */
+html[data-style="modern-minimal"] input,
+html[data-style="modern-minimal"] textarea,
+html[data-style="modern-minimal"] select {
+  border-radius: 8px !important;
+}
+
+html[data-style="modern-minimal"] button:not([class*="rounded-full"]),
+html[data-style="modern-minimal"] [role="tab"]:not([class*="rounded-full"]) {
+  border-radius: 10px !important;
+}
+
+html[data-style="modern-minimal"] .rc-icon-button {
+  border-radius: 10px;
+}
+
+/* 输入类外壳（搜索框、分段轨道）跟输入框保持同一档圆角 */
+html[data-style="modern-minimal"] [style*="var(--rc-chip-inset-bg)"] {
+  border-radius: 8px !important;
+}
+
+/* 搜索框聚焦：极简下用发丝线高亮，不出现品牌蓝光圈 */
+html[data-style="modern-minimal"] .rc-search-shell:focus-within {
+  box-shadow: 0 0 0 1px var(--rc-accent) !important;
+}
+
+/* 拖拽导入的落点提示：去掉品牌蓝虚线框，改成一条强调色虚线 */
+html[data-style="modern-minimal"] .rc-drop-overlay {
+  border: 1px dashed var(--rc-accent) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* 折叠区块的正文不再压第二条线，分隔交给列表行自己的发丝线 */
+html[data-style="modern-minimal"] .rc-collapsible-body {
+  margin-top: 4px !important;
+  padding-top: 0 !important;
+  border-top: 0 !important;
+}
+
+/* 12) 页面外壳统一用底色，不再把 --rc-surface 当成整页的“大板块” */
+html[data-style="modern-minimal"] .rc-page-surface {
+  background: var(--rc-bg) !important;
+}
+
+/* 13) 看板：列结构保留，列与列之间只留一条竖发丝线 */
+html[data-style="modern-minimal"] .rc-kanban-col {
+  padding-inline: 14px !important;
+  padding-block: 4px !important;
+  border-left: 1px solid var(--rc-border);
+}
+
+html[data-style="modern-minimal"] .rc-kanban-col:first-child {
+  border-left: 0;
+  padding-inline-start: 0 !important;
+}
+
+html[data-style="modern-minimal"] .rc-kanban-col:last-child {
+  padding-inline-end: 0 !important;
+}
+
+/* 13) 已有的“区块容器”类在极简下统一压平 */
+html[data-style="modern-minimal"] .rc-muted-panel,
+html[data-style="modern-minimal"] .rc-focus-stat-chip,
+html[data-style="modern-minimal"] .rc-focus-tab,
+html[data-style="modern-minimal"] .writing-sidebar-section,
+html[data-style="modern-minimal"] .writing-stat-grid,
+html[data-style="modern-minimal"] .writing-sidebar-diagnostic,
+html[data-style="modern-minimal"] .writing-sidebar-empty-state {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html[data-style="modern-minimal"] .rc-muted-panel {
+  border-color: transparent;
 }
 
 @keyframes dissolveIn {

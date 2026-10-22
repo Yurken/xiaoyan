@@ -165,9 +165,11 @@ export default function Settings() {
   const [configManageOpen, setConfigManageOpen] = useState(false);
   const {
     currentTheme,
+    currentStyle,
     pendingLayout,
     changeLayout,
     changeTheme,
+    changeStyle,
   } = useLayoutSettingsController();
   const {
     memories,
@@ -297,7 +299,7 @@ export default function Settings() {
 
   return (
     <>
-    <div className="h-full flex flex-col" style={{ background: "var(--rc-surface)" }}>
+    <div className="rc-page-surface h-full flex flex-col" style={{ background: "var(--rc-surface)" }}>
       <div
         className="flex-shrink-0 px-6 pt-5 pb-4 border-b rc-settings-header"
         style={{ borderColor: "var(--rc-border)" }}
@@ -481,8 +483,10 @@ export default function Settings() {
         {activeSection === "layout" ? (
           <LayoutSettingsSection
             currentTheme={currentTheme}
+            currentStyle={currentStyle}
             pendingLayout={pendingLayout}
             onThemeChange={changeTheme}
+            onStyleChange={changeStyle}
             onLayoutChange={changeLayout}
           />
         ) : null}

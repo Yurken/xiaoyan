@@ -14,6 +14,7 @@ interface CollapsibleGroupProps {
   onOpenChange?: (open: boolean) => void;
   compact?: boolean;
   className?: string;
+  headingClassName?: string;
   bodyClassName?: string;
 }
 
@@ -28,6 +29,7 @@ export default function CollapsibleGroup({
   onOpenChange,
   compact = false,
   className,
+  headingClassName,
   bodyClassName,
 }: CollapsibleGroupProps) {
   const isControlled = openProp !== undefined;
@@ -48,7 +50,7 @@ export default function CollapsibleGroup({
       variant={compact ? "flat" : "raised"}
       className={clsx("space-y-0", compact && "rounded-[24px] p-3", className)}
     >
-      <div className="flex items-center gap-3">
+      <div className={clsx("flex items-center gap-3", headingClassName)}>
         <button
           type="button"
           onClick={toggle}
@@ -65,12 +67,12 @@ export default function CollapsibleGroup({
           </span>
 
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="rc-section-title flex flex-wrap items-center gap-2">
               <p className={clsx("font-semibold text-ink-primary", compact ? "text-xs" : "text-sm")}>{title}</p>
               {countLabel ? <Badge variant="default">{countLabel}</Badge> : null}
             </div>
             {subtitle ? (
-              <div className={clsx("min-w-0 text-ink-tertiary", compact ? "mt-1 text-[11px]" : "mt-1 text-xs")}>
+              <div className={clsx("rc-section-desc min-w-0 text-ink-tertiary", compact ? "mt-1 text-[11px]" : "mt-1 text-xs")}>
                 {subtitle}
               </div>
             ) : null}
@@ -85,7 +87,7 @@ export default function CollapsibleGroup({
       </div>
 
       {open ? (
-        <div className={clsx(compact ? "mt-3" : "mt-4 border-t border-nm-dark/10 pt-4", bodyClassName)}>
+        <div className={clsx("rc-collapsible-body", compact ? "mt-3" : "mt-4 border-t border-nm-dark/10 pt-4", bodyClassName)}>
           {children}
         </div>
       ) : null}

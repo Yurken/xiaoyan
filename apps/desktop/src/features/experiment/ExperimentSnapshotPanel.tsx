@@ -196,7 +196,7 @@ export function ExperimentSnapshotPanel({
   // ── Compare mode: full-screen compare view ───────────────────
   if (compare.isComparing && compare.leftSnapshot && compare.rightSnapshot && compare.diffResult) {
     return (
-      <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
+      <div className="rc-page-surface h-full flex flex-col overflow-hidden" style={{ background: "var(--rc-surface)" }}>
         <ExperimentSnapshotCompare
           leftSnapshot={compare.leftSnapshot}
           rightSnapshot={compare.rightSnapshot}

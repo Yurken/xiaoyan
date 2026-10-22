@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { Card } from "@research-copilot/ui";
-import { LayoutDashboard, Monitor, Moon, Sun } from "lucide-react";
+import { Layers, LayoutDashboard, Monitor, Moon, Square, Sun } from "lucide-react";
 import type { LayoutMode } from "../../lib/layoutMode";
 import type { ThemePreference } from "../../lib/themeMode";
+import type { ThemeStyle } from "../../lib/themeStyle";
 import { SectionIcon } from "./shared";
 import ModuleVisibilitySettingsPanel from "../module-visibility/ModuleVisibilitySettingsPanel";
 import CodeHarnessSettingsPanel from "../code-harness/CodeHarnessSettingsPanel";
@@ -26,6 +27,7 @@ function OptionCard({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={selected}
       className="rounded-[24px] p-4 text-left transition-all duration-150"
       style={
         selected
@@ -64,12 +66,15 @@ function OptionCard({
   );
 }
 
+const LIGHT_SWATCH = "#F0F4F8";
+const DARK_SWATCH = "#090B10";
+
 function ThemeSwatch({ mode }: { mode: "light" | "dark" | "auto" }) {
   if (mode === "auto") {
     return (
       <div className="flex h-10 w-10 overflow-hidden rounded-2xl border" style={{ borderColor: "var(--rc-border)" }}>
-        <div className="flex-1 bg-[#f7f4ee]" />
-        <div className="flex-1 bg-[#15181d]" />
+        <div className="flex-1" style={{ background: LIGHT_SWATCH }} />
+        <div className="flex-1" style={{ background: DARK_SWATCH }} />
       </div>
     );
   }
@@ -79,8 +84,8 @@ function ThemeSwatch({ mode }: { mode: "light" | "dark" | "auto" }) {
       className="flex h-10 w-10 items-center justify-center rounded-2xl border"
       style={{
         borderColor: "var(--rc-border)",
-        background: mode === "light" ? "#f7f4ee" : "#15181d",
-        color: mode === "light" ? "#191b1f" : "#f3f2ed",
+        background: mode === "light" ? LIGHT_SWATCH : DARK_SWATCH,
+        color: mode === "light" ? "#1A2233" : "#F5F7FA",
       }}
     >
       {mode === "light" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -88,15 +93,34 @@ function ThemeSwatch({ mode }: { mode: "light" | "dark" | "auto" }) {
   );
 }
 
+function StyleSwatch({ flat }: { flat: boolean }) {
+  return (
+    <div
+      className={`flex h-10 w-10 items-center justify-center rounded-2xl border ${flat ? "" : "rc-style-swatch--raised"}`}
+      style={{
+        borderColor: "rgba(200, 205, 211, 0.9)",
+        background: "#E8ECF0",
+        color: "#007AFF",
+      }}
+    >
+      {flat ? <Square className="h-4 w-4" /> : <Layers className="h-4 w-4" />}
+    </div>
+  );
+}
+
 export default function LayoutSettingsSection({
   currentTheme,
+  currentStyle,
   pendingLayout,
   onThemeChange,
+  onStyleChange,
   onLayoutChange,
 }: {
   currentTheme: ThemePreference;
+  currentStyle: ThemeStyle;
   pendingLayout: LayoutMode;
   onThemeChange: (mode: ThemePreference) => void;
+  onStyleChange: (style: ThemeStyle) => void;
   onLayoutChange: (mode: LayoutMode) => void;
 }) {
   return (
@@ -105,7 +129,7 @@ export default function LayoutSettingsSection({
         <SectionIcon icon={LayoutDashboard} color="#30B0C7" />
         <div>
           <h2 className="text-base font-semibold text-ink-primary">界面布局模式</h2>
-          <p className="mt-0.5 text-xs text-ink-tertiary">外观立即生效，布局模式切换后会自动重启应用</p>
+          <p className="mt-0.5 text-xs text-ink-tertiary">外观和界面风格立即生效，布局模式切换后会自动重启应用</p>
         </div>
       </div>
 
@@ -116,7 +140,7 @@ export default function LayoutSettingsSection({
             {
               mode: "auto" as ThemePreference,
               label: "跟随系统",
-              description: "沿用系统深浅模式，让界面在白天和低光环境之间自然切换。",
+              description: "沿用系统的深浅设置，在同一套清透淡蓝配色的浅色和深色之间切换。",
               icon: (
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl border" style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)", color: "var(--rc-text-soft)" }}>
                   <Monitor className="h-4 w-4" />
@@ -127,13 +151,13 @@ export default function LayoutSettingsSection({
             {
               mode: "light" as ThemePreference,
               label: "浅色",
-              description: "偏纸面的浅暖底色，阅读更轻，层级更像一张整理好的研究桌面。",
+              description: "清透淡蓝的浅色界面，背景更亮，适合长时间阅读。",
               preview: <ThemeSwatch mode="light" />,
             },
             {
               mode: "dark" as ThemePreference,
               label: "深色",
-              description: "石墨感深色壳层，弱化装饰色，突出内容和结构。",
+              description: "同一套蓝灰配色的深色界面，压低亮度，突出内容。",
               preview: <ThemeSwatch mode="dark" />,
             },
           ] as const).map(({ mode, label, description, preview }) => (
@@ -144,6 +168,35 @@ export default function LayoutSettingsSection({
               description={description}
               preview={preview}
               onClick={() => onThemeChange(mode)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 ml-1 text-xs font-medium text-ink-tertiary">界面风格</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {([
+            {
+              style: "neumorphic" as ThemeStyle,
+              label: "拟态",
+              description: "保留双向光影，用凸起和内凹区分卡片、按钮和输入。",
+              flat: false,
+            },
+            {
+              style: "modern-minimal" as ThemeStyle,
+              label: "极简",
+              description: "黑白灰为主色的平面版式，去掉模块卡片，内容直接平铺，只用细线分隔层级。",
+              flat: true,
+            },
+          ] as const).map(({ style, label, description, flat }) => (
+            <OptionCard
+              key={style}
+              selected={currentStyle === style}
+              title={label}
+              description={description}
+              preview={<StyleSwatch flat={flat} />}
+              onClick={() => onStyleChange(style)}
             />
           ))}
         </div>
@@ -183,7 +236,7 @@ export default function LayoutSettingsSection({
         className="rounded-2xl px-4 py-3 text-xs leading-5 text-ink-tertiary"
         style={{ background: "var(--rc-card-inset-bg)", border: "1px solid var(--rc-card-inset-outline)" }}
       >
-        切换布局后应用会自动重启。主题和代码助手会立即保存并作用到当前窗口。
+        切换布局后应用会自动重启。外观主题、界面风格和代码助手会立即保存并作用到当前窗口。
       </div>
     </Card>
   );

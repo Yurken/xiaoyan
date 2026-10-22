@@ -206,5 +206,5 @@ export function toneStyle(tone: WorkbenchTone): { background: string; color: str
   if (tone === "rust") {
     return { background: "rgba(255,59,48,0.14)", color: "#D92B21" };
   }
-  return { background: "rgba(0,122,255,0.12)", color: "#007AFF" };
+  return { background: "rgb(var(--rc-accent-rgb) / 0.12)", color: "var(--rc-accent)" };
 }

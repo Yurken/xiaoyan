@@ -17,7 +17,7 @@ export function Card({
   return (
     <div
       className={clsx(
-        "rounded-3xl transition-[transform,box-shadow,border-color] duration-200",
+        "rc-card rounded-3xl transition-[transform,box-shadow,border-color] duration-200",
         padding === "sm"   && "p-4",
         padding === "md"   && "p-5",
         padding === "lg"   && "p-7",
@@ -32,6 +32,7 @@ export function Card({
             : variant === "flat"
               ? "var(--rc-card-flat-shadow)"
               : "var(--rc-card-inset-shadow)",
+        borderRadius: "var(--rc-card-radius, 1.5rem)",
         ...style,
       }}
       {...props}
@@ -43,7 +44,7 @@ export function Card({
 
 export function CardHeader({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={clsx("flex items-center justify-between mb-4", className)} {...props}>
+    <div className={clsx("rc-section-heading flex items-center justify-between mb-4", className)} {...props}>
       {children}
     </div>
   );
@@ -52,7 +53,7 @@ export function CardHeader({ className, children, ...props }: HTMLAttributes<HTM
 export function CardTitle({ className, children, style, ...props }: HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h2
-      className={clsx("text-base font-semibold", className)}
+      className={clsx("rc-section-title text-base font-semibold", className)}
       style={{ color: "var(--rc-text)", ...style }}
       {...props}
     >

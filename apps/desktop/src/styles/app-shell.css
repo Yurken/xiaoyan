@@ -308,4 +308,68 @@
       margin-bottom: 2px;
     }
   }
+
+  /* ── 极简 · 黑白外壳 ─────────────────────────────────────────────
+     侧栏做成浅色区块、内容区纯色，两者之间只有一条发丝线；
+     导航项在选中时是浅灰实底配近黑文字，没有任何光影和位移。 */
+  html[data-style="modern-minimal"] .app-shell {
+    --rc-page-inline-gap: 28px;
+    --rc-page-top-gap: 20px;
+  }
+
+  html[data-style="modern-minimal"] .app-sidebar {
+    border-right: 1px solid var(--rc-border);
+    background: var(--rc-sidebar-bg);
+    backdrop-filter: none;
+  }
+
+  html[data-style="modern-minimal"] .app-sidebar__window-drag-region {
+    background: var(--rc-sidebar-bg);
+  }
+
+  html[data-style="modern-minimal"] .app-main,
+  html[data-style="modern-minimal"].app-shell--macos-overlay .app-main {
+    background: var(--rc-bg);
+  }
+
+  html[data-style="modern-minimal"] .app-main::before {
+    background: none;
+  }
+
+  html[data-style="modern-minimal"] .app-nav-item {
+    border-radius: 10px;
+    border-color: transparent;
+    gap: 3px;
+  }
+
+  html[data-style="modern-minimal"] .app-nav-item:hover {
+    transform: none;
+    color: var(--rc-text);
+    background: var(--rc-nav-item-hover-bg);
+  }
+
+  html[data-style="modern-minimal"] .app-nav-item.is-active {
+    color: var(--rc-nav-item-active-text);
+    background: var(--rc-nav-item-active-bg);
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  html[data-style="modern-minimal"] .app-nav-item.is-active .app-nav-item__marker {
+    opacity: 1;
+    background: var(--rc-accent);
+  }
+
+  html[data-style="modern-minimal"] .app-nav-item--sub::before {
+    background: var(--rc-border);
+  }
+
+  html[data-style="modern-minimal"] .app-nav-item--sub.is-active::before {
+    background: var(--rc-accent);
+    opacity: 0.7;
+  }
+
+  html[data-style="modern-minimal"] .rc-subtle-rule {
+    background: var(--rc-border);
+  }
 }

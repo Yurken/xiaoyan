@@ -27,7 +27,7 @@ export default {
           light:   "rgb(var(--rc-elevated-rgb) / <alpha-value>)",
         },
         apple: {
-          blue:   "#007AFF",
+          blue:   "rgb(var(--rc-accent-rgb) / <alpha-value>)",
           orange: "#FF9500",
           green:  "#34C759",
           red:    "#FF3B30",
