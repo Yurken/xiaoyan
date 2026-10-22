@@ -41,7 +41,8 @@
     "harness:sources:update": "git submodule update --remote --checkout vendor/deepseek-harness vendor/codex-harness vendor/opencode-harness vendor/pi-harness vendor/pi-web",
     "tauri": "pnpm --dir apps/desktop run tauri",
     "deploy:all": "node scripts/release-sync-landing.mjs --deploy-all",
-    "release:landing": "node scripts/release-sync-landing.mjs"
+    "release:landing": "node scripts/release-sync-landing.mjs",
+    "release:prune-r2": "node scripts/prune-r2-releases.mjs"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
