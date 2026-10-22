@@ -467,6 +467,21 @@ jobs:
               --endpoint-url "$AWS_ENDPOINT_URL"
           done
 
+      # 清单已指向新版本后才清理历史对象：R2 只保留最新 3 个版本的安装包与
+      # 更新包，更早版本仍可从 GitHub Release 下载。删除失败会让本次发布失败。
+      - name: Prune older R2 releases
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          node scripts/prune-r2-releases.mjs \
+            --bucket "${{ secrets.R2_BUCKET_NAME }}" \
+            --current-tag "${{ env.RELEASE_TAG }}" \
+            --keep 3 \
+            --apply
+
   # ── Stage 4: Publish release after all builds succeed ─────────
   publish-release:
     name: Publish Release
