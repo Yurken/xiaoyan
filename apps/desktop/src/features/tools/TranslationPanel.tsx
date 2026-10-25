@@ -69,7 +69,7 @@ export function TranslationPanel({
           <div className="space-y-0.5">
             <p className="text-sm font-semibold text-ink-primary">学术翻译</p>
             <p className="text-xs leading-5 text-ink-tertiary">
-              由小妍的译衡能力驱动，优先保留专业术语和学术表达。可在设置 → 模型分工中单独配置译衡模型。
+              由小妍的译衡能力驱动，遵循信、达、雅，保留专业术语与学术表达。可在设置 → 模型分工中单独配置译衡模型。
             </p>
           </div>
         </div>

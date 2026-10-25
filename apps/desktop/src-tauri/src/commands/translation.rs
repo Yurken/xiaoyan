@@ -163,3 +163,22 @@ pub async fn translate_cancel(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn translation_messages_include_quality_requirements_and_output_contract() {
+        let messages = translation_messages("A faithful test.", "zh", Some("en"));
+
+        assert_eq!(messages.len(), 2);
+        assert!(messages[0]
+            .content
+            .contains(crate::assistant_prompts::TRANSLATION_QUALITY_REQUIREMENTS));
+        assert!(messages[0].content.contains("只返回译文"));
+        assert!(messages[1].content.contains("原文语言：English"));
+        assert!(messages[1].content.contains("目标语言：简体中文"));
+        assert!(messages[1].content.contains("A faithful test."));
+    }
+}

@@ -212,6 +212,18 @@ struct BuiltinSkill {
     tags: &'static [&'static str],
 }
 
+const ACADEMIC_TRANSLATION_SKILL_NAME: &str = "translate-academic";
+const LEGACY_ACADEMIC_TRANSLATION_PROMPT: &str = "请将以下学术文本翻译为[目标语言：中文 / 英文]，要求：\n1. 忠实原文语义，不删减、不增补\n2. 专业术语准确，首次出现保留原文括注\n3. 符合学术写作规范，语句流畅自然\n4. 如有歧义，在译文后附注说明\n\n[在此粘贴待翻译文本]";
+
+impl BuiltinSkill {
+    fn prompt(&self) -> String {
+        self.prompt.replace(
+            "{translation_quality_requirements}",
+            crate::assistant_prompts::TRANSLATION_QUALITY_REQUIREMENTS,
+        )
+    }
+}
+
 /// 内置技能类型：除 PPT 生成等工具技能外均为提示词技能。
 fn builtin_skill_kind(name: &str) -> &'static str {
     match name {
@@ -328,10 +340,10 @@ fn builtin_skills() -> &'static [BuiltinSkill] {
         },
         BuiltinSkill {
             id: "00000000-0014-0000-0000-000000000000",
-            name: "translate-academic",
+            name: ACADEMIC_TRANSLATION_SKILL_NAME,
             title: "学术文本翻译",
             description: "将学术文本进行忠实、流畅的中英互译，保留术语准确性",
-            prompt: "请将以下学术文本翻译为[目标语言：中文 / 英文]，要求：\n1. 忠实原文语义，不删减、不增补\n2. 专业术语准确，首次出现保留原文括注\n3. 符合学术写作规范，语句流畅自然\n4. 如有歧义，在译文后附注说明\n\n[在此粘贴待翻译文本]",
+            prompt: "请将以下学术文本翻译为[目标语言：中文 / 英文]。\n{translation_quality_requirements}\n\n其他要求：\n1. 专业术语准确，首次出现保留原文括注\n2. 符合学术写作规范，保持文体与语体一致\n3. 如有歧义，在译文后附注说明\n\n[在此粘贴待翻译文本]",
             tags: &["翻译", "写作"],
         },
         BuiltinSkill {
@@ -358,6 +370,7 @@ pub async fn seed_builtin_skills(db: &sqlx::SqlitePool) -> anyhow::Result<()> {
     for skill in builtin_skills() {
         let tags_json = serde_json::to_string(skill.tags)?;
         let kind = builtin_skill_kind(skill.name);
+        let prompt = skill.prompt();
         sqlx::query(
             "INSERT OR IGNORE INTO skills (id, name, title, description, prompt, tags, kind, is_builtin, is_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?)",
         )
@@ -365,13 +378,24 @@ pub async fn seed_builtin_skills(db: &sqlx::SqlitePool) -> anyhow::Result<()> {
         .bind(skill.name)
         .bind(skill.title)
         .bind(skill.description)
-        .bind(skill.prompt)
+        .bind(&prompt)
         .bind(&tags_json)
         .bind(kind)
         .bind(&now)
         .bind(&now)
         .execute(db)
         .await?;
+        if skill.name == ACADEMIC_TRANSLATION_SKILL_NAME {
+            sqlx::query(
+                "UPDATE skills SET prompt = ?, updated_at = ? WHERE id = ? AND is_builtin = 1 AND prompt = ?",
+            )
+            .bind(&prompt)
+            .bind(&now)
+            .bind(skill.id)
+            .bind(LEGACY_ACADEMIC_TRANSLATION_PROMPT)
+            .execute(db)
+            .await?;
+        }
         // kind 属系统属性：即便用户改过标题/提示词（INSERT OR IGNORE 保留），也按内置定义校正。
         sqlx::query("UPDATE skills SET kind = ? WHERE name = ? AND is_builtin = 1")
             .bind(kind)
@@ -380,4 +404,67 @@ pub async fn seed_builtin_skills(db: &sqlx::SqlitePool) -> anyhow::Result<()> {
             .await?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn academic_translation_prompt() -> String {
+        builtin_skills()
+            .iter()
+            .find(|skill| skill.name == ACADEMIC_TRANSLATION_SKILL_NAME)
+            .unwrap()
+            .prompt()
+    }
+
+    async fn stored_translation_prompt(pool: &sqlx::SqlitePool) -> anyhow::Result<String> {
+        Ok(
+            sqlx::query_scalar("SELECT prompt FROM skills WHERE name = ?")
+                .bind(ACADEMIC_TRANSLATION_SKILL_NAME)
+                .fetch_one(pool)
+                .await?,
+        )
+    }
+
+    #[test]
+    fn academic_translation_skill_renders_shared_quality_requirements() {
+        let prompt = academic_translation_prompt();
+
+        assert!(prompt.contains(crate::assistant_prompts::TRANSLATION_QUALITY_REQUIREMENTS));
+        assert!(!prompt.contains("{translation_quality_requirements}"));
+        assert!(prompt.contains("首次出现保留原文括注"));
+        assert!(prompt.contains("如有歧义"));
+    }
+
+    #[tokio::test]
+    async fn academic_translation_skill_upgrades_only_the_legacy_default() -> anyhow::Result<()> {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await?;
+        crate::db::ensure_skills_table(&pool).await?;
+        let default_prompt = academic_translation_prompt();
+        assert_eq!(stored_translation_prompt(&pool).await?, default_prompt);
+
+        sqlx::query("UPDATE skills SET prompt = ? WHERE name = ?")
+            .bind(LEGACY_ACADEMIC_TRANSLATION_PROMPT)
+            .bind(ACADEMIC_TRANSLATION_SKILL_NAME)
+            .execute(&pool)
+            .await?;
+        seed_builtin_skills(&pool).await?;
+        assert_eq!(stored_translation_prompt(&pool).await?, default_prompt);
+
+        let custom_prompt = "用户自定义的翻译提示词";
+        sqlx::query("UPDATE skills SET prompt = ? WHERE name = ?")
+            .bind(custom_prompt)
+            .bind(ACADEMIC_TRANSLATION_SKILL_NAME)
+            .execute(&pool)
+            .await?;
+        seed_builtin_skills(&pool).await?;
+        assert_eq!(stored_translation_prompt(&pool).await?, custom_prompt);
+
+        pool.close().await;
+        Ok(())
+    }
 }
