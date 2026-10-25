@@ -1,0 +1,440 @@
+.writing-visual-workspace {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--rc-card-inset-bg);
+}
+
+.writing-visual-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--rc-border);
+  padding: 7px 9px;
+  background: var(--rc-card-bg);
+  scrollbar-width: none;
+}
+
+.writing-visual-toolbar__group {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  padding-right: 7px;
+  border-right: 1px solid var(--rc-border);
+}
+
+.writing-visual-toolbar__group:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+
+.writing-visual-toolbar__history {
+  margin-left: auto;
+}
+
+.writing-visual-tool {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--rc-text-secondary, #4b5563);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.writing-visual-tool:hover:not(:disabled) {
+  background: var(--rc-card-inset-bg);
+  color: var(--rc-text-primary, #1f2937);
+}
+
+.writing-visual-tool[aria-pressed="true"] {
+  background: rgba(0, 122, 255, 0.11);
+  color: #007aff;
+}
+
+.writing-visual-tool:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.writing-visual-editor {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 18px 72px;
+}
+
+.writing-visual-editor > div {
+  min-height: 100%;
+}
+
+.writing-visual-content {
+  width: min(100%, 760px);
+  min-height: 100%;
+  margin: 0 auto;
+  border: 1px solid var(--rc-border);
+  border-radius: 4px;
+  padding: clamp(28px, 4.5vw, 64px) clamp(24px, 5vw, 70px);
+  background: var(--rc-card-bg);
+  box-shadow: 0 6px 22px rgba(30, 41, 59, 0.045);
+  color: var(--rc-text-primary, #1f2937);
+  caret-color: #007aff;
+  font-family: "Songti SC", "Noto Serif CJK SC", Georgia, serif;
+  font-size: 14px;
+  line-height: 1.9;
+  outline: none;
+}
+
+.writing-visual-content p {
+  margin: 0.75em 0;
+}
+
+.writing-visual-content h1,
+.writing-visual-content h2,
+.writing-visual-content h3,
+.writing-visual-content h4 {
+  margin: 1.55em 0 0.65em;
+  color: var(--rc-text-primary, #1f2937);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.4;
+}
+
+.writing-visual-content h1 { font-size: 21px; }
+.writing-visual-content h2 { font-size: 18px; }
+.writing-visual-content h3 { font-size: 16px; }
+.writing-visual-content h4 { font-size: 14px; }
+
+.writing-paper-title {
+  margin-bottom: 10px;
+  text-align: center;
+  font-size: 25px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.writing-paper-author {
+  margin-bottom: 32px;
+  color: var(--rc-text-secondary, #4b5563);
+  text-align: center;
+  font-size: 13px;
+}
+
+.writing-abstract {
+  margin: 24px 0 30px;
+  border-top: 1px solid var(--rc-border);
+  border-bottom: 1px solid var(--rc-border);
+  padding: 14px 0 12px;
+  color: var(--rc-text-secondary, #4b5563);
+  font-size: 13px;
+}
+
+.writing-abstract::before {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--rc-text-primary, #1f2937);
+  content: attr(data-label);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.writing-visual-content ul,
+.writing-visual-content ol {
+  margin: 0.7em 0;
+  padding-left: 1.8em;
+}
+
+.writing-visual-content li > p {
+  margin: 0.25em 0;
+}
+
+.writing-citation,
+.writing-reference {
+  border-radius: 4px;
+  padding: 1px 4px;
+  background: rgba(0, 122, 255, 0.075);
+  color: #0769c9;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  font-size: 0.84em;
+  white-space: nowrap;
+}
+
+.writing-reference {
+  background: var(--rc-card-inset-bg);
+  color: var(--rc-text-secondary, #4b5563);
+}
+
+.writing-raw-inline {
+  border-radius: 3px;
+  padding: 1px 3px;
+  background: var(--rc-card-inset-bg);
+  color: var(--rc-text-tertiary, #6b7280);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  font-size: 0.78em;
+}
+
+.writing-raw-hidden {
+  display: none;
+}
+
+.writing-raw-block {
+  margin: 20px 0;
+  overflow: hidden;
+  border: 1px solid var(--rc-border);
+  border-radius: 9px;
+  background: var(--rc-card-inset-bg);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+}
+
+.writing-raw-block__meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  color: var(--rc-text-secondary, #4b5563);
+  font-size: 12px;
+}
+
+.writing-raw-block__meta button {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: #007aff;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.writing-raw-block pre {
+  margin: 0;
+  overflow: hidden;
+  border-top: 1px solid var(--rc-border);
+  padding: 9px 10px;
+  color: var(--rc-text-tertiary, #6b7280);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  line-height: 1.55;
+  text-overflow: ellipsis;
+  white-space: pre-wrap;
+}
+
+.writing-visual-workspace .tiptap-mathematics-render {
+  cursor: pointer;
+}
+
+.writing-visual-workspace .tiptap-mathematics-render[data-type="block-math"] {
+  margin: 20px 0;
+  overflow-x: auto;
+  padding: 8px 0;
+  text-align: center;
+}
+
+.writing-math-popover,
+.writing-citation-popover {
+  position: absolute;
+  z-index: 20;
+  top: 46px;
+  right: 12px;
+  width: min(440px, calc(100% - 24px));
+  overflow: hidden;
+  border: 1px solid var(--rc-border);
+  border-radius: 12px;
+  background: var(--rc-card-bg);
+  box-shadow: 0 16px 44px rgba(30, 41, 59, 0.16);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+}
+
+.writing-citation-popover {
+  width: min(360px, calc(100% - 24px));
+}
+
+.writing-visual-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--rc-border);
+  padding: 9px 12px;
+  color: var(--rc-text-primary, #1f2937);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.writing-visual-popover__header button {
+  display: inline-flex;
+  border: 0;
+  border-radius: 5px;
+  padding: 3px;
+  background: transparent;
+  color: var(--rc-text-tertiary, #6b7280);
+  cursor: pointer;
+}
+
+.writing-math-host {
+  min-height: 66px;
+  padding: 14px 12px 6px;
+}
+
+.writing-math-field {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--rc-border);
+  border-radius: 7px;
+  padding: 8px;
+  background: var(--rc-card-inset-bg);
+  font-size: 18px;
+}
+
+.writing-visual-hint {
+  margin: 0;
+  padding: 7px 12px 10px;
+  color: var(--rc-text-tertiary, #6b7280);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.writing-citation-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px;
+  border: 1px solid var(--rc-border);
+  border-radius: 7px;
+  padding: 6px 8px;
+  color: var(--rc-text-tertiary, #6b7280);
+}
+
+.writing-citation-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--rc-text-primary, #1f2937);
+  font-size: 12px;
+  outline: none;
+}
+
+.writing-citation-options {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 0 6px 6px;
+}
+
+.writing-citation-options > button {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 7px;
+  border: 0;
+  border-radius: 7px;
+  padding: 8px 6px;
+  background: transparent;
+  color: var(--rc-text-primary, #1f2937);
+  cursor: pointer;
+  text-align: left;
+}
+
+.writing-citation-options > button:hover {
+  background: var(--rc-card-inset-bg);
+}
+
+.writing-citation-check {
+  width: 16px;
+  flex-shrink: 0;
+  padding-top: 2px;
+  color: #007aff;
+}
+
+.writing-citation-option__text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.writing-citation-option__text strong {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.writing-citation-option__text small {
+  overflow: hidden;
+  color: var(--rc-text-tertiary, #6b7280);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.writing-citation-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--rc-border);
+  padding: 8px 12px;
+  color: var(--rc-text-tertiary, #6b7280);
+  font-size: 11px;
+}
+
+.writing-citation-footer button,
+.writing-visual-warning button {
+  border: 0;
+  background: transparent;
+  color: #007aff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.writing-citation-footer button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.writing-visual-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--rc-border);
+  padding: 10px 12px;
+  background: rgba(255, 149, 0, 0.07);
+  color: var(--rc-text-secondary, #4b5563);
+  font-size: 12px;
+}
+
+.writing-visual-warning button {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+[data-style="modern-minimal"] .writing-visual-content {
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+@media (max-width: 1100px) {
+  .writing-visual-editor {
+    padding: 12px 10px 50px;
+  }
+
+  .writing-visual-content {
+    padding: 28px 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .writing-visual-tool {
+    transition: none;
+  }
+}

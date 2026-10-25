@@ -2,9 +2,12 @@ import { DESKTOP_PLATFORM, type DesktopPlatform } from "../../lib/desktopPlatfor
 
 export type WritingExportTarget = "texstudio" | "overleaf";
 export type WritingViewMode = "split" | "editor" | "preview";
+export type WritingEditorMode = "visual" | "source";
 export type WritingTemplateId = "journal" | "conference" | "thesis-note";
 export type LatexDiagnosticSeverity = "error" | "warning" | "info";
 export type WritingCompileStatus = "idle" | "compiling" | "ready" | "failed";
+/** PDF 编译触发方式：手动按钮或自动防抖。 */
+export type WritingCompileTrigger = "manual" | "auto";
 export type WritingSaveStatus = "pending" | "saving" | "saved" | "error";
 export type WritingAssistantActionId = "freeform" | "polish" | "continue" | "abstract" | "review";
 export type WritingEditorSource = "main" | "bib" | `tex:${string}`;
@@ -205,6 +208,10 @@ export const DEFAULT_PROJECT_NAME = "xiaoyan-paper";
 /** 历史版本自动记录：内容停止变化后防抖 2s，且距上次记录至少 60s（与后端节流一致）。 */
 export const WRITING_VERSION_AUTO_DEBOUNCE_MS = 2000;
 export const WRITING_VERSION_AUTO_MIN_INTERVAL_MS = 60_000;
+/** LaTeX 实时预览：源内容停止变化 1200ms 后自动触发 PDF 编译。 */
+export const WRITING_COMPILE_AUTO_DEBOUNCE_MS = 1200;
+/** 自动编译开关的全局偏好 key（跨草稿共享，默认开启）。 */
+export const WRITING_AUTO_COMPILE_ENABLED_KEY = "rc:writing:auto-compile:v1";
 export const MACOS_TEXBIN_PATH = "/Library/TeX/texbin";
 export const LINUX_TEXLIVE_BIN_PATH = "/usr/local/texlive/YYYY/bin/*-linux";
 export const LINUX_TINYTEX_BIN_PATH = "~/.TinyTeX/bin/*-linux";
@@ -274,6 +281,16 @@ export function recoverWritingPendingDrafts(savedDrafts: WritingDraft[], pending
 /** 版本内容的本地签名，用于在 invoke 前快速判断内容是否变化（与后端 hash 去重互补）。 */
 export function writingVersionContentSignature(content: WritingVersionContentPatch): string {
   return JSON.stringify([content.mainTex, content.bibtex, content.texFiles, content.notes]);
+}
+
+/** 参与 PDF 编译的源内容签名：mainTex/bibtex/texFiles/imageAssets；便签与项目名不影响编译产物。 */
+export function writingCompileSourceSignature(content: {
+  mainTex: string;
+  bibtex: string;
+  texFiles: WritingTexFile[];
+  imageAssets: WritingImageAsset[];
+}): string {
+  return JSON.stringify([content.mainTex, content.bibtex, content.texFiles, content.imageAssets]);
 }
 
 export function formatWritingVersionTime(createdAt: string): string {

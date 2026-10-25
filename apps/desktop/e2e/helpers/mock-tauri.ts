@@ -152,8 +152,22 @@ export const TAURI_MOCK_SCRIPT = `
 
   const __MOCK_INVOKE_RESULTS = ${JSON.stringify(MOCK_INVOKE_RESULTS)};
   let __MOCK_WRITING_DRAFTS = [];
+  const __MOCK_WRITING_COMPILE_REQUESTS = [];
+  const __MOCK_PDF_BYTES = Uint8Array.from(atob("JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCAyNDAgMzIwXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA0NyA+PgpzdHJlYW0KQlQgL0YxIDE2IFRmIDMyIDI0MCBUZCAoWGlhb3lhbiBQcmV2aWV3KSBUaiBFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCjAwMDAwMDAyNDEgMDAwMDAgbiAKMDAwMDAwMDMzNyAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjQwNwolJUVPRgo="), (character) => character.charCodeAt(0));
+  window.__MOCK_WRITING_COMPILE_REQUESTS = __MOCK_WRITING_COMPILE_REQUESTS;
 
   function __mockInvoke(cmd, args) {
+    if (cmd === "plugin:fs|read_file") return Array.from(__MOCK_PDF_BYTES);
+    if (cmd === "writing_compile_pdf") {
+      __MOCK_WRITING_COMPILE_REQUESTS.push(args.request);
+      return {
+        success: true,
+        pdfPath: "/mock/" + args.request.draftId + "/paper-" + __MOCK_WRITING_COMPILE_REQUESTS.length + ".pdf",
+        workDir: "/mock/work",
+        engine: "mock-xelatex",
+        log: "Mock PDF compiled"
+      };
+    }
     if (cmd === "writing_draft_list") return __MOCK_WRITING_DRAFTS;
     if (cmd === "writing_draft_create") {
       const draft = JSON.parse(JSON.stringify(args.request));
@@ -222,7 +236,7 @@ export const TAURI_MOCK_SCRIPT = `
   };
 
   window.__TAURI_PLUGIN_FS__ = {
-    readFile: async () => new Uint8Array(),
+    readFile: async () => __MOCK_PDF_BYTES,
     writeFile: async () => {},
     exists: async () => false,
   };

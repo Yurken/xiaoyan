@@ -1,0 +1,21 @@
+.writing-editor-action {
+  display: inline-flex;
+  height: 28px;
+  min-width: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 6px;
+  background: transparent;
+  color: var(--rc-text-tertiary, #6b7280);
+  cursor: pointer;
+  font-size: 11px;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.writing-editor-action:hover {
+  background: var(--rc-card-bg);
+  color: var(--rc-text-primary, #1f2937);
+}

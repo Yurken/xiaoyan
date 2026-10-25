@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_PROJECT_NAME,
   type WritingCreateDraftOptions,
@@ -16,19 +16,15 @@ import { useWritingFileActions } from "./useWritingFileActions";
 import { useWritingVersions } from "./useWritingVersions";
 import { WRITING_TEMPLATES, getDefaultWritingTemplate, getWritingTemplate } from "./templates";
 import {
-  findWritingTexFile,
   normalizeWritingTexFilePath,
   writingTexFilePathFromSource,
   writingTexFileSource,
   resolveWritingProjectSource,
 } from "./texFiles";
-
-interface InsertOptions {
-  selectInserted?: boolean;
-}
+import type { WritingEditorHandle } from "./writingEditorHandle";
 
 export function useWritingWorkspace() {
-  const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const editorRef = useRef<WritingEditorHandle | null>(null);
   const {
     drafts,
     activeDraft,
@@ -204,12 +200,6 @@ export function useWritingWorkspace() {
     clearStatus,
   });
 
-  const activeSourceContent = activeSource === "main"
-    ? mainTex
-    : activeSource === "bib"
-      ? bibtex
-      : findWritingTexFile(texFiles, activeSource)?.content ?? "";
-
   const updateSourceContent = useCallback((source: WritingEditorSource, value: string) => {
     if (source === "main") {
       setMainTex(value);
@@ -223,25 +213,9 @@ export function useWritingWorkspace() {
     if (path) setTexFileContent(path, value);
   }, [setBibtex, setMainTex, setTexFileContent]);
 
-  const insertText = useCallback((before: string, after = "", options: InsertOptions = {}) => {
-    const editor = editorRef.current;
-    const start = editor?.selectionStart ?? activeSourceContent.length;
-    const end = editor?.selectionEnd ?? activeSourceContent.length;
-    const selected = activeSourceContent.slice(start, end);
-    const nextValue = `${activeSourceContent.slice(0, start)}${before}${selected}${after}${activeSourceContent.slice(end)}`;
-    const cursorStart = start + before.length;
-    const cursorEnd = options.selectInserted ? cursorStart + selected.length : cursorStart + selected.length;
-
-    if (editor) {
-      editor.value = nextValue;
-    }
-    updateSourceContent(activeSource, nextValue);
-    window.requestAnimationFrame(() => {
-      const currentEditor = editorRef.current;
-      currentEditor?.focus();
-      currentEditor?.setSelectionRange(cursorEnd, cursorEnd);
-    });
-  }, [activeSource, activeSourceContent, updateSourceContent]);
+  const insertText = useCallback((before: string, after = "") => {
+    editorRef.current?.insertText(before, after);
+  }, []);
 
   const insertImage = useCallback(async () => {
     const asset = await fileActions.importImage();
@@ -250,55 +224,17 @@ export function useWritingWorkspace() {
     insertText(snippet.before, snippet.after);
   }, [fileActions, insertText]);
 
-  const getSelectedText = useCallback(() => {
-    const editor = editorRef.current;
-    if (!editor || editor.selectionStart === editor.selectionEnd) return "";
-    return activeSourceContent.slice(editor.selectionStart, editor.selectionEnd);
-  }, [activeSourceContent]);
+  const getSelectedText = useCallback(() => editorRef.current?.getSelectedText() ?? "", []);
 
   const insertGeneratedText = useCallback((text: string) => {
-    if (!text.trim()) return;
-    const editor = editorRef.current;
-    const start = editor?.selectionStart ?? activeSourceContent.length;
-    const end = editor?.selectionEnd ?? activeSourceContent.length;
-    const nextValue = `${activeSourceContent.slice(0, start)}${text}${activeSourceContent.slice(end)}`;
-    const cursor = start + text.length;
-
-    if (editor) {
-      editor.value = nextValue;
-    }
-    updateSourceContent(activeSource, nextValue);
-    window.requestAnimationFrame(() => {
-      const currentEditor = editorRef.current;
-      currentEditor?.focus();
-      currentEditor?.setSelectionRange(cursor, cursor);
-    });
-  }, [activeSource, activeSourceContent, updateSourceContent]);
+    if (text.trim()) editorRef.current?.insertLatex(text);
+  }, []);
 
   const jumpToLine = useCallback((line: number) => {
     setActiveSource("main");
-    const performJump = () => {
-      const editor = editorRef.current;
-      if (!editor) return;
-      const index = getLineStartIndex(mainTex, line);
-      const end = Math.min(index + 1, mainTex.length);
-      editor.focus();
-      editor.setSelectionRange(index, end);
-      setTimeout(() => {
-        const currentEditor = editorRef.current;
-        if (!currentEditor) return;
-        currentEditor.setSelectionRange(index, index);
-        const lineHeight = 24;
-        currentEditor.scrollTop = Math.max(0, (line - 3) * lineHeight);
-      }, 100);
-    };
-
-    if (activeSource === "main") {
-      performJump();
-    } else {
-      window.setTimeout(performJump, 50);
-    }
-  }, [mainTex, activeSource]);
+    const index = getLineStartIndex(mainTex, line);
+    window.requestAnimationFrame(() => editorRef.current?.focusSourceRange(index, index));
+  }, [mainTex]);
 
   const applyTemplate = useCallback((nextTemplateId: WritingTemplateId) => {
     const template = getWritingTemplate(nextTemplateId);
@@ -363,6 +299,11 @@ export function useWritingWorkspace() {
     exportingTarget: fileActions.exportingTarget,
     compileStatus: compiler.compileStatus,
     compileResult: compiler.compileResult,
+    previewResult: compiler.previewResult,
+    previewStale: compiler.previewStale,
+    autoCompileEnabled: compiler.autoCompileEnabled,
+    autoCompilePending: compiler.autoCompilePending,
+    setAutoCompileEnabled: compiler.setAutoCompileEnabled,
     latexInstallerStatus: compiler.latexInstallerStatus,
     message,
     error,
@@ -379,7 +320,7 @@ export function useWritingWorkspace() {
     diagnostics,
     previewBlocks,
     templates: WRITING_TEMPLATES,
-    editorRef: editorRef as RefObject<HTMLTextAreaElement>,
+    editorRef,
     setProjectName,
     setResearchInterestId,
     setMainTex,

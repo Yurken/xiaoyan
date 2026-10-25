@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { clsx } from "clsx";
 import {
-  CheckCircle2,
   ChevronLeft,
   Eye,
-  FileCheck2,
   FileText,
   FolderOpen,
   LayoutPanelLeft,
@@ -14,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button, CapsuleTabs } from "@research-copilot/ui";
 import WritingAssistantPanel from "./WritingAssistantPanel";
+import WritingCompileButton from "./WritingCompileButton";
 import WritingDraftManagerModal from "./WritingDraftManagerModal";
 import WritingEditorPanel from "./WritingEditorPanel";
 import WritingExportMenu from "./WritingExportMenu";
@@ -26,8 +25,7 @@ import WritingVersionHistoryModal from "./WritingVersionHistoryModal";
 import {
   isLatexCompilerMissing,
   type WritingAssistantActionId,
-  type WritingCompileStatus,
-  type WritingExportTarget,
+  type WritingEditorMode,
   type WritingViewMode,
 } from "./shared";
 import { useWritingWorkspace } from "./useWritingWorkspace";
@@ -35,7 +33,7 @@ import "./writing-sidebar.css";
 
 const VIEW_OPTIONS = [
   { value: "split", label: "分栏", icon: <LayoutPanelLeft className="h-3.5 w-3.5" /> },
-  { value: "editor", label: "源码", icon: <FileText className="h-3.5 w-3.5" /> },
+  { value: "editor", label: "编辑", icon: <FileText className="h-3.5 w-3.5" /> },
   { value: "preview", label: "预览", icon: <Eye className="h-3.5 w-3.5" /> },
 ] as const;
 
@@ -53,6 +51,7 @@ export default function WritingWorkspace({
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [editorMode, setEditorMode] = useState<WritingEditorMode>("visual");
   const [assistantRequest, setAssistantRequest] = useState<{
     actionId: WritingAssistantActionId;
     nonce: number;
@@ -140,7 +139,7 @@ export default function WritingWorkspace({
               </Button>
 
               <div className="flex items-center gap-1 rounded-xl bg-apple-blue/5 p-1">
-                <CompileButton
+                <WritingCompileButton
                   compileStatus={workspace.compileStatus}
                   exportingTarget={workspace.exportingTarget}
                   onCompile={() => void workspace.compilePdf()}
@@ -211,7 +210,10 @@ export default function WritingWorkspace({
               diagnostics={workspace.diagnostics}
               stats={workspace.stats}
               notes={workspace.notes}
-              onJumpToLine={workspace.jumpToLine}
+              onJumpToLine={(line) => {
+                setEditorMode("source");
+                workspace.jumpToLine(line);
+              }}
               onNotesChange={workspace.setNotes}
             />
             <button
@@ -228,18 +230,20 @@ export default function WritingWorkspace({
 
         {showEditor ? (
           <WritingEditorPanel
-            editorRef={workspace.editorRef}
+            ref={workspace.editorRef}
+            draftId={workspace.activeDraftId}
             mainTex={workspace.mainTex}
             bibtex={workspace.bibtex}
             texFiles={workspace.texFiles}
             imageAssets={workspace.imageAssets}
             activeSource={workspace.activeSource}
+            editorMode={editorMode}
+            onEditorModeChange={setEditorMode}
             onActiveSourceChange={workspace.setActiveSource}
             onSourceChange={workspace.updateSourceContent}
             onCreateTexFile={workspace.createTexFile}
             onRenameTexFile={workspace.renameTexFile}
             onDeleteTexFile={workspace.deleteTexFile}
-            onInsertText={workspace.insertText}
             onInsertImage={workspace.insertImage}
             onAssistantAction={handleAssistantAction}
             onOpenVersionHistory={() => setVersionHistoryOpen(true)}
@@ -250,27 +254,21 @@ export default function WritingWorkspace({
 
         {showPreview ? (
           <WritingPreviewPanel
+            draftId={workspace.activeDraftId}
             blocks={workspace.previewBlocks}
             compileResult={workspace.compileResult}
+            previewResult={workspace.previewResult}
+            compileStatus={workspace.compileStatus}
+            autoCompileEnabled={workspace.autoCompileEnabled}
+            autoCompilePending={workspace.autoCompilePending}
+            previewStale={workspace.previewStale}
             compact={workspace.viewMode === "split"}
+            onAutoCompileChange={workspace.setAutoCompileEnabled}
+            onCompile={() => { void workspace.compilePdf(); }}
+            onSavePdf={() => { void workspace.saveCompiledPdf(); }}
           />
         ) : null}
       </div>
-
-      {workspace.compileResult && (
-        <footer className="shrink-0 border-t px-4 py-2" style={{ borderColor: "var(--rc-border)", background: "var(--rc-card-inset-bg)" }}>
-          <details className="group">
-            <summary className="flex cursor-pointer items-center gap-2 text-[11px] font-medium text-ink-tertiary hover:text-ink-secondary">
-              <div className={clsx("h-1.5 w-1.5 rounded-full", workspace.compileResult.success ? "bg-[#34C759]" : "bg-apple-red")} />
-              编译日志 ({workspace.compileResult.engine}) · {workspace.compileResult.success ? "成功" : "失败"}
-              <span className="ml-auto opacity-0 transition-opacity group-hover:opacity-100">点击查看详细信息</span>
-            </summary>
-            <pre className="rc-selectable mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-black/20 p-2 font-mono text-[10px] leading-4 text-ink-tertiary">
-              {workspace.compileResult.log || "没有编译日志。"}
-            </pre>
-          </details>
-        </footer>
-      )}
 
       <WritingDraftManagerModal
         open={draftManagerOpen}
@@ -337,52 +335,5 @@ export default function WritingWorkspace({
       />
       </div>
     </div>
-  );
-}
-
-function CompileButton({
-  compileStatus,
-  exportingTarget,
-  onCompile,
-}: {
-  compileStatus: WritingCompileStatus;
-  exportingTarget: WritingExportTarget | null;
-  onCompile: () => void;
-}) {
-  const [flash, setFlash] = useState(false);
-  const prevStatusRef = useRef(compileStatus);
-
-  useEffect(() => {
-    if (prevStatusRef.current !== "ready" && compileStatus === "ready") {
-      setFlash(true);
-      const timer = setTimeout(() => setFlash(false), 3000);
-      return () => clearTimeout(timer);
-    }
-    prevStatusRef.current = compileStatus;
-  }, [compileStatus]);
-
-  return (
-    <Button
-      type="button"
-      size="sm"
-      variant="primary"
-      onClick={onCompile}
-      loading={compileStatus === "compiling"}
-      disabled={exportingTarget !== null}
-      className="shadow-sm transition-colors duration-500"
-      style={flash ? { background: "#34C759", color: "#fff" } : undefined}
-    >
-      {compileStatus !== "compiling" && !flash && (
-        <FileCheck2 className="h-3.5 w-3.5" />
-      )}
-      {flash ? (
-        <span className="inline-flex items-center gap-1">
-          <CheckCircle2 className="h-3.5 w-3.5" />
-          编译完成
-        </span>
-      ) : (
-        "编译 PDF"
-      )}
-    </Button>
   );
 }

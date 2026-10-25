@@ -66,3 +66,6 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "sync-s
 # 跨平台操作系统类型与版本（用于反馈上报的客户端信息）
 os_info = "3"
 tokio-tungstenite = "0.30.0"
+
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }

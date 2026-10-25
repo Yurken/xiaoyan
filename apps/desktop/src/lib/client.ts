@@ -1148,6 +1148,7 @@ export const writingApi = {
   importImage: (draftId: string, filePath: string) =>
     invoke<WritingImageAssetPayload>("writing_import_image", { draftId, filePath }),
   compilePdf: (project: {
+    draftId: string;
     projectName: string;
     mainTex: string;
     bibtex: string;

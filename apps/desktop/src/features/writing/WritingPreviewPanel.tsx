@@ -1,13 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
 import { clsx } from "clsx";
-import { BookOpen, Download, FileCheck2, ListTree, Loader2, Maximize, Minimize, Minus, Plus, RotateCcw, X } from "lucide-react";
+import { BookOpen, FileCheck2, ListTree, RefreshCw } from "lucide-react";
 import { CapsuleTabs } from "@research-copilot/ui";
-import * as pdfjsLib from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import type { LatexPreviewBlock, WritingCompileSummary } from "./shared";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+import type { LatexPreviewBlock, WritingCompileStatus, WritingCompileSummary } from "./shared";
+import { isLatexCompilerMissing } from "./shared";
+import WritingPdfPreview from "./WritingPdfPreview";
+import WritingCompileLog from "./WritingCompileLog";
 
 type PreviewMode = "structure" | "pdf";
 
@@ -16,22 +14,37 @@ const PREVIEW_MODE_OPTIONS = [
   { value: "structure", label: "结构", icon: <ListTree className="h-3.5 w-3.5" /> },
 ] as const;
 
-const ZOOM_MIN = 0.25;
-const ZOOM_MAX = 3;
-const ZOOM_STEP = 0.1;
-
 interface WritingPreviewPanelProps {
+  draftId: string;
   blocks: LatexPreviewBlock[];
   compileResult: WritingCompileSummary | null;
+  previewResult: WritingCompileSummary | null;
+  compileStatus: WritingCompileStatus;
+  autoCompileEnabled: boolean;
+  autoCompilePending: boolean;
+  previewStale: boolean;
   compact: boolean;
+  onAutoCompileChange: (enabled: boolean) => void;
+  onCompile: () => void;
+  onSavePdf: () => void;
 }
 
 export default function WritingPreviewPanel({
+  draftId,
   blocks,
   compileResult,
+  previewResult,
+  compileStatus,
+  autoCompileEnabled,
+  autoCompilePending,
+  previewStale,
   compact,
+  onAutoCompileChange,
+  onCompile,
+  onSavePdf,
 }: WritingPreviewPanelProps) {
   const [previewMode, setPreviewMode] = useState<PreviewMode>("pdf");
+  const failed = compileResult !== null && !compileResult.success;
 
   return (
     <aside className="flex min-h-0 flex-col gap-4 pl-1">
@@ -41,9 +54,7 @@ export default function WritingPreviewPanel({
       >
         <div className="flex items-center justify-between border-b p-4" style={{ borderColor: "var(--rc-border)" }}>
           <div className="flex items-center gap-2">
-            <div className="writing-inset-icon">
-              <BookOpen className="h-4 w-4" />
-            </div>
+            <div className="writing-inset-icon"><BookOpen className="h-4 w-4" /></div>
             <p className="text-sm font-bold tracking-tight text-ink-primary">文稿预览</p>
           </div>
           <CapsuleTabs
@@ -53,394 +64,80 @@ export default function WritingPreviewPanel({
             compact
           />
         </div>
-
+        {previewMode === "pdf" && (
+          <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2" style={{ borderColor: "var(--rc-border)" }}>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoCompileEnabled}
+              onClick={() => onAutoCompileChange(!autoCompileEnabled)}
+              className="flex items-center gap-1.5 text-[11px] font-medium text-ink-secondary"
+              title={autoCompileEnabled ? "关闭自动预览" : "开启自动预览"}
+            >
+              <span className={clsx("relative h-3.5 w-6 rounded-full transition-colors", autoCompileEnabled ? "bg-apple-blue" : "bg-ink-tertiary/30")}>
+                <span className={clsx("absolute top-0.5 h-2.5 w-2.5 rounded-full bg-white shadow-sm transition-transform", autoCompileEnabled ? "translate-x-3" : "translate-x-0.5")} />
+              </span>
+              自动预览
+            </button>
+            <span className="ml-auto truncate text-[10px] text-ink-tertiary" role="status">
+              {previewStatusLabel({ compileStatus, autoCompilePending, previewStale, failed, hasPreview: previewResult !== null, missing: isLatexCompilerMissing(compileResult) })}
+            </span>
+            <button
+              type="button"
+              onClick={onCompile}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-tertiary transition-colors hover:bg-apple-blue/5 hover:text-apple-blue"
+              title="立即编译当前版本"
+              aria-label="立即编译当前版本"
+            >
+              <RefreshCw className={clsx("h-3.5 w-3.5", compileStatus === "compiling" && "animate-spin")} />
+            </button>
+          </div>
+        )}
+        {previewMode === "pdf" && failed && previewResult && (
+          <p className="shrink-0 border-b bg-[#FF9500]/[0.07] px-3 py-2 text-[11px] leading-4 text-[#9A5B00]" style={{ borderColor: "var(--rc-border)" }}>
+            当前修改未通过编译，正在显示上次成功的 PDF。
+          </p>
+        )}
         <div className={clsx(
           "min-h-0 flex-1 p-4",
-          previewMode === "pdf" ? "overflow-hidden" : "overflow-y-auto space-y-4",
-          compact && previewMode !== "pdf" ? "max-h-[34rem]" : "max-h-none"
+          previewMode === "pdf" ? "overflow-hidden" : "space-y-4 overflow-y-auto",
+          compact && previewMode !== "pdf" ? "max-h-[34rem]" : "max-h-none",
         )}>
-          {blocks.length === 0 ? (
+          {previewMode === "pdf" ? (
+            <WritingPdfPreview compileResult={previewResult} draftId={draftId} onSave={onSavePdf} />
+          ) : blocks.length === 0 ? (
             <div className="flex h-32 flex-col items-center justify-center rounded-lg border-2 border-dashed px-4 text-center text-ink-tertiary" style={{ borderColor: "var(--rc-border)" }}>
               <p className="text-xs">暂无内容预览。</p>
             </div>
-          ) : previewMode === "pdf" ? (
-            <PdfPreview compileResult={compileResult} />
-          ) : (
-            <StructurePreview blocks={blocks} />
-          )}
+          ) : <StructurePreview blocks={blocks} />}
         </div>
+        {previewMode === "pdf" && compileResult && <WritingCompileLog result={compileResult} />}
       </section>
-
     </aside>
   );
 }
 
-function PdfPreview({ compileResult }: { compileResult: WritingCompileSummary | null }) {
-  const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
-  const [numPages, setNumPages] = useState(0);
-  const [pdfLoading, setPdfLoading] = useState(false);
-  const [pdfError, setPdfError] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const dragRef = useRef({ startX: 0, startY: 0, scrollX: 0, scrollY: 0 });
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
-  const renderTaskRef = useRef(new Map<number, pdfjsLib.RenderTask>());
-
-  const clampZoom = useCallback((value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value)), []);
-
-  useEffect(() => {
-    if (!isFullscreen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsFullscreen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isFullscreen]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const tasksOnMount = renderTaskRef.current;
-
-    async function loadPdf() {
-      if (!compileResult?.pdfPath || !compileResult.success) {
-        setPdfDoc(null);
-        setNumPages(0);
-        setPdfError(false);
-        return;
-      }
-
-      setPdfLoading(true);
-      setPdfError(false);
-      setPdfDoc(null);
-      setNumPages(0);
-      try {
-        const { readFile } = await import("@tauri-apps/plugin-fs");
-        const bytes = await readFile(compileResult.pdfPath);
-        if (cancelled) return;
-        const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
-        if (cancelled) return;
-        setPdfDoc(doc);
-        setNumPages(doc.numPages);
-        setZoomLevel(1);
-      } catch {
-        if (!cancelled) setPdfError(true);
-      } finally {
-        if (!cancelled) setPdfLoading(false);
-      }
-    }
-
-    loadPdf();
-
-    return () => {
-      cancelled = true;
-      tasksOnMount.forEach((task) => { try { task.cancel(); } catch { /* ignore */ } });
-      tasksOnMount.clear();
-    };
-  }, [compileResult?.pdfPath, compileResult?.success]);
-
-  // PDF 加载后自动 fill：取 fit-to-width 和 fit-to-height 的较大值
-  useEffect(() => {
-    if (!pdfDoc || numPages === 0) return;
-    let cancelled = false;
-    pdfDoc.getPage(1).then((page) => {
-      if (cancelled) return;
-      const viewport = page.getViewport({ scale: 1.5 });
-      const el = scrollRef.current;
-      const cw = el?.clientWidth ?? 0;
-      const ch = el?.clientHeight ?? 0;
-      if (cw > 0 && ch > 0) {
-        const fitW = cw / viewport.width;
-        const fitH = ch / viewport.height;
-        setZoomLevel(clampZoom(Math.max(fitW, fitH)));
-      } else if (cw > 0) {
-        setZoomLevel(clampZoom(cw / viewport.width));
-      }
-    });
-    return () => { cancelled = true; };
-  }, [pdfDoc, numPages, clampZoom]);
-
-  useEffect(() => {
-    if (!pdfDoc || numPages === 0) return;
-
-    let cancelled = false;
-    const currentTasks = renderTaskRef.current;
-    const doc = pdfDoc;
-
-    async function renderPages() {
-      for (let i = 1; i <= numPages; i++) {
-        if (cancelled) break;
-        const page = await doc.getPage(i);
-        if (cancelled) break;
-        const viewport = page.getViewport({ scale: 1.5 });
-        const canvas = canvasRefs.current.get(i);
-        if (!canvas) continue;
-        const pixelRatio = window.devicePixelRatio || 1;
-        canvas.width = viewport.width * pixelRatio;
-        canvas.height = viewport.height * pixelRatio;
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) continue;
-        ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-        const existing = currentTasks.get(i);
-        if (existing) { try { existing.cancel(); } catch { /* ignore */ } }
-        const task = page.render({ canvasContext: ctx, viewport, canvas });
-        currentTasks.set(i, task);
-        try {
-          await task.promise;
-        } catch {
-          // cancelled
-        }
-      }
-    }
-
-    renderPages();
-
-    return () => {
-      cancelled = true;
-      currentTasks.forEach((task) => { try { task.cancel(); } catch { /* ignore */ } });
-      currentTasks.clear();
-    };
-  }, [pdfDoc, numPages, isFullscreen]);
-
-  const prevZoomRef = useRef(zoomLevel);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || prevZoomRef.current === zoomLevel) {
-      prevZoomRef.current = zoomLevel;
-      return;
-    }
-    const ratio = zoomLevel / prevZoomRef.current;
-    el.scrollTop = Math.round(el.scrollTop * ratio);
-    prevZoomRef.current = zoomLevel;
-  }, [zoomLevel]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!e.metaKey && !e.ctrlKey) return;
-      if (e.key === "=" || e.key === "+") {
-        e.preventDefault();
-        setZoomLevel((prev) => clampZoom(prev + ZOOM_STEP));
-      } else if (e.key === "-") {
-        e.preventDefault();
-        setZoomLevel((prev) => clampZoom(prev - ZOOM_STEP));
-      } else if (e.key === "0") {
-        e.preventDefault();
-        setZoomLevel(1);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [clampZoom]);
-
-  const handleSave = useCallback(async () => {
-    if (!compileResult?.pdfPath) return;
-    try {
-      const { save } = await import("@tauri-apps/plugin-dialog");
-      const { writeFile, readFile } = await import("@tauri-apps/plugin-fs");
-      const path = await save({
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
-        defaultPath: "paper.pdf",
-      });
-      if (!path) return;
-      const bytes = await readFile(compileResult.pdfPath);
-      await writeFile(path, bytes);
-    } catch {
-      // ignore
-    }
-  }, [compileResult?.pdfPath]);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    dragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      scrollX: scrollRef.current?.scrollLeft ?? 0,
-      scrollY: scrollRef.current?.scrollTop ?? 0,
-    };
-    setIsDragging(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isDragging) return;
-    const handleMouseMove = (e: MouseEvent) => {
-      const el = scrollRef.current;
-      if (!el) return;
-      el.scrollLeft = dragRef.current.scrollX + (dragRef.current.startX - e.clientX);
-      el.scrollTop = dragRef.current.scrollY + (dragRef.current.startY - e.clientY);
-    };
-    const handleMouseUp = () => setIsDragging(false);
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isDragging]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.metaKey) return;
-      e.preventDefault();
-      setZoomLevel((prev) => clampZoom(prev - Math.sign(e.deltaY) * ZOOM_STEP));
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [pdfDoc, clampZoom]);
-
-  if (!compileResult?.pdfPath || !compileResult.success) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-6 py-16 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-apple-blue/5 text-apple-blue/30 shadow-sm">
-          <FileCheck2 className="h-8 w-8" />
-        </div>
-        <div className="max-w-[200px]">
-          <p className="text-sm font-bold text-ink-primary">预览准备就绪</p>
-          <p className="mt-1.5 text-xs leading-relaxed text-ink-tertiary">
-            请点击上方「编译 PDF」按钮生成精准的排版预览。
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const pdfContent = (
-    <>
-      {pdfLoading ? (
-        <div className="flex h-full w-full items-center justify-center gap-2 text-white/60">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-xs">加载 PDF...</span>
-        </div>
-      ) : pdfError ? (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/60">
-          <p className="text-xs">无法加载 PDF 预览</p>
-        </div>
-      ) : (
-        <div
-          ref={scrollRef}
-          className="min-h-0 flex-1 w-full overflow-auto select-none"
-          style={{ cursor: isDragging ? "grabbing" : "grab" }}
-          onMouseDown={handleMouseDown}
-        >
-          <div className="mx-auto flex w-fit flex-col items-center gap-1 py-2" style={{ zoom: zoomLevel }}>
-            {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => (
-              <canvas
-                key={pageNum}
-                ref={(el) => {
-                  if (el) canvasRefs.current.set(pageNum, el);
-                  else canvasRefs.current.delete(pageNum);
-                }}
-                className="shadow-md"
-              />
-            ))}
-          </div>
-        </div>
-      )}
-      {pdfDoc && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-lg bg-black/60 px-2 py-1.5 backdrop-blur-md">
-          <button
-            type="button"
-            className="flex h-6 w-6 items-center justify-center rounded text-white/70 hover:bg-white/10 hover:text-white transition"
-            onClick={() => setZoomLevel((prev) => clampZoom(prev - ZOOM_STEP))}
-            disabled={zoomLevel <= ZOOM_MIN}
-            title="缩小"
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            className="flex h-6 min-w-[44px] items-center justify-center rounded text-[11px] font-medium text-white hover:bg-white/10 transition"
-            onClick={() => setZoomLevel(1)}
-            title="重置缩放"
-          >
-            {Math.round(zoomLevel * 100)}%
-          </button>
-          <button
-            type="button"
-            className="flex h-6 w-6 items-center justify-center rounded text-white/70 hover:bg-white/10 hover:text-white transition"
-            onClick={() => setZoomLevel((prev) => clampZoom(prev + ZOOM_STEP))}
-            disabled={zoomLevel >= ZOOM_MAX}
-            title="放大"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-          {zoomLevel !== 1 && (
-            <button
-              type="button"
-              className="flex h-6 w-6 items-center justify-center rounded text-white/50 hover:bg-white/10 hover:text-white/80 transition"
-              onClick={() => setZoomLevel(1)}
-              title="恢复 100%"
-            >
-              <RotateCcw className="h-3 w-3" />
-            </button>
-          )}
-          <span className="mx-0.5 h-4 w-px bg-white/15" />
-          <button
-            type="button"
-            className="flex h-6 w-6 items-center justify-center rounded text-white/70 hover:bg-white/10 hover:text-white transition"
-            onClick={handleSave}
-            title="下载 PDF"
-          >
-            <Download className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            className="flex h-6 w-6 items-center justify-center rounded text-white/70 hover:bg-white/10 hover:text-white transition"
-            onClick={() => setIsFullscreen((prev) => !prev)}
-            title={isFullscreen ? "退出全屏" : "全屏预览"}
-          >
-            {isFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
-          </button>
-        </div>
-      )}
-    </>
-  );
-
-  if (isFullscreen) {
-    return createPortal(
-      <div
-        className="fixed inset-0 z-50 flex flex-col"
-        style={{ background: "rgba(0,0,0,0.92)" }}
-        onClick={() => setIsFullscreen(false)}
-      >
-        <button
-          type="button"
-          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white/80 transition-colors hover:bg-white/20 hover:text-white"
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsFullscreen(false);
-          }}
-          title="退出全屏"
-        >
-          <X className="h-5 w-5" />
-        </button>
-        <div
-          className="relative flex min-h-0 flex-1 flex-col"
-          style={{ background: "#525659" }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {pdfContent}
-        </div>
-      </div>,
-      document.body,
-    );
-  }
-
-  return (
-    <div
-      className="relative flex h-full w-full flex-col overflow-hidden rounded-xl border shadow-lg"
-      style={{
-        borderColor: "var(--rc-border)",
-        background: "#525659",
-      }}
-    >
-      {pdfContent}
-    </div>
-  );
+function previewStatusLabel({
+  compileStatus,
+  autoCompilePending,
+  previewStale,
+  failed,
+  hasPreview,
+  missing,
+}: {
+  compileStatus: WritingCompileStatus;
+  autoCompilePending: boolean;
+  previewStale: boolean;
+  failed: boolean;
+  hasPreview: boolean;
+  missing: boolean;
+}) {
+  if (missing) return "需要 LaTeX 环境";
+  if (compileStatus === "compiling") return autoCompilePending ? "编译中 · 等待最新修改" : "正在更新 PDF";
+  if (autoCompilePending) return "等待自动预览";
+  if (failed) return "编译失败";
+  if (previewStale) return "有未预览的修改";
+  return hasPreview ? "PDF 已是最新" : "等待生成预览";
 }
 
 function StructurePreview({ blocks }: { blocks: LatexPreviewBlock[] }) {
@@ -456,18 +153,8 @@ function StructurePreview({ blocks }: { blocks: LatexPreviewBlock[] }) {
           }}
         >
           <div className="mb-2 flex items-center gap-2 border-b pb-2" style={{ borderColor: "var(--rc-border)" }}>
-            <div
-              className={clsx(
-                "h-1.5 w-1.5 rounded-full",
-                block.kind === "meta" ? "bg-apple-blue" : "bg-ink-tertiary/40",
-              )}
-            />
-            <p
-              className={clsx(
-                "truncate text-xs tracking-tight text-ink-primary",
-                block.kind === "meta" || block.level <= 1 ? "font-bold" : "font-semibold",
-              )}
-            >
+            <div className={clsx("h-1.5 w-1.5 rounded-full", block.kind === "meta" ? "bg-apple-blue" : "bg-ink-tertiary/40")} />
+            <p className={clsx("truncate text-xs tracking-tight text-ink-primary", block.kind === "meta" || block.level <= 1 ? "font-bold" : "font-semibold")}>
               {block.title}
             </p>
           </div>
@@ -475,9 +162,7 @@ function StructurePreview({ blocks }: { blocks: LatexPreviewBlock[] }) {
             <p className="rc-selectable text-[12px] leading-relaxed text-ink-secondary">
               {block.content.length > 900 ? `${block.content.slice(0, 900)}...` : block.content}
             </p>
-          ) : (
-            <p className="text-[11px] italic text-ink-tertiary">该章节暂无正文内容。</p>
-          )}
+          ) : <p className="text-[11px] italic text-ink-tertiary">该章节暂无正文内容。</p>}
         </article>
       ))}
     </>
