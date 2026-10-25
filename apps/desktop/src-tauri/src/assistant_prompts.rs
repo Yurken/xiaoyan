@@ -1,5 +1,9 @@
 pub const PRODUCT_NAME: &str = "小妍";
 pub const MAIN_ASSISTANT_NAME: &str = "小妍";
+pub(crate) const TRANSLATION_QUALITY_REQUIREMENTS: &str = "遵循“信、达、雅”三项原则：\n\
+- 信：忠实原文的事实、逻辑、语气与程度，不遗漏、不增补、不曲解，专业术语、数据、引用和符号保持准确。\n\
+- 达：表达通顺自然、语义清晰，符合目标语言的语法和表达习惯，避免生硬逐字直译。\n\
+- 雅：在信与达的基础上做到用词得体、风格统一，符合学术语境和原文文体；不为追求文采牺牲准确性，也不擅自再创作。";
 
 /// 当前本地日期（YYYY-MM-DD）。注入到提示词里，让模型知道“今天”，从而正确判断信息时效、
 /// 生成带时间的检索词，并避免把过时资料当成最新。
@@ -17,7 +21,8 @@ pub fn main_chat_system(context_summary: &str) -> String {
 3. 研究工作台上下文是你的背景知识，只在和当前问题直接相关时才引用它。不要主动复述用户的研究动态，不要在每次回答中罗列用户的研究主题。\n\
 4. 不得编造论文内容、实验结果、文献出处或未提供的事实；信息不足时说明缺口。不要伪造 URL、DOI、arXiv id。\n\
 5. 不要在每个回答末尾附加「下一步建议」或「研究动态回顾」，除非用户明确提问。\n\
-6. 当用户要求执行操作（如查文献、写笔记、规划）时，直接调用对应工具完成，不要只给文字建议。",
+6. 当用户要求执行操作（如查文献、写笔记、规划）时，直接调用对应工具完成，不要只给文字建议。\n\
+7. 涉及翻译任务时，{TRANSLATION_QUALITY_REQUIREMENTS}",
         PRODUCT_NAME, MAIN_ASSISTANT_NAME, today_str()
     );
 
@@ -37,7 +42,8 @@ pub fn synthesis_system() -> String {
 - 不编造事实，不添加上下文和工具结果未提供的内容。如果某个 worker 失败或返回空结果，在回答中诚实说明该步骤未完成。\n\
 - worker 将论文参数标为“论文未报告”时必须原样保留，不得用常见默认值补全；依据中的章节定位必须保留。\n\
 - 不要自动附加「下一步建议」，除非任务本身要求给出后续行动方案。\n\
-- worker 输出中出现的论文标题、作者、年份、方法名等关键信息，在整合时原样保留，不要概括或改写。",
+- worker 输出中出现的论文标题、作者、年份、方法名等关键信息，在整合时原样保留，不要概括或改写。\n\
+- 最终答案包含译文时，{TRANSLATION_QUALITY_REQUIREMENTS}",
         PRODUCT_NAME, MAIN_ASSISTANT_NAME
     )
 }
@@ -61,7 +67,8 @@ pub fn specialist_system(role: &str, responsibility: &str, extra_rules: Option<&
     let mut prompt = format!(
         "你是主 AI 助手{}内部的{}。\n\
 职责：{}\n\
-统一要求：默认使用简体中文；输出结构化、直接、可执行；只依据输入材料和已知上下文作答；信息不足时明确说明缺口；不要把自己描述成独立于{}之外的助手。",
+统一要求：默认使用简体中文；输出结构化、直接、可执行；只依据输入材料和已知上下文作答；信息不足时明确说明缺口；不要把自己描述成独立于{}之外的助手。\n\
+涉及翻译任务时，{TRANSLATION_QUALITY_REQUIREMENTS}",
         MAIN_ASSISTANT_NAME, role, responsibility, MAIN_ASSISTANT_NAME
     );
 
@@ -169,5 +176,30 @@ pub fn cover_letter_prompt(
 5. 保持单页篇幅，总字数控制在 400 词以内\n\
 6. 直接输出信件正文，不要添加引导语或代码块"
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn conversation_and_specialist_prompts_share_translation_quality_requirements() {
+        let prompts = [
+            main_chat_system(""),
+            synthesis_system(),
+            specialist_system("学术翻译专家", "翻译学术文本", None),
+        ];
+        for prompt in prompts {
+            assert!(prompt.contains(TRANSLATION_QUALITY_REQUIREMENTS));
+        }
+        for required in [
+            "信：忠实原文",
+            "达：表达通顺自然",
+            "雅：在信与达的基础上",
+            "不为追求文采牺牲准确性",
+        ] {
+            assert!(TRANSLATION_QUALITY_REQUIREMENTS.contains(required));
+        }
     }
 }

@@ -587,8 +587,8 @@ export const CHARACTERISTIC_MODEL_CARDS: GroupedModelDefinition[] = [
   },
   {
     title: "译衡 · 翻译",
-    description: "中英学术互译，要求忠实原文、温度极低。",
-    recommendation: "忠实度优先于流畅度，建议选专注翻译的模型，温度 ≤ 0.1。",
+    description: "中英学术互译，遵循信、达、雅，温度极低。",
+    recommendation: "以信为本，兼顾达与雅；建议选专注翻译的模型，温度 ≤ 0.1。",
     affectedScopes: "论文全文翻译、段落翻译（Beta，后端开发中）",
     icon: Languages,
     iconColor: "#5856D6",
