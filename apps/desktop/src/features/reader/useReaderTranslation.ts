@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppSettings, LlmProvider } from "@research-copilot/types";
 import { chatApi, translateApi, settingsApi } from "../../lib/client";
-import type { ReaderImageSelection } from "./readerTypes";
+import type { NormalizedRect, ReaderImageSelection } from "./readerTypes";
 import { splitReasoning } from "./readerReasoning";
 
 function getDefaultChatModel(settings: AppSettings): string {
@@ -17,6 +17,8 @@ export interface TranslationState {
   id: number;
   source: string;
   page?: number;
+  /** Original page anchor used when saving a translation as a reader note. */
+  positions?: NormalizedRect[];
   result: string;
   status: "loading" | "done" | "error";
   error?: string;
@@ -122,7 +124,7 @@ export function useReaderTranslation() {
     };
   }, []);
 
-  const runTranslate = useCallback(async (source: string, page?: number) => {
+  const runTranslate = useCallback(async (source: string, page?: number, positions?: NormalizedRect[]) => {
     const trimmed = normalizeSourceText(source);
     if (!trimmed) return;
     translateAbortRef.current?.abort();
@@ -130,7 +132,7 @@ export function useReaderTranslation() {
     translateAbortRef.current = ac;
     const id = (seqRef.current += 1);
     setInterpretation(null); // 译文变化，旧解读作废
-    setCurrent({ id, source: trimmed, page, result: "", status: "loading" });
+    setCurrent({ id, source: trimmed, page, positions, result: "", status: "loading" });
     try {
       let rawResult = "";
       for await (const chunk of translateApi.stream(trimmed, "zh", undefined, translationModel, ac.signal)) {
@@ -160,15 +162,18 @@ export function useReaderTranslation() {
 
   // 划词翻译：连翻开启且已有结果时，把新选中文字接到上一段后合并重译；否则另起一段。
   const translate = useCallback(
-    (text: string, page?: number) => {
+    (text: string, page?: number, positions?: NormalizedRect[]) => {
       const trimmed = text.trim();
       if (!trimmed) return;
       const prev = currentRef.current;
       if (continuousRef.current && prev && prev.status !== "error") {
         const merged = `${prev.source} ${trimmed}`.replace(/\s+/g, " ").trim();
-        void runTranslate(merged, prev.page ?? page);
+        // Rectangles are page-relative: only combine anchors belonging to the same page.
+        const anchor = prev.page === undefined ? positions
+          : prev.page === page ? [...(prev.positions ?? []), ...(positions ?? [])] : prev.positions;
+        void runTranslate(merged, prev.page ?? page, anchor);
       } else {
-        void runTranslate(trimmed, page);
+        void runTranslate(trimmed, page, positions);
       }
     },
     [runTranslate],
@@ -177,7 +182,7 @@ export function useReaderTranslation() {
   // 修改原文后按编辑结果整体重译（不走合并）。
   const editSource = useCallback(
     (text: string) => {
-      void runTranslate(text, currentRef.current?.page);
+      void runTranslate(text, currentRef.current?.page, currentRef.current?.positions);
     },
     [runTranslate],
   );

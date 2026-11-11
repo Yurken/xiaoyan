@@ -12,7 +12,11 @@ import ReaderQaPanel from "../features/reader/ReaderQaPanel";
 import ReaderRightRail, { type ReaderRightPanel } from "../features/reader/ReaderRightRail";
 import ReaderResearchActionsPanel from "../features/reader/research-actions/ReaderResearchActionsPanel";
 import SelectionPopup from "../features/reader/SelectionPopup";
+import ReaderNoteDock from "../features/reader/notes/ReaderNoteDock";
+import { useReaderNoteDocks } from "../features/reader/notes/useReaderNoteDocks";
+import { useReaderNoteActions } from "../features/reader/notes/useReaderNoteActions";
 import { useReaderNotes } from "../features/reader/useReaderNotes";
+import { useReaderPageLayout } from "../features/reader/useReaderPageLayout";
 import { useReaderTranslation } from "../features/reader/useReaderTranslation";
 import { useSmoothReaderZoom } from "../features/reader/useSmoothReaderZoom";
 import { useReaderDocumentNavigation } from "../features/reader/useReaderDocumentNavigation";
@@ -60,12 +64,24 @@ export default function PaperReader() {
   // 翻译栏展开即等于「自动翻译」：展开时划词自动翻译，收起则不翻译。
   const [rightPanel, setRightPanel] = useState<ReaderRightPanel>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // 单页 / 双页并排，偏好跨论文共享。
+  const pageLayout = useReaderPageLayout();
+  // 双页适宽系数（1 = 未被压缩），只用于在缩放控件上说明当前显示状态。
+  const [spreadFit, setSpreadFit] = useState(1);
 
   const { notes, error: notesError, createAnnotation, updateColor, updateFill, updateContent, moveAnnotation, deleteAnnotation, undo } = useReaderNotes(id);
   const translation = useReaderTranslation();
   const navigation = useReaderDocumentNavigation(pdfDoc, searchQuery);
   const readerProgress = useReaderProgress(id);
   const qa = useReaderQuestionAnswer(id, paper?.title ?? "", navigation.pages);
+
+  // 左右笔记栏：宽度/开关是用户意图，实际是否展开由阅读行剩余空间决定（见 dockLayout）。
+  const docks = useReaderNoteDocks({
+    navOpen: leftOpen,
+    navWidth: leftPanel.width,
+    auxOpen: rightPanel !== null,
+    auxWidth: rightPanelSize.width,
+  });
 
   useEffect(() => {
     setSelection(null);
@@ -79,6 +95,15 @@ export default function PaperReader() {
   }, []);
   const { toast, flashToast, saveSelection: handleSaveCorpus, error: corpusError } = useReaderCorpusCapture({
     paperId: id, selection, clearSelection,
+  });
+  const {
+    activeNoteId, dockNotes, dockNoteCount, selectionSide, noteTickVisible, noteDocksOpen,
+    holdLeftTicks, releaseLeftTicks, holdRightTicks, releaseRightTicks,
+    handleAddNote, handleSaveTranslationToDock, handleMoveNoteSide, handleNoteLocate,
+    handleNoteTickClick, handleHoverNote, handleDeleteNote, handleCollapseDock, handleToggleNoteDocks,
+  } = useReaderNoteActions({
+    paperId: id, notes, selection, docks, createAnnotation, deleteAnnotation,
+    translation: translation.current, clearSelection, flashToast, viewerRef,
   });
 
   // Cmd(mac)/Ctrl(win)+Z 撤销最近一次批注；在输入框内则交还给浏览器做文本撤销。
@@ -115,7 +140,7 @@ export default function PaperReader() {
       setEditing(null);
 
       if (rightPanel === "translation" && !translation.locked) {
-        void translation.translate(next.text, next.page);
+        void translation.translate(next.text, next.page, next.positions);
       }
 
       if (mode === "text-annotation" && !isTextStyle(annotateTool)) {
@@ -169,7 +194,7 @@ export default function PaperReader() {
   const handleTranslate = useCallback(() => {
     if (!selection) return;
     setRightPanel("translation");
-    void translation.translate(selection.text, selection.page);
+    void translation.translate(selection.text, selection.page, selection.positions);
     setSelection(null);
   }, [selection, translation]);
 
@@ -224,6 +249,16 @@ export default function PaperReader() {
     [translation],
   );
 
+  // 切换单页/双页会整篇重排，把当前页拉回视口顶部，阅读位置不跑。
+  const togglePageLayout = pageLayout.toggleLayout;
+  const currentPage = readerProgress.progress.page;
+  const handleTogglePageLayout = useCallback(() => {
+    togglePageLayout();
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => viewerRef.current?.scrollToPage(currentPage, { smooth: false }));
+    });
+  }, [togglePageLayout, currentPage]);
+
   const drawShape = mode === "shape-annotation" && isShapeStyle(annotateTool) ? annotateTool : null;
   const drawText = mode === "text-annotation" && isTextStyle(annotateTool);
 
@@ -232,6 +267,11 @@ export default function PaperReader() {
       <ReaderToolbar
         leftOpen={leftOpen}
         onToggleLeft={() => setLeftOpen((v) => !v)}
+        spread={pageLayout.spread}
+        onTogglePageLayout={handleTogglePageLayout}
+        noteDocksOpen={noteDocksOpen}
+        noteCount={dockNoteCount}
+        onToggleNoteDocks={handleToggleNoteDocks}
         onBack={() => navigate("/papers")}
         mode={mode}
         onModeChange={handleModeChange}
@@ -248,7 +288,7 @@ export default function PaperReader() {
         <div className="shrink-0 bg-apple-red/10 px-4 py-1.5 text-xs text-apple-red">{[notesError, corpusError].filter(Boolean).join("；")}</div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1" ref={docks.rowRef}>
         {leftOpen ? (
           <ReaderSidebar
             width={leftPanel.width}
@@ -265,10 +305,31 @@ export default function PaperReader() {
             notes={notes}
             progress={readerProgress.progress}
             onPageSelect={(page) => viewerRef.current?.scrollToPage(page)}
+            onNoteSelect={handleNoteLocate}
             onNoteDelete={(noteId) => void deleteAnnotation(noteId)}
             onDragStart={(event) => leftPanel.onDragStart(event, "right")}
           />
         ) : null}
+
+        <ReaderNoteDock
+          side="left"
+          mode={docks.modeOf("left")}
+          width={docks.layout.width}
+          notes={dockNotes.left}
+          autoCollapsed={docks.layout.autoCollapsed.includes("left")}
+          activeNoteId={activeNoteId}
+          flashNoteId={docks.flashNoteId}
+          onWidthChange={(width) => docks.setWidth(width)}
+          onExpand={() => docks.expand("left")}
+          onCollapse={() => handleCollapseDock("left")}
+          onHoverNote={handleHoverNote}
+          onLocate={handleNoteLocate}
+          onMoveSide={handleMoveNoteSide}
+          onUpdateContent={(note, content) => void updateContent(note.id, content)}
+          onDelete={handleDeleteNote}
+          onIndicatorHold={holdLeftTicks}
+          onIndicatorRelease={releaseLeftTicks}
+        />
 
         <div className="relative min-w-0 flex-1">
           {readerLoading ? (
@@ -291,6 +352,7 @@ export default function PaperReader() {
               notes={notes}
               scale={scale}
               renderScale={renderScale}
+              pageLayout={pageLayout.layout}
               readingAreaSelectionEnabled={mode === "view"}
               initialPage={readerProgress.initialPage}
               onProgressChange={readerProgress.recordProgress}
@@ -310,17 +372,43 @@ export default function PaperReader() {
               onTextDelete={(note) => deleteAnnotation(note.id)}
               onTextColorChange={(note, color) => void updateColor(note.id, color)}
               onAnnotationMove={handleAnnotationMove}
+              noteTickVisible={noteTickVisible}
+              noteSideOverrides={docks.sideOverrides}
+              activeNoteId={activeNoteId}
+              onNoteTickClick={handleNoteTickClick}
+              onSpreadFitChange={setSpreadFit}
             />
           ) : null}
           {pdfDoc && !readerLoading && !readerError ? (
             <ReaderZoomControl
               scalePercent={Math.round(scale * 100)}
+              fitLimited={pageLayout.spread && spreadFit < 0.999}
               onZoomIn={() => zoomStep(0.1)}
               onZoomOut={() => zoomStep(-0.1)}
               onScalePercentChange={(percent) => setScale(percent / 100)}
             />
           ) : null}
         </div>
+
+        <ReaderNoteDock
+          side="right"
+          mode={docks.modeOf("right")}
+          width={docks.layout.width}
+          notes={dockNotes.right}
+          autoCollapsed={docks.layout.autoCollapsed.includes("right")}
+          activeNoteId={activeNoteId}
+          flashNoteId={docks.flashNoteId}
+          onWidthChange={(width) => docks.setWidth(width)}
+          onExpand={() => docks.expand("right")}
+          onCollapse={() => handleCollapseDock("right")}
+          onHoverNote={handleHoverNote}
+          onLocate={handleNoteLocate}
+          onMoveSide={handleMoveNoteSide}
+          onUpdateContent={(note, content) => void updateContent(note.id, content)}
+          onDelete={handleDeleteNote}
+          onIndicatorHold={holdRightTicks}
+          onIndicatorRelease={releaseRightTicks}
+        />
 
         <ReaderRightRail
           active={rightPanel}
@@ -345,6 +433,7 @@ export default function PaperReader() {
             onEditSource={translation.editSource}
             onClear={translation.clear}
             onCollapse={() => setRightPanel(null)}
+            onSaveToDock={handleSaveTranslationToDock}
             width={rightPanelSize.width}
             onDragStart={(e) => rightPanelSize.onDragStart(e, "left")}
           />
@@ -382,6 +471,8 @@ export default function PaperReader() {
           x={selection.popupX}
           y={selection.popupY}
           selectedText={selection.text}
+          noteSide={selectionSide}
+          onAddNote={handleAddNote}
           onAnnotate={handleAnnotate}
           onSaveCorpus={handleSaveCorpus}
           onTranslate={handleTranslate}
@@ -408,7 +499,7 @@ export default function PaperReader() {
             return saved;
           }}
           onTranslate={() => {
-            void translation.translate(editing.note.highlight_text ?? "", editing.note.page);
+            void translation.translate(editing.note.highlight_text ?? "", editing.note.page, editing.note.highlight_positions ?? undefined);
             setEditing(null);
           }}
           onClose={() => setEditing(null)}

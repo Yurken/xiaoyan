@@ -7,6 +7,8 @@ export function usePdfPageWindow(
   containerRef: RefObject<HTMLDivElement | null>,
   pageRefs: RefObject<Array<HTMLDivElement | null>>,
   initialPage = 1,
+  /** 排布变化（单页/双页）会让页面节点重建，需要重新挂观察器。 */
+  layoutKey: string = "single",
 ) {
   const [window, setWindow] = useState(() => {
     const pages = new Set([Math.min(pdfDoc.numPages, Math.max(1, initialPage))]);
@@ -31,7 +33,7 @@ export function usePdfPageWindow(
     }, { root: container, rootMargin: "600px 0px" });
     pageRefs.current.forEach((page) => { if (page) observer.observe(page); });
     return () => observer.disconnect();
-  }, [pdfDoc, containerRef, pageRefs]);
+  }, [pdfDoc, containerRef, pageRefs, layoutKey]);
 
   if (window.document === pdfDoc) return window;
   const pages = new Set([Math.min(pdfDoc.numPages, Math.max(1, initialPage))]);

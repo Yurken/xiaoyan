@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Check, ChevronRight, Copy, HelpCircle, Languages, Lock, Pencil, Sparkles, Trash2 } from "lucide-react";
+import { Check, ChevronRight, Copy, HelpCircle, Languages, Lock, PanelLeft, PanelRight, Pencil, Sparkles, Trash2 } from "lucide-react";
+import type { NoteDockSide } from "./readerTypes";
 import {
   type InterpretationState,
   type TranslationState,
@@ -24,6 +25,8 @@ interface ReaderTranslationPanelProps {
   onEditSource: (text: string) => void;
   onClear: () => void;
   onCollapse: () => void;
+  /** 一键把当前译文存进指定一侧的笔记栏。 */
+  onSaveToDock?: (side: NoteDockSide) => void;
   width?: number;
   onDragStart?: (event: React.MouseEvent) => void;
 }
@@ -50,15 +53,18 @@ export default function ReaderTranslationPanel({
   onEditSource,
   onClear,
   onCollapse,
+  onSaveToDock,
   width,
   onDragStart,
 }: ReaderTranslationPanelProps) {
   const [copied, setCopied] = useState<CopyKey | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
+  const [savedSide, setSavedSide] = useState<NoteDockSide | null>(null);
 
   // 切换到新的一条翻译时，退出原文编辑态。
   useEffect(() => {
     setDraft(null);
+    setSavedSide(null);
   }, [current?.id]);
 
   const copy = async (key: CopyKey, text: string) => {
@@ -167,6 +173,30 @@ export default function ReaderTranslationPanel({
                     <span className="text-[11px] font-semibold text-ink-tertiary">第 {current.page} 页</span>
                   ) : null}
                   <div className="ml-auto flex items-center gap-1">
+                    {onSaveToDock ? (["left", "right"] as const).map((dockSide) => {
+                      const Icon = dockSide === "left" ? PanelLeft : PanelRight;
+                      const saved = savedSide === dockSide;
+                      return (
+                        <button
+                          key={dockSide}
+                          type="button"
+                          onClick={() => {
+                            onSaveToDock?.(dockSide);
+                            setSavedSide(dockSide);
+                            window.setTimeout(
+                              () => setSavedSide((value) => (value === dockSide ? null : value)),
+                              1600,
+                            );
+                          }}
+                          disabled={current?.status !== "done" || !current?.result.trim()}
+                          className="flex items-center rounded px-1 py-0.5 text-ink-tertiary transition-colors hover:text-apple-blue disabled:opacity-40"
+                          title={`把译文存入${dockSide === "left" ? "左" : "右"}栏笔记（保留原文位置）`}
+                          aria-label={`存入${dockSide === "left" ? "左" : "右"}栏`}
+                        >
+                          {saved ? <Check className="h-3.5 w-3.5 text-apple-blue" /> : <Icon className="h-3.5 w-3.5" />}
+                        </button>
+                      );
+                    }) : null}
                     <button
                       type="button"
                       onClick={() => void onInterpret()}

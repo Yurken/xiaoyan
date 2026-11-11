@@ -29,6 +29,11 @@ function ToolbarHarness() {
     <ReaderToolbar
       leftOpen
       onToggleLeft={vi.fn()}
+      spread={false}
+      onTogglePageLayout={vi.fn()}
+      noteDocksOpen
+      noteCount={0}
+      onToggleNoteDocks={vi.fn()}
       onBack={vi.fn()}
       mode={mode}
       onModeChange={setMode}

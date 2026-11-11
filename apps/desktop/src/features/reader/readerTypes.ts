@@ -124,6 +124,9 @@ export interface ReaderImageSelection {
   height: number;
 }
 
+/** 笔记栏归属：阅读区左右各一栏。由批注位置推导，不额外落库。 */
+export type NoteDockSide = "left" | "right";
+
 export interface PaperNote {
   id: string;
   paper_id: string;

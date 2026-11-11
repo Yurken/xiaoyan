@@ -1,0 +1,26 @@
+/* 笔记栏的闪烁提示：新建或从译文存入后，卡片边缘亮一下再退去。 */
+@keyframes note-dock-flash {
+  0% {
+    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.75);
+  }
+  70% {
+    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.28);
+  }
+  100% {
+    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0);
+  }
+}
+
+.note-dock-card--flash {
+  animation: note-dock-flash 1.6s ease-out 1;
+}
+
+.note-dock-rail {
+  background: transparent;
+  cursor: pointer;
+}
+
+.note-dock-rail:focus-visible {
+  outline: 2px solid var(--rc-accent);
+  outline-offset: -2px;
+}

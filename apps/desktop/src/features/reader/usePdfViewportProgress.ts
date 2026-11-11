@@ -1,9 +1,11 @@
-import { useEffect, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useRef, type RefObject } from "react";
+import { resolveViewportPage } from "./pageLayout";
 
 interface UsePdfViewportProgressOptions {
   containerRef: RefObject<HTMLDivElement | null>;
   pageRefs: RefObject<Array<HTMLDivElement | null>>;
   numPages: number;
+  documentKey?: object;
   initialPage?: number;
   onProgressChange?: (progress: { page: number; totalPages: number; percent: number }) => void;
 }
@@ -13,15 +15,25 @@ export function usePdfViewportProgress({
   containerRef,
   pageRefs,
   numPages,
+  documentKey,
   initialPage = 1,
   onProgressChange,
 }: UsePdfViewportProgressOptions) {
   const restoredRef = useRef(false);
   const frameRef = useRef(0);
+  const preferredPageRef = useRef(initialPage);
+  const initialPageRef = useRef(initialPage);
+  initialPageRef.current = initialPage;
+  const scheduleMeasureRef = useRef<(() => void) | null>(null);
+  const markPageActive = useCallback((page: number) => {
+    preferredPageRef.current = Math.min(numPages, Math.max(1, page));
+    scheduleMeasureRef.current?.();
+  }, [numPages]);
 
   useEffect(() => {
-    if (numPages === 0) restoredRef.current = false;
-  }, [numPages]);
+    restoredRef.current = false;
+    preferredPageRef.current = initialPageRef.current;
+  }, [documentKey, numPages]);
 
   useEffect(() => {
     if (restoredRef.current || numPages === 0) return;
@@ -31,7 +43,7 @@ export function usePdfViewportProgress({
       restoredRef.current = true;
     });
     return () => cancelAnimationFrame(frame);
-  }, [initialPage, numPages, pageRefs]);
+  }, [documentKey, initialPage, numPages, pageRefs]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -40,18 +52,12 @@ export function usePdfViewportProgress({
     const measure = () => {
       frameRef.current = 0;
       const containerRect = container.getBoundingClientRect();
-      const center = containerRect.top + container.clientHeight * 0.42;
-      let nearestPage = 1;
-      let nearestDistance = Number.POSITIVE_INFINITY;
-      pageRefs.current.forEach((page, index) => {
-        if (!page) return;
+      const pages = pageRefs.current.flatMap((page, index) => {
+        if (!page) return [];
         const rect = page.getBoundingClientRect();
-        const distance = Math.abs(rect.top + Math.min(rect.height / 2, container.clientHeight * 0.35) - center);
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          nearestPage = index + 1;
-        }
+        return [{ page: index + 1, top: rect.top, height: rect.height }];
       });
+      const nearestPage = resolveViewportPage(pages, containerRect.top, container.clientHeight, preferredPageRef.current);
       const scrollPercent = container.scrollHeight <= container.clientHeight
         ? 100
         : ((container.scrollTop + container.clientHeight) / container.scrollHeight) * 100;
@@ -64,12 +70,23 @@ export function usePdfViewportProgress({
     const onScroll = () => {
       if (!frameRef.current) frameRef.current = requestAnimationFrame(measure);
     };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-page-num]") : null;
+      const page = Number(target?.dataset.pageNum);
+      if (page > 0) markPageActive(page);
+    };
+    scheduleMeasureRef.current = onScroll;
     container.addEventListener("scroll", onScroll, { passive: true });
+    container.addEventListener("pointerdown", onPointerDown);
     const initialFrame = requestAnimationFrame(measure);
     return () => {
+      scheduleMeasureRef.current = null;
       container.removeEventListener("scroll", onScroll);
+      container.removeEventListener("pointerdown", onPointerDown);
       cancelAnimationFrame(initialFrame);
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
     };
-  }, [containerRef, numPages, onProgressChange, pageRefs]);
+  }, [containerRef, documentKey, markPageActive, numPages, onProgressChange, pageRefs]);
+
+  return { markPageActive };
 }

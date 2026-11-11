@@ -1,5 +1,5 @@
 import "./text-layer.css";
-import { forwardRef, useCallback, useRef, useState } from "react";
+import { forwardRef, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import {
   boundingRect,
@@ -10,11 +10,14 @@ import {
   SHAPE_BORDER_RADIUS,
   type HighlightColor,
   type NormalizedRect,
+  type NoteDockSide,
   type PaperNote,
   type ReaderImageSelection,
   type ShapeStyle,
 } from "./readerTypes";
 import PdfTextAnnotationLayer from "./PdfTextAnnotationLayer";
+import { buildNoteTicks, noteTickStyle } from "./notes/noteTicks";
+import type { ReaderPageSize } from "./pageLayout";
 import { usePdfAreaSelection } from "./usePdfAreaSelection";
 import { useLineHighlightInteraction } from "./useLineHighlightInteraction";
 import { openLink } from "../../lib/links";
@@ -28,6 +31,13 @@ export interface PdfPageProps {
   pdfDoc: PDFDocumentProxy;
   scale: number;
   renderScale: number;
+  /** 视觉缩放的额外收敛系数（双页适宽用），1 = 不干预。 */
+  displayFactor?: number;
+  /** 以首页尺寸估计未渲染页，保持懒渲染占位和双页适宽的几何一致。 */
+  estimatedPageSize?: ReaderPageSize;
+  onPageSize?: (page: number, size: ReaderPageSize) => void;
+  /** 双页模式下该页在行内的位置：细线统一朝外，避免两页的细线挤在页缝里。 */
+  spreadEdge?: "left" | "right";
   readingAreaSelectionEnabled: boolean;
   devicePixelRatio: number;
   shouldRender: boolean;
@@ -49,10 +59,19 @@ export interface PdfPageProps {
   onTextDelete?: (note: PaperNote) => void | Promise<boolean | void>;
   onTextColorChange?: (note: PaperNote, color: HighlightColor) => void;
   onAnnotationMove?: (note: PaperNote, rect: NormalizedRect) => void;
+  /** 该侧笔记栏收起时，用细线在原文位置做标记（按侧分别控制显隐）。 */
+  noteTickVisible?: Record<NoteDockSide, boolean>;
+  /** 手动换过栏的笔记：批注 ID → 栏位。 */
+  noteSideOverrides?: Record<string, NoteDockSide>;
+  /** 与笔记卡联动的当前笔记：细线加粗、不透明度拉满。 */
+  activeNoteId?: string | null;
+  onNoteTickClick?: (note: PaperNote) => void;
 }
 
+const NO_NOTE_TICKS: Record<NoteDockSide, boolean> = { left: false, right: false };
+
 const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
-  { pageNum, pdfDoc, scale, renderScale, readingAreaSelectionEnabled, devicePixelRatio, shouldRender, retainResources, renderQueue, renderPriority, pageNotes, onNoteClick, onScrollToPage, onAreaSelected, onAreaSelectError, drawShape, drawText, drawColor, drawFill, onShapeDrawn, onTextDrawn, onTextUpdate, onTextDelete, onTextColorChange, onAnnotationMove },
+  { pageNum, pdfDoc, scale, renderScale, displayFactor = 1, estimatedPageSize, onPageSize, spreadEdge, readingAreaSelectionEnabled, devicePixelRatio, shouldRender, retainResources, renderQueue, renderPriority, pageNotes, onNoteClick, onScrollToPage, onAreaSelected, onAreaSelectError, drawShape, drawText, drawColor, drawFill, onShapeDrawn, onTextDrawn, onTextUpdate, onTextDelete, onTextColorChange, onAnnotationMove, noteTickVisible = NO_NOTE_TICKS, noteSideOverrides, activeNoteId = null, onNoteTickClick },
   ref,
 ) {
   const imageRef = useRef<HTMLImageElement>(null);
@@ -64,6 +83,15 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     pdfDoc, pageNum, renderScale, devicePixelRatio, shouldRender, retainResources,
     renderQueue, renderPriority, textLayerRef,
   });
+
+  const sizeDocumentRef = useRef(pdfDoc);
+  useLayoutEffect(() => {
+    const sameDocument = sizeDocumentRef.current === pdfDoc;
+    sizeDocumentRef.current = pdfDoc;
+    if (sameDocument && pageSize && renderedScale > 0) {
+      onPageSize?.(pageNum, { width: pageSize.w / renderedScale, height: pageSize.h / renderedScale });
+    }
+  }, [pdfDoc, onPageSize, pageNum, pageSize, renderedScale]);
 
   const handleLinkClick = useCallback(
     async (event: React.MouseEvent, link: PdfLink) => {
@@ -180,13 +208,24 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     requireAltKey: true,
   });
 
-  const visualScaleRatio = renderedScale > 0 ? scale / renderedScale : 1;
+  // 视觉缩放 = 用户比例 / 渲染比例，再乘双页适宽系数：只缩显示，不触发重绘。
+  const visualScaleRatio = (renderedScale > 0 ? scale / renderedScale : 1) * displayFactor;
+  // 双页并排时由行容器 justify-center 居中，这页不再用 mx-auto（auto margin 会把两页推开）；
+  // shrink-0 防止窄窗口下 flex 压缩外框——内部绝对定位层不会跟着缩，会错位。
+  const pageClassName = `rc-selectable relative shrink-0 select-text${spreadEdge ? "" : " mx-auto"}`;
+  // 笔记栏收起时，在该页对应的原文行旁留一条细线；位置取自批注的归一化坐标，随缩放自动跟随。
+  const noteTicks = useMemo(
+    () => (pageSize ? buildNoteTicks(pageNotes, pageSize.h, noteTickVisible, noteSideOverrides) : []),
+    [pageNotes, pageSize, noteTickVisible, noteSideOverrides],
+  );
   const containerStyle: React.CSSProperties = pageSize
     ? ({
         width: pageSize.w * visualScaleRatio,
         height: pageSize.h * visualScaleRatio,
       } as React.CSSProperties)
-    : { minHeight: 400, width: "100%" };
+    : estimatedPageSize
+      ? { width: estimatedPageSize.width * scale * displayFactor, height: estimatedPageSize.height * scale * displayFactor }
+      : { minHeight: 400, width: spreadEdge ? "calc((100% - 16px) / 2)" : "100%" };
   const renderLayerStyle: React.CSSProperties = pageSize
     ? ({
         width: pageSize.w,
@@ -205,7 +244,8 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
     <div
       ref={ref}
       data-page-num={pageNum}
-      className="rc-selectable relative mx-auto select-text"
+      data-page-ready={pageSize ? "1" : "0"}
+      className={pageClassName}
       style={{ ...containerStyle, background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", borderRadius: 4 }}
       onClick={handlePageClick}
       onMouseMove={handlePageMouseMove}
@@ -387,6 +427,42 @@ const PdfPage = forwardRef<HTMLDivElement, PdfPageProps>(function PdfPage(
           </div>
         ) : null}
       </div>
+
+      {noteTicks.map((tick) => {
+        const active = activeNoteId === tick.note.id;
+        const visible = active || noteTickVisible[tick.side];
+        const tickStyle = noteTickStyle(tick, active);
+        // 双页并排时统一贴外侧，否则两页的细线会一起落在页缝里互相压住。
+        const edge = spreadEdge ?? tick.side;
+        return (
+          <button
+            key={tick.note.id}
+            type="button"
+            className="pdf-note-tick absolute z-[4] border-0 bg-transparent p-0"
+            style={{
+              top: tick.offset * visualScaleRatio,
+              left: edge === "left" ? -(tickStyle.width + 2) : undefined,
+              right: edge === "right" ? -(tickStyle.width + 2) : undefined,
+              width: tickStyle.width,
+              height: tickStyle.height,
+              background: tickStyle.background,
+              opacity: visible ? tickStyle.opacity : 0,
+              pointerEvents: visible ? "auto" : "none",
+              transform: "translateY(-50%)",
+              transition: "opacity 260ms ease, width 160ms ease, height 160ms ease",
+              borderRadius: 1,
+              cursor: "pointer",
+            }}
+            title={tick.note.content?.trim() || tick.note.highlight_text?.trim() || `第 ${tick.note.page} 页的笔记`}
+            aria-label={`定位到第 ${tick.note.page} 页的笔记`}
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onNoteTickClick?.(tick.note);
+            }}
+          />
+        );
+      })}
 
       <div
         className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px]"
