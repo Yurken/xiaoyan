@@ -6,6 +6,8 @@ interface ReaderZoomControlProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onScalePercentChange: (percent: number) => void;
+  /** 双页模式下页面已缩到「刚好容纳两页」，此时再放大不会继续变大。 */
+  fitLimited?: boolean;
 }
 
 const MIN_SCALE_PERCENT = 60;
@@ -17,6 +19,7 @@ export default function ReaderZoomControl({
   onZoomIn,
   onZoomOut,
   onScalePercentChange,
+  fitLimited = false,
 }: ReaderZoomControlProps) {
   const [draft, setDraft] = useState(String(scalePercent));
   const [active, setActive] = useState(false);
@@ -105,6 +108,15 @@ export default function ReaderZoomControl({
         />
         <span className="text-[10px] text-ink-tertiary">%</span>
       </div>
+      {fitLimited ? (
+        <span
+          className="mx-0.5 rounded px-1 py-px text-[9px] font-medium"
+          style={{ background: "var(--rc-chip-inset-bg)", color: "var(--rc-text-tertiary)" }}
+          title="双页模式下已缩到刚好容纳两页；想放大看细节请切回单页"
+        >
+          适宽
+        </span>
+      ) : null}
       <button type="button" onClick={onZoomIn} className={controlBtn} title="放大">
         <Plus className="h-3.5 w-3.5" />
       </button>

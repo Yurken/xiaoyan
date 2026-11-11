@@ -31,18 +31,28 @@ export function useReaderNotes(paperId: string | undefined) {
 
   useEffect(() => { void reload(); }, [reload]);
 
-  const createAnnotation = useCallback((input: CreateAnnotationInput) => run(async () => {
-    if (!session.paperId) return;
-    const created = await paperNotesApi.create({
-      paper_id: session.paperId, page: input.page, content: input.content ?? "",
-      highlight_text: input.highlightText, highlight_color: input.color,
-      highlight_positions: input.positions, style: input.style, fill_color: input.fillColor ?? "none",
-    });
-    const note = normalizePaperNote(created);
-    if (!note || note.paper_id !== session.paperId) throw new Error("保存批注返回了无效记录，请重新加载批注。");
-    session.notes = [...session.notes, note];
-    pushUndo({ kind: "remove", id: note.id });
-  }, "保存批注失败"), [pushUndo, run, session]);
+  // 返回是否保存成功；onCreated 让调用方拿到新批注，用于笔记栏定位与闪烁提示。
+  const createAnnotation = useCallback(async (
+    input: CreateAnnotationInput,
+    onCreated?: (note: PaperNote) => void,
+  ): Promise<boolean> => {
+    let createdNote: PaperNote | null = null;
+    const saved = await run(async () => {
+      if (!session.paperId) return;
+      const created = await paperNotesApi.create({
+        paper_id: session.paperId, page: input.page, content: input.content ?? "",
+        highlight_text: input.highlightText, highlight_color: input.color,
+        highlight_positions: input.positions, style: input.style, fill_color: input.fillColor ?? "none",
+      });
+      const note = normalizePaperNote(created);
+      if (!note || note.paper_id !== session.paperId) throw new Error("保存批注返回了无效记录，请重新加载批注。");
+      session.notes = [...session.notes, note];
+      pushUndo({ kind: "remove", id: note.id });
+      createdNote = note;
+    }, "保存批注失败");
+    if (saved && createdNote) onCreated?.(createdNote);
+    return saved;
+  }, [pushUndo, run, session]);
 
   const patchAnnotation = useCallback((id: string, patch: AnnotationPatch, failureMessage: string) => run(async () => {
     const previous = session.notes.find((note) => note.id === id);

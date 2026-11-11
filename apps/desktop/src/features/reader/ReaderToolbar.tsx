@@ -1,12 +1,14 @@
 import {
   ArrowLeft,
   Ban,
+  BookOpen,
   Circle,
   ExternalLink,
   Highlighter,
   PanelLeft,
   Square,
   Squircle,
+  StickyNote,
   Strikethrough,
   Type,
   Underline,
@@ -24,6 +26,13 @@ import {
 interface ReaderToolbarProps {
   leftOpen: boolean;
   onToggleLeft: () => void;
+  /** 是否双页并排阅读。 */
+  spread: boolean;
+  onTogglePageLayout: () => void;
+  /** 左右笔记栏当前是否展开（任一侧展开即为 true）。 */
+  noteDocksOpen: boolean;
+  noteCount: number;
+  onToggleNoteDocks: () => void;
   onBack: () => void;
   mode: ReaderMode;
   onModeChange: (mode: ReaderMode) => void;
@@ -60,6 +69,11 @@ const modes: Array<{ key: ReaderMode; label: string }> = [
 export default function ReaderToolbar({
   leftOpen,
   onToggleLeft,
+  spread,
+  onTogglePageLayout,
+  noteDocksOpen,
+  noteCount,
+  onToggleNoteDocks,
   onBack,
   mode,
   onModeChange,
@@ -214,8 +228,38 @@ export default function ReaderToolbar({
         </div>
       ) : null}
 
+      <button
+        type="button"
+        onClick={onTogglePageLayout}
+        className={`${iconBtn} ml-auto`}
+        style={spread ? { color: "var(--rc-accent)" } : undefined}
+        title={spread ? "切换为单页阅读" : "切换为双页阅读（左右并排，首页单独）"}
+        aria-pressed={spread}
+      >
+        <BookOpen className="h-4 w-4" />
+      </button>
+
+      <button
+        type="button"
+        onClick={onToggleNoteDocks}
+        className={`${iconBtn} relative`}
+        style={noteDocksOpen ? { color: "var(--rc-accent)" } : undefined}
+        title={noteDocksOpen ? "收起左右笔记栏（收起后用细线标记原文位置）" : `展开左右笔记栏${noteCount > 0 ? `（${noteCount} 条笔记）` : ""}`}
+        aria-pressed={noteDocksOpen}
+      >
+        <StickyNote className="h-4 w-4" />
+        {noteCount > 0 ? (
+          <span
+            className="absolute right-0.5 top-0.5 min-w-[13px] rounded-full px-1 text-center text-[9px] font-semibold leading-[13px] tabular-nums"
+            style={{ background: "var(--rc-accent)", color: "#fff" }}
+          >
+            {noteCount > 99 ? "99+" : noteCount}
+          </span>
+        ) : null}
+      </button>
+
       {onOpenExternal ? (
-        <button type="button" onClick={onOpenExternal} className={`${iconBtn} ml-auto`} title="用系统阅读器打开">
+        <button type="button" onClick={onOpenExternal} className={iconBtn} title="用系统阅读器打开">
           <ExternalLink className="h-4 w-4" />
         </button>
       ) : null}

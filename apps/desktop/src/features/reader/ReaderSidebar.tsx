@@ -28,6 +28,8 @@ interface ReaderSidebarProps {
   notes: PaperNote[];
   progress: ReaderProgressState;
   onPageSelect: (page: number) => void;
+  /** 点批注条目时精确定位到原文位置；未提供则退回按页跳转。 */
+  onNoteSelect?: (note: PaperNote) => void;
   onNoteDelete: (id: string) => void;
   onDragStart: (event: React.MouseEvent) => void;
 }
@@ -63,6 +65,7 @@ export default function ReaderSidebar({
   notes,
   progress,
   onPageSelect,
+  onNoteSelect,
   onNoteDelete,
   onDragStart,
 }: ReaderSidebarProps) {
@@ -235,7 +238,11 @@ export default function ReaderSidebar({
             {sortedNotes.length === 0 ? <p className="py-8 text-center text-xs text-ink-tertiary">还没有批注</p> : null}
             {sortedNotes.map((note) => (
               <div key={note.id} className="group relative mb-1.5 rounded-lg px-2.5 py-2 hover:bg-[var(--rc-card-inset-bg)] focus-within:bg-[var(--rc-card-inset-bg)]">
-                <button type="button" onClick={() => onPageSelect(note.page)} className="w-full pr-6 text-left">
+                <button
+                  type="button"
+                  onClick={() => (onNoteSelect ? onNoteSelect(note) : onPageSelect(note.page))}
+                  className="w-full pr-6 text-left"
+                >
                   <div className="mb-1 flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full" style={{ background: HIGHLIGHT_COLORS[note.highlight_color].border }} />
                     <span className="text-[10px] font-semibold text-ink-secondary">{noteLabel(note)}</span>

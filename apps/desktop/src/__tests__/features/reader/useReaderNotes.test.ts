@@ -44,6 +44,20 @@ describe("useReaderNotes 的持久化与论文切换", () => {
     api.delete.mockResolvedValue(undefined);
   });
 
+  it("只在创建成功时调用定位回调，并保留布尔保存结果", async () => {
+    const { result } = await loadedHook();
+    const onCreated = vi.fn();
+    api.create.mockRejectedValueOnce(new Error("保存失败"));
+    let saved = true;
+    await act(async () => { saved = await result.current.createAnnotation(input, onCreated); });
+    expect(saved).toBe(false);
+    expect(onCreated).not.toHaveBeenCalled();
+    await act(async () => { saved = await result.current.createAnnotation(input, onCreated); });
+    expect(saved).toBe(true);
+    expect(onCreated).toHaveBeenCalledOnce();
+    expect(onCreated).toHaveBeenCalledWith(expect.objectContaining(note("created")));
+  });
+
   it("切换后忽略上一论文较晚返回的批注列表", async () => {
     const first = deferred<PaperNote[]>();
     const second = deferred<PaperNote[]>();

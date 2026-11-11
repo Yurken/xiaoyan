@@ -18,6 +18,7 @@ import {
   HIGHLIGHT_COLORS,
   type AnnotationStyle,
   type HighlightColor,
+  type NoteDockSide,
 } from "./readerTypes";
 
 interface SelectionPopupProps {
@@ -30,6 +31,9 @@ interface SelectionPopupProps {
   /** 编辑形状时为 true：颜色点表示边框色，并额外显示填充选择。 */
   isShape?: boolean;
   initialFill?: HighlightColor | null;
+  /** 按选区位置算出的最近一栏，只用于提示「笔记会落到哪」。 */
+  noteSide?: NoteDockSide;
+  onAddNote?: (content: string, color: HighlightColor) => void | Promise<boolean | void>;
   onAnnotate?: (color: HighlightColor, style: AnnotationStyle, note?: string) => void | Promise<boolean | void>;
   onSaveCorpus?: (note?: string) => void;
   onRecolor?: (color: HighlightColor) => void;
@@ -54,6 +58,8 @@ export default function SelectionPopup({
   initialColor = "yellow",
   isShape = false,
   initialFill = null,
+  noteSide = "right",
+  onAddNote,
   onAnnotate,
   onSaveCorpus,
   onRecolor,
@@ -87,6 +93,14 @@ export default function SelectionPopup({
   const pickColor = (color: HighlightColor) => {
     setActiveColor(color);
     if (isEdit) onRecolor?.(color);
+  };
+
+  // 「笔记」= 带正文的批注，落到离选区最近的一栏；没有 onAddNote 时退回普通批注。
+  const submitNote = () => {
+    const text = noteText.trim();
+    if (!text) return;
+    if (onAddNote) void save(() => onAddNote(text, activeColor));
+    else void save(() => onAnnotate?.(activeColor, "highlight", text));
   };
 
   const createActions: Array<{ key: string; icon: typeof Copy; label: string; onClick: () => void; active?: boolean }> = [
@@ -205,14 +219,21 @@ export default function SelectionPopup({
 
         {!isEdit && (panel === "note" || panel === "corpus") ? (
           <div className="mt-2 space-y-2 border-t pt-2" style={{ borderColor: "var(--rc-border)" }}>
+            {panel === "note" ? (
+              <p className="text-[10px] leading-4 text-ink-tertiary">
+                将作为批注存入
+                <span style={{ color: "var(--rc-accent)" }}>{noteSide === "left" ? "左栏" : "右栏"}</span>
+                （按选区位置就近，存好后可在栏内换到另一侧）
+              </p>
+            ) : null}
             <textarea
               value={noteText}
               onChange={(event) => setNoteText(event.target.value)}
-              placeholder={panel === "note" ? "写下你的批注想法…（可留空）" : "给这条语料加点备注…（可留空）"}
+              placeholder={panel === "note" ? "写下笔记内容…" : "给这条语料加点备注…（可留空）"}
               onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !event.nativeEvent.isComposing) {
                   event.preventDefault();
-                  if (panel === "note") void save(() => onAnnotate?.(activeColor, "highlight", noteText.trim()));
+                  if (panel === "note") submitNote();
                 }
               }}
               rows={2}
@@ -224,16 +245,17 @@ export default function SelectionPopup({
               type="button"
               onClick={() => {
                 if (panel === "note") {
-                  void save(() => onAnnotate?.(activeColor, "highlight", noteText.trim()));
+                  submitNote();
                 } else {
                   onSaveCorpus?.(noteText.trim() || undefined);
                 }
               }}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold text-white"
+              disabled={panel === "note" && !noteText.trim()}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold text-white transition-opacity disabled:opacity-40"
               style={{ background: "var(--rc-accent)" }}
             >
               {panel === "note" ? <StickyNote className="h-3.5 w-3.5" /> : <BookMarked className="h-3.5 w-3.5" />}
-              {panel === "note" ? "保存为高亮批注" : "收入语料库"}
+              {panel === "note" ? "存入笔记栏" : "收入语料库"}
             </button>
           </div>
         ) : null}
