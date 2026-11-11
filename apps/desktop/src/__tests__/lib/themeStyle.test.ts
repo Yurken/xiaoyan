@@ -11,9 +11,15 @@ describe("themeStyle", () => {
     document.documentElement.removeAttribute("data-style");
   });
 
-  it("界面风格锁定为 neumorphic，忽略历史存值", () => {
-    localStorage.setItem("rc_style", "modern-minimal");
+  it("未设置或历史值无效时使用拟态风格", () => {
     expect(getThemeStyle()).toBe("neumorphic");
+    localStorage.setItem("rc_style", "liquid-glass");
+    expect(getThemeStyle()).toBe("neumorphic");
+  });
+
+  it("读取已经保存的极简风格", () => {
+    localStorage.setItem("rc_style", "modern-minimal");
+    expect(getThemeStyle()).toBe("modern-minimal");
   });
 
   it("applyThemeStyle 设置 data-style", () => {
@@ -27,5 +33,6 @@ describe("themeStyle", () => {
     expect(document.documentElement.getAttribute("data-style")).toBe(
       "modern-minimal",
     );
+    expect(getThemeStyle()).toBe("modern-minimal");
   });
 });

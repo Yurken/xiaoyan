@@ -18,7 +18,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             background: "var(--rc-button-primary-bg)",
             borderColor: "var(--rc-button-primary-border)",
             boxShadow: inactive ? "none" : "var(--rc-button-primary-shadow)",
-            color: "#ffffff",
+            color: "var(--rc-button-primary-text, #ffffff)",
           }
         : variant === "secondary"
           ? {

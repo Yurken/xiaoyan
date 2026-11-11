@@ -2,7 +2,7 @@ import type { KeyboardEvent } from "react";
 import { AlertCircle, FileSearch, Plus, Sparkles, X } from "lucide-react";
 import { Button, Card, Input, Textarea } from "@research-copilot/ui";
 import type { ArxivRankingMode } from "@research-copilot/types";
-import { ARXIV_CATEGORIES, ARXIV_MODE_OPTIONS } from "./shared";
+import { ARXIV_CATEGORIES, ARXIV_MODE_OPTIONS, TOOL_ERROR_STYLE, TOOL_PRIMARY_STYLE, TOOL_SECONDARY_STYLE } from "./shared";
 
 const insetShadow = "var(--rc-inset-shadow)";
 const raisedShadow = "var(--rc-raised-shadow)";
@@ -199,20 +199,13 @@ export function ArxivFieldSearchPanel({
                           <button
                             key={id}
                             type="button"
+                            aria-pressed={selected}
                             onClick={() => onToggleCategory(id)}
                             className="flex flex-col items-start rounded-xl px-2.5 py-1.5 transition-all duration-100 active:scale-95"
                             style={
                               selected
-                                ? {
-                                    background: "linear-gradient(145deg, #1A8AFF, #0062CC)",
-                                    color: "#FFFFFF",
-                                    boxShadow: "2px 2px 6px rgba(0,62,204,0.3), -1px -1px 4px rgba(58,155,255,0.2)",
-                                  }
-                                : {
-                                    background: "var(--rc-surface)",
-                                    color: "var(--rc-text-soft)",
-                                    boxShadow: raisedShadow,
-                                  }
+                                ? TOOL_PRIMARY_STYLE
+                                : TOOL_SECONDARY_STYLE
                             }
                           >
                             <span className="text-xs font-semibold leading-tight">{id}</span>
@@ -310,7 +303,7 @@ export function ArxivFieldSearchPanel({
       </div>
 
       {error ? (
-        <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
+        <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 px-3 py-2 text-sm" style={TOOL_ERROR_STYLE}>
           <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>{error}</span>
         </div>

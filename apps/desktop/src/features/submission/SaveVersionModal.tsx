@@ -116,7 +116,7 @@ export default function SaveVersionModal({
             onClick={() => void onSubmit()}
             disabled={!form.label.trim() || !form.content.trim()}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 disabled:opacity-40"
-            style={{ background: "var(--rc-button-primary-bg)", color: "#fff" }}
+            style={{ background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)" }}
           >
             <Check className="w-4 h-4" />
             保存版本

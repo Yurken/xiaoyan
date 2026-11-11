@@ -13,12 +13,12 @@ interface WritingLibraryStatusProps {
 export default function WritingLibraryStatus({ ready, status, error, lastSavedAt, onRetryLoad, onRetrySave }: WritingLibraryStatusProps) {
   if (error) {
     return (
-      <div role="alert" className="space-y-1 text-xs text-apple-red">
-        <p className="inline-flex items-center gap-1.5">
+      <div role="alert" className="min-w-0 max-w-full space-y-1 break-words text-xs text-apple-red [overflow-wrap:anywhere]">
+        <p className="inline-flex max-w-full items-center gap-1.5">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           {ready ? "文稿尚未保存：" : "文稿库加载失败："}{error}
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {ready && <span>当前内容仍保留在页面中，请重试后再退出。</span>}
           <button type="button" onClick={ready ? onRetrySave : onRetryLoad} className="font-medium underline underline-offset-2">
             {ready ? "重试保存" : "重新加载"}

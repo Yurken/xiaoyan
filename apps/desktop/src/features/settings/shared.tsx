@@ -108,7 +108,7 @@ export function AgentChip({
         active
           ? {
               background: "var(--rc-button-primary-bg)",
-              color: "#FFFFFF",
+              color: "var(--rc-button-primary-text)",
               boxShadow: "var(--rc-button-primary-shadow)",
             }
           : {
@@ -141,7 +141,7 @@ export function ProviderTab({
         active
           ? {
               background: "var(--rc-button-primary-bg)",
-              color: "#FFFFFF",
+              color: "var(--rc-button-primary-text)",
               boxShadow: "var(--rc-button-primary-shadow)",
             }
           : {
@@ -203,8 +203,9 @@ export function RecommendationList({ items }: { items: string[] }) {
     <div
       className="rounded-3xl px-4 py-4 space-y-2"
       style={{
-        background: "linear-gradient(145deg, rgba(26,138,255,0.08), rgba(255,255,255,0.75))",
-        boxShadow: "inset 1px 1px 0 rgba(255,255,255,0.75), 0 12px 24px rgba(15,23,42,0.05)",
+        background: "var(--rc-card-inset-bg)",
+        border: "1px solid var(--rc-card-inset-outline)",
+        boxShadow: "var(--rc-card-inset-shadow)",
       }}
     >
       <div className="flex items-center gap-2">

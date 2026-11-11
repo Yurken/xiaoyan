@@ -36,7 +36,7 @@ export default function SubmissionPaperSidebar({
                       background: "var(--rc-button-primary-bg)",
                       border: "1px solid var(--rc-button-primary-border)",
                       boxShadow: "var(--rc-button-primary-shadow)",
-                      color: "#fff",
+                      color: "var(--rc-button-primary-text)",
                     }
                   : {
                       background: "var(--rc-chip-bg)",

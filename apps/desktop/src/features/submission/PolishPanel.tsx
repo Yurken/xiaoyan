@@ -83,7 +83,7 @@ export default function PolishPanel({
             onClick={onApply}
             disabled={!text}
             className="px-5 py-2 rounded-xl text-sm font-medium disabled:opacity-40"
-            style={{ background: "var(--rc-button-primary-bg)", color: "#fff" }}
+            style={{ background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)" }}
           >
             应用到版本
           </button>

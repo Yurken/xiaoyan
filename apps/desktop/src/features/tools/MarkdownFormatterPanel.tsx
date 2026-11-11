@@ -1,12 +1,9 @@
 import { AlertCircle, FileText, Loader2, Plus } from "lucide-react";
 import { Card, Textarea } from "@research-copilot/ui";
+import { TOOL_ERROR_STYLE, TOOL_PRIMARY_STYLE } from "./shared";
 import { CHUNK_SIZE } from "./useMarkdownFormatter";
 
 const insetShadow = "var(--rc-inset-shadow)";
-const primaryButtonStyle = {
-  background: "linear-gradient(145deg,#1A8AFF,#0062CC)",
-  boxShadow: "4px 4px 10px rgba(0,62,204,0.3),-3px -3px 8px rgba(58,155,255,0.15)",
-} as const;
 
 interface MarkdownProgress {
   current: number;
@@ -88,8 +85,8 @@ export function MarkdownFormatterPanel({
             type="button"
             onClick={() => void onSubmit()}
             disabled={!input.trim() || processing}
-            className="flex items-center gap-1.5 rounded-2xl px-5 py-2 text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
-            style={primaryButtonStyle}
+            className="flex items-center gap-1.5 rounded-2xl px-5 py-2 text-sm font-semibold transition-all duration-150 active:scale-95 disabled:opacity-50"
+            style={TOOL_PRIMARY_STYLE}
           >
             {processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
             {processing ? "整理中…" : "开始整理"}
@@ -107,7 +104,7 @@ export function MarkdownFormatterPanel({
                 className="h-full rounded-full transition-all duration-300"
                 style={{
                   width: `${(progress.current / progress.total) * 100}%`,
-                  background: "linear-gradient(90deg,#1A8AFF,#0062CC)",
+                  background: "var(--rc-accent)",
                 }}
               />
             </div>
@@ -115,7 +112,7 @@ export function MarkdownFormatterPanel({
         ) : null}
 
         {error ? (
-          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
+          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 px-3 py-2 text-sm" style={TOOL_ERROR_STYLE}>
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <span>{error}</span>
           </div>

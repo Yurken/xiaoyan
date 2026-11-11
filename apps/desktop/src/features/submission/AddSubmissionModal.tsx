@@ -66,7 +66,7 @@ export default function AddSubmissionModal({
                   className="flex-1 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
                   style={
                     form.venueType === venueType
-                      ? { background: venueType === "conference" ? "var(--rc-button-primary-bg)" : "#AF52DE", color: "#fff" }
+                      ? { background: venueType === "conference" ? "var(--rc-button-primary-bg)" : "#AF52DE", color: venueType === "conference" ? "var(--rc-button-primary-text)" : "#fff" }
                       : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string }
                   }
                 >
@@ -117,7 +117,7 @@ export default function AddSubmissionModal({
             onClick={() => void onSubmit()}
             disabled={!form.title.trim() || !form.venue.trim()}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 disabled:opacity-40"
-            style={{ background: "var(--rc-button-primary-bg)", color: "#fff" }}
+            style={{ background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)" }}
           >
             <Check className="w-4 h-4" />
             添加

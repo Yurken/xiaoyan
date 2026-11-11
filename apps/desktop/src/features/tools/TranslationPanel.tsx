@@ -1,21 +1,6 @@
 import { AlertCircle, Languages, Loader2 } from "lucide-react";
 import { Card, Textarea } from "@research-copilot/ui";
-
-const raisedShadow = "var(--rc-raised-shadow)";
-const activeChipStyle = {
-  background: "var(--rc-button-primary-bg)",
-  color: "#fff",
-  boxShadow: "var(--rc-button-primary-shadow)",
-} as const;
-const inactiveChipStyle = {
-  background: "var(--rc-surface)",
-  color: "var(--rc-text-soft)",
-  boxShadow: raisedShadow,
-} as const;
-const primaryButtonStyle = {
-  background: "var(--rc-button-primary-bg)",
-  boxShadow: "var(--rc-button-primary-shadow)",
-} as const;
+import { TOOL_ERROR_STYLE, TOOL_PRIMARY_STYLE, TOOL_SECONDARY_STYLE } from "./shared";
 
 const SOURCE_LANG_OPTIONS = [
   { value: "auto", label: "自动识别" },
@@ -81,9 +66,10 @@ export function TranslationPanel({
               <button
                 key={lang.value}
                 type="button"
+                aria-pressed={sourceLang === lang.value}
                 onClick={() => onSourceLangChange(lang.value)}
                 className="rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-150"
-                style={sourceLang === lang.value ? activeChipStyle : inactiveChipStyle}
+                style={sourceLang === lang.value ? TOOL_PRIMARY_STYLE : TOOL_SECONDARY_STYLE}
               >
                 {lang.label}
               </button>
@@ -112,9 +98,10 @@ export function TranslationPanel({
                 <button
                   key={lang.value}
                   type="button"
+                  aria-pressed={targetLang === lang.value}
                   onClick={() => onTargetLangChange(lang.value)}
                   className="rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-150"
-                  style={targetLang === lang.value ? activeChipStyle : inactiveChipStyle}
+                  style={targetLang === lang.value ? TOOL_PRIMARY_STYLE : TOOL_SECONDARY_STYLE}
                 >
                   {lang.label}
                 </button>
@@ -125,8 +112,8 @@ export function TranslationPanel({
             type="button"
             onClick={() => void onSubmit()}
             disabled={!input.trim() || loading}
-            className="flex items-center gap-1.5 rounded-2xl px-5 py-2 text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
-            style={primaryButtonStyle}
+            className="flex items-center gap-1.5 rounded-2xl px-5 py-2 text-sm font-semibold transition-all duration-150 active:scale-95 disabled:opacity-50"
+            style={TOOL_PRIMARY_STYLE}
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4" />}
             {loading ? "翻译中…" : "翻译"}
@@ -134,7 +121,7 @@ export function TranslationPanel({
         </div>
 
         {error ? (
-          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
+          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 px-3 py-2 text-sm" style={TOOL_ERROR_STYLE}>
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <span>{error}</span>
           </div>

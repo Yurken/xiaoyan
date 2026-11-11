@@ -59,7 +59,7 @@ export default function ReviewWorkspace({
               className="flex-shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold"
               style={
                 active
-                  ? { background: "rgba(255,255,255,0.22)", color: "#fff" }
+                  ? { background: "color-mix(in srgb, var(--rc-button-primary-text) 14%, transparent)", color: "var(--rc-button-primary-text)" }
                   : { background: statusStyle.bg, color: statusStyle.color }
               }
             >

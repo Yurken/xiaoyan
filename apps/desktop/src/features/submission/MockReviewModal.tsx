@@ -189,7 +189,7 @@ export default function MockReviewModal({
                               mockReviewInput.strictness === key
                                 ? {
                                     background: key === "lenient" ? "#34C759" : key === "strict" ? "#FF3B30" : "var(--rc-button-primary-bg)",
-                                    color: "#fff",
+                                    color: key === "balanced" ? "var(--rc-button-primary-text)" : "#fff",
                                   }
                                 : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string }
                             }

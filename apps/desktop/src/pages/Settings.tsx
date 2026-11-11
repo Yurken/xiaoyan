@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { AlertCircle, FileSearch, Layers3, Loader2 } from "lucide-react";
 import { Card } from "@research-copilot/ui";
 import { apiClient } from "../lib/client";
@@ -14,7 +14,8 @@ import SettingsChangelogCard, { formatUpdateDate, getChangelogReleaseDate } from
 import FeedbackSection from "../features/settings/FeedbackSection";
 import DesktopAssistantSettingsSection from "../features/settings/DesktopAssistantSettingsSection";
 import LayoutSettingsSection from "../features/settings/LayoutSettingsSection";
-import { DEFAULT_SETTINGS, SETTINGS_SECTIONS, type SettingsSectionKey } from "../features/settings/pageConfig";
+import SettingsTabBar from "../features/settings/SettingsTabBar";
+import { DEFAULT_SETTINGS, SETTINGS_SECTIONS } from "../features/settings/pageConfig";
 import { AgentChip, SectionIcon } from "../features/settings/shared";
 import { applyProviderPreset, detectPreset, type ProviderPresetId } from "../features/settings/providerPresets";
 import { useDataBackup } from "../features/settings/useDataBackup";
@@ -29,103 +30,6 @@ import { useLayoutSettingsController } from "../features/settings/useLayoutSetti
 import { useSettingsSection } from "../features/settings/useSettingsSection";
 import { getUpdateCurrentVersion, getUpdatePublishedAt } from "../lib/updateProgress";
 import type { LlmProvider } from "@research-copilot/types";
-
-function SettingsTabBar({
-  sections,
-  activeSection,
-  onSelect,
-}: {
-  sections: typeof SETTINGS_SECTIONS;
-  activeSection: SettingsSectionKey;
-  onSelect: (key: SettingsSectionKey) => void;
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
-  const [ready, setReady] = useState(false);
-  const [glow, setGlow] = useState({ left: 0, width: 0, opacity: 0 });
-
-  useEffect(() => {
-    const el = buttonRefs.current.get(activeSection);
-    const container = containerRef.current;
-    if (!el || !container) return;
-    const cr = container.getBoundingClientRect();
-    const er = el.getBoundingClientRect();
-    setGlow({ left: er.left - cr.left + 4, width: er.width - 8, opacity: 1 });
-    if (!ready) {
-      requestAnimationFrame(() => setReady(true));
-    }
-  }, [activeSection, sections, ready]);
-
-  return (
-    <div
-      ref={containerRef}
-      className="relative grid min-w-0 gap-1 rounded-[28px] p-1"
-      style={{
-        gridTemplateColumns: `repeat(${sections.length}, minmax(0, 1fr))`,
-        background: "var(--rc-chip-inset-bg)",
-        border: "1px solid var(--rc-card-inset-outline)",
-        boxShadow: "var(--rc-chip-inset-shadow)",
-      }}
-    >
-      {/* Sliding glow indicator */}
-      <div
-        className={`absolute top-1 rounded-[22px] pointer-events-none ${ready ? "transition-all duration-500" : ""}`}
-        style={{
-          height: "calc(100% - 8px)",
-          left: glow.left,
-          width: glow.width,
-          opacity: glow.opacity,
-          background: `radial-gradient(ellipse at center, color-mix(in srgb, var(--rc-accent) 18%, transparent), transparent 70%)`,
-          boxShadow: `0 0 24px color-mix(in srgb, var(--rc-accent) 14%, transparent)`,
-        }}
-      />
-      {sections.map((item) => (
-        <button
-          key={item.key}
-          ref={(el) => {
-            if (el) buttonRefs.current.set(item.key, el);
-          }}
-          type="button"
-          onClick={() => onSelect(item.key)}
-          aria-pressed={activeSection === item.key}
-          title={item.description}
-          className="relative z-10 min-w-0 rounded-[22px] px-2.5 py-2 text-left transition-all duration-300 active:scale-[0.98]"
-          style={
-            activeSection === item.key
-              ? {
-                  background: "color-mix(in srgb, var(--rc-accent) 10%, var(--rc-elevated))",
-                  border: "1px solid color-mix(in srgb, var(--rc-accent) 22%, var(--rc-border))",
-                  boxShadow: "var(--rc-card-flat-shadow)",
-                }
-              : { border: "1px solid transparent" }
-          }
-        >
-          <div className="flex min-w-0 items-center justify-center gap-2">
-            <span
-              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl transition-all duration-300"
-              style={{
-                background: activeSection === item.key
-                  ? `color-mix(in srgb, ${item.color} 16%, transparent)`
-                  : "transparent",
-                color: activeSection === item.key ? item.color : "var(--rc-text-muted)",
-              }}
-            >
-              <item.icon className="h-4 w-4" />
-            </span>
-            <span
-              className="min-w-0 truncate text-[13px] font-semibold leading-none transition-colors duration-200"
-              style={{
-                color: activeSection === item.key ? "var(--rc-text)" : "var(--rc-text-muted)",
-              }}
-            >
-              {item.label}
-            </span>
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-}
 
 export default function Settings() {
   const {
@@ -165,9 +69,11 @@ export default function Settings() {
   const [configManageOpen, setConfigManageOpen] = useState(false);
   const {
     currentTheme,
+    currentStyle,
     pendingLayout,
     changeLayout,
     changeTheme,
+    changeStyle,
   } = useLayoutSettingsController();
   const {
     memories,
@@ -291,7 +197,7 @@ export default function Settings() {
 
   return (
     <>
-    <div className="h-full flex flex-col" style={{ background: "var(--rc-surface)" }}>
+    <div className="h-full min-h-0 min-w-0 flex flex-col" style={{ background: "var(--rc-surface)" }}>
       <div
         className="flex-shrink-0 px-6 pt-5 pb-4 border-b rc-settings-header"
         style={{ borderColor: "var(--rc-border)" }}
@@ -304,7 +210,7 @@ export default function Settings() {
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
         {/* 当前分区摘要卡与上方导航重复，先注释掉。 */}
         {/*
         <Card padding="md" className="space-y-3">
@@ -480,6 +386,8 @@ export default function Settings() {
         {activeSection === "layout" ? (
           <LayoutSettingsSection
             currentTheme={currentTheme}
+            currentStyle={currentStyle}
+            onStyleChange={changeStyle}
             pendingLayout={pendingLayout}
             onThemeChange={changeTheme}
             onLayoutChange={changeLayout}

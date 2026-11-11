@@ -1,5 +1,39 @@
 import type { ArxivRankingMode, ArxivSearchRequest, WebSearchOutcome } from "@research-copilot/types";
 
+/** Theme-aware surfaces shared by the tool panels. Pair fills with their foreground token. */
+export const TOOL_PRIMARY_STYLE = {
+  background: "var(--rc-button-primary-bg)",
+  color: "var(--rc-button-primary-text)",
+  border: "1px solid var(--rc-button-primary-border)",
+  boxShadow: "var(--rc-button-primary-shadow)",
+} as const;
+
+export const TOOL_SECONDARY_STYLE = {
+  background: "var(--rc-button-secondary-bg)",
+  color: "var(--rc-button-secondary-text)",
+  border: "1px solid var(--rc-button-secondary-border)",
+  boxShadow: "var(--rc-button-secondary-shadow)",
+} as const;
+
+export const TOOL_SELECTED_CHIP_STYLE = {
+  background: "var(--rc-info-chip-bg)",
+  color: "var(--rc-info-chip-text)",
+  border: "1px solid var(--rc-info-chip-border)",
+  boxShadow: "var(--rc-chip-inset-shadow)",
+} as const;
+
+export const TOOL_CONTROL_STYLE = {
+  background: "var(--rc-control-bg)",
+  color: "var(--rc-text)",
+  border: "1px solid var(--rc-control-border)",
+  boxShadow: "var(--rc-control-shadow)",
+} as const;
+
+export const TOOL_ERROR_STYLE = {
+  background: "var(--rc-badge-danger-bg)",
+  color: "var(--rc-badge-danger-text)",
+} as const;
+
 export const ARXIV_CATEGORIES: Array<{ domain: string; items: Array<{ id: string; zh: string }> }> = [
   {
     domain: "CS · 人工智能 & 机器学习",

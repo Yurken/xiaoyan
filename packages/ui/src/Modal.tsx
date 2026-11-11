@@ -36,6 +36,14 @@ export default function Modal({
 
   useEffect(() => {
     if (!open) return;
+    const previousFocus = document.activeElement;
+    return () => {
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -65,7 +73,7 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
-        className={clsx("w-full rounded-[28px] border p-5", sizeClassName[size])}
+        className={clsx("flex max-h-[calc(100dvh-2rem)] min-h-0 w-full flex-col overflow-hidden rounded-[28px] border p-5", sizeClassName[size])}
         style={{
           background: "var(--rc-modal-bg, var(--rc-elevated, var(--rc-surface)))",
           borderColor: "var(--rc-border)",
@@ -73,13 +81,13 @@ export default function Modal({
         }}
       >
         {title ? (
-          <h3 id={titleId} className="text-base font-semibold text-ink-primary">
+          <h3 id={titleId} className="shrink-0 text-base font-semibold text-ink-primary">
             {title}
           </h3>
         ) : null}
-        <div className={title ? "mt-2" : undefined}>{children}</div>
+        <div className={clsx("min-h-0 overflow-y-auto overscroll-contain", title && "mt-2")}>{children}</div>
         {footer ? (
-          <div className="mt-5 flex items-center justify-end gap-2">{footer}</div>
+          <div className="mt-5 flex shrink-0 flex-wrap items-center justify-end gap-2">{footer}</div>
         ) : null}
       </div>
     </div>,

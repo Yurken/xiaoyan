@@ -87,7 +87,7 @@ export default function QuickStartDialog({ open, steps, onGotoSettings, onClose 
             type="button"
             onClick={onGotoSettings}
             className="rounded-full px-4 py-2 text-sm font-semibold text-white transition-all active:scale-95"
-            style={{ background: "var(--rc-button-primary-bg)" }}
+            style={{ background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)" }}
           >
             去完善设置
           </button>

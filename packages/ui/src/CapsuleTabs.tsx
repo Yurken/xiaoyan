@@ -35,19 +35,26 @@ export function CapsuleTabs({ options, value, onChange, compact, display = "full
     const container = containerRef.current;
     if (!el || !container) return;
 
-    const containerRect = container.getBoundingClientRect();
-    const elRect = el.getBoundingClientRect();
-
-    setIndicatorStyle({
-      left: elRect.left - containerRect.left,
-      width: elRect.width,
-      opacity: 1,
-    });
+    const updateIndicator = () => {
+      const containerRect = container.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      setIndicatorStyle({
+        left: elRect.left - containerRect.left,
+        width: elRect.width,
+        opacity: 1,
+      });
+    };
+    updateIndicator();
+    const observer = new ResizeObserver(updateIndicator);
+    observer.observe(container);
+    observer.observe(el);
 
     // Enable transition only after first paint to avoid mount animation
-    if (!ready) {
-      requestAnimationFrame(() => setReady(true));
-    }
+    const frame = requestAnimationFrame(() => setReady(true));
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, [value, options, ready]);
 
   return (

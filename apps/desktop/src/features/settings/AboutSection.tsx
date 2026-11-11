@@ -122,7 +122,7 @@ export default function AboutSection({
               disabled={!canInstall}
               className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
               style={{
-                background: "var(--rc-button-primary-bg)",
+                background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)",
                 boxShadow: "var(--rc-button-primary-shadow)",
               }}
             >

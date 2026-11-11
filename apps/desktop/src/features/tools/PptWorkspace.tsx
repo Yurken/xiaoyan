@@ -1,22 +1,9 @@
 import { AlertCircle, AlignLeft, CheckCircle2, Download, FileText, Loader2, Presentation, Upload, Wand2 } from "lucide-react";
 import { Button, CapsuleTabs, Card } from "@research-copilot/ui";
 import { Link } from "react-router-dom";
+import { TOOL_CONTROL_STYLE, TOOL_ERROR_STYLE, TOOL_SECONDARY_STYLE, TOOL_SELECTED_CHIP_STYLE } from "./shared";
 import { PptPreviewPanel } from "./PptPreviewPanel";
 import { LANGUAGE_OPTIONS, PAGE_OPTIONS, STYLE_OPTIONS, type PptData, type PptMode, type PptStatus } from "./pptShared";
-
-const insetShadow = "var(--rc-inset-shadow)";
-const raisedShadow = "var(--rc-raised-shadow)";
-const activeChipStyle = {
-  background: "var(--rc-card-inset-bg)",
-  color: "#007AFF",
-  boxShadow: "inset 2px 2px 4px rgba(0,0,0,0.12), inset -1px -1px 3px rgba(255,255,255,0.5)",
-  border: "1px solid rgba(0,122,255,0.3)",
-} as const;
-const inactiveChipStyle = {
-  background: "var(--rc-elevated)",
-  color: "var(--rc-text-muted)",
-  border: "1px solid transparent",
-} as const;
 
 const MODE_OPTIONS = [
   { key: "topic" as const, icon: <Wand2 className="h-3.5 w-3.5" />, label: "输入主题" },
@@ -131,10 +118,10 @@ export function PptWorkspace({
               }}
               rows={3}
               placeholder={'输入演示主题，例如："大语言模型在科研中的应用"'}
-              className="w-full resize-none rounded-2xl px-4 py-3 text-sm text-ink-primary outline-none placeholder:text-ink-muted"
-              style={{ background: "var(--rc-surface)", boxShadow: insetShadow, color: "var(--rc-text)" }}
+              className="w-full resize-none rounded-2xl px-4 py-3 text-sm text-ink-primary outline-none placeholder:text-ink-tertiary"
+              style={TOOL_CONTROL_STYLE}
             />
-            <p className="ml-1 text-xs text-ink-muted">小妍会自动决定幻灯片数量、内容深度与配图风格</p>
+            <p className="ml-1 text-xs text-ink-tertiary">小妍会自动决定幻灯片数量、内容深度与配图风格</p>
           </div>
         ) : null}
 
@@ -157,28 +144,28 @@ export function PptWorkspace({
                   <FileText className="mx-auto h-8 w-8 text-apple-blue" />
                   <p className="text-sm font-medium text-ink-primary">{documentName}</p>
                   {hasDocumentContent ? (
-                    <p className="text-xs text-ink-muted">已提取约 {documentCharacterCount.toLocaleString()} 字内容</p>
+                    <p className="text-xs text-ink-tertiary">已提取约 {documentCharacterCount.toLocaleString()} 字内容</p>
                   ) : null}
                   <button
                     type="button"
                     onClick={onResetDocument}
-                    className="text-xs text-ink-muted transition-colors hover:text-apple-red"
+                    className="text-xs text-ink-tertiary transition-colors hover:text-apple-red"
                   >
                     移除文件
                   </button>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <Upload className="mx-auto h-8 w-8 text-ink-muted" />
+                  <Upload className="mx-auto h-8 w-8 text-ink-tertiary" />
                   <div>
                     <p className="text-sm font-medium text-ink-primary">拖拽文件到此处</p>
-                    <p className="mt-1 text-xs text-ink-muted">支持 PDF、TXT、MD 文档</p>
+                    <p className="mt-1 text-xs text-ink-tertiary">支持 PDF、TXT、MD 文档</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => void onPickDocument()}
                     className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-ink-secondary transition-all"
-                    style={{ background: "var(--rc-elevated)", boxShadow: raisedShadow }}
+                    style={TOOL_SECONDARY_STYLE}
                   >
                     <FileText className="h-4 w-4" />
                     本地文件
@@ -186,7 +173,7 @@ export function PptWorkspace({
                 </div>
               )}
             </div>
-            {documentLoading ? <p className="mt-2 text-xs text-ink-muted">正在读取文档内容…</p> : null}
+            {documentLoading ? <p className="mt-2 text-xs text-ink-tertiary">正在读取文档内容…</p> : null}
             {documentError ? <p className="mt-2 text-xs text-apple-red">{documentError}</p> : null}
           </div>
         ) : null}
@@ -204,22 +191,23 @@ export function PptWorkspace({
               rows={8}
               placeholder={"在此处键入或粘贴大纲，内容层级尽量不超过 4 级，例如：\n第一章 章节页标题\n  正文页标题\n    a. 此处为正文小标题\n    此处为正文内容，建议内容尽量精简"}
               className="w-full resize-none rounded-2xl px-4 py-3 font-mono text-sm leading-6 outline-none"
-              style={{ background: "var(--rc-surface)", boxShadow: insetShadow, color: "var(--rc-text)" }}
+              style={TOOL_CONTROL_STYLE}
             />
-            <p className="ml-1 text-xs text-ink-muted">小妍会按照大纲层级整理为幻灯片结构</p>
+            <p className="ml-1 text-xs text-ink-tertiary">小妍会按照大纲层级整理为幻灯片结构</p>
           </div>
         ) : null}
 
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="w-6 flex-shrink-0 text-xs font-medium text-ink-muted">风格</span>
+            <span className="w-6 flex-shrink-0 text-xs font-medium text-ink-tertiary">风格</span>
             {STYLE_OPTIONS.map((option) => (
               <button
                 key={option.value}
                 type="button"
+                aria-pressed={styleValue === option.value}
                 onClick={() => onStyleChange(option.value)}
                 className="flex-shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-all duration-150"
-                style={styleValue === option.value ? activeChipStyle : inactiveChipStyle}
+                style={styleValue === option.value ? TOOL_SELECTED_CHIP_STYLE : TOOL_SECONDARY_STYLE}
               >
                 {option.label}
               </button>
@@ -231,21 +219,22 @@ export function PptWorkspace({
                 onChange={(event) => onCustomStyleChange(event.target.value)}
                 placeholder="输入科研风格（如：算法推导型）"
                 className="min-w-0 flex-1 rounded-xl px-3 py-1 text-xs outline-none"
-                style={{ background: "var(--rc-surface)", boxShadow: insetShadow, color: "var(--rc-text)" }}
+                style={TOOL_CONTROL_STYLE}
               />
             ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="w-6 flex-shrink-0 text-xs font-medium text-ink-muted">语言</span>
+            <span className="w-6 flex-shrink-0 text-xs font-medium text-ink-tertiary">语言</span>
             <div className="flex flex-wrap gap-1.5">
               {LANGUAGE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   type="button"
+                  aria-pressed={language === option.value}
                   onClick={() => onLanguageChange(option.value)}
                   className="rounded-full px-3 py-1 text-xs font-medium transition-all duration-150"
-                  style={language === option.value ? activeChipStyle : inactiveChipStyle}
+                  style={language === option.value ? TOOL_SELECTED_CHIP_STYLE : TOOL_SECONDARY_STYLE}
                 >
                   {option.label}
                 </button>
@@ -254,14 +243,15 @@ export function PptWorkspace({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="w-6 flex-shrink-0 text-xs font-medium text-ink-muted">页数</span>
+            <span className="w-6 flex-shrink-0 text-xs font-medium text-ink-tertiary">页数</span>
             {PAGE_OPTIONS.map((option) => (
               <button
                 key={option.value}
                 type="button"
+                aria-pressed={pageCount === option.value}
                 onClick={() => onPageCountChange(option.value)}
                 className="flex-shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-all duration-150"
-                style={pageCount === option.value ? activeChipStyle : inactiveChipStyle}
+                style={pageCount === option.value ? TOOL_SELECTED_CHIP_STYLE : TOOL_SECONDARY_STYLE}
               >
                 {option.label}
               </button>
@@ -275,14 +265,14 @@ export function PptWorkspace({
                 onChange={(event) => onCustomPagesChange(event.target.value)}
                 placeholder="4-40"
                 className="w-20 flex-shrink-0 rounded-xl px-3 py-1 text-xs outline-none"
-                style={{ background: "var(--rc-surface)", boxShadow: insetShadow, color: "var(--rc-text)" }}
+                style={TOOL_CONTROL_STYLE}
               />
             ) : null}
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0 text-xs text-ink-muted leading-5">
+          <div className="min-w-0 text-xs text-ink-tertiary leading-5">
             {status === "drafting" ? <span className="flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin text-apple-blue" />小妍正在规划页面结构与叙事节奏…</span> : null}
             {status === "repairing" ? <span className="flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin text-apple-blue" />正在修复模型返回格式，避免生成失败…</span> : null}
             {status === "building" ? <span className="flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin text-apple-blue" />正在整理为 .pptx 文件…</span> : null}
@@ -309,7 +299,7 @@ export function PptWorkspace({
         </div>
 
         {status === "error" && error ? (
-          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
+          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 px-3 py-2 text-sm" style={TOOL_ERROR_STYLE}>
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <span>{error}</span>
           </div>
@@ -326,7 +316,7 @@ export function PptWorkspace({
             className="flex flex-col items-center gap-3 rounded-3xl px-8 py-6 text-center"
             style={{ background: "var(--rc-elevated)", boxShadow: "var(--rc-raised-shadow)" }}
           >
-            <Presentation className="h-8 w-8 text-ink-muted" />
+            <Presentation className="h-8 w-8 text-ink-tertiary" />
             <p className="text-sm font-semibold text-ink-primary">PPT 生成功能已关闭</p>
             <p className="text-xs text-ink-tertiary">此功能已在技能库中被禁用，请前往设置开启。</p>
             <Link to="/settings" className="text-xs font-medium text-apple-blue hover:underline">

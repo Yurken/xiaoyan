@@ -5,14 +5,13 @@ import { Button, Card, DatePicker, Input, Textarea } from "@research-copilot/ui"
 import type { ArxivRankingMode, PaperSearchDepth } from "@research-copilot/types";
 import {
   ARXIV_MODE_OPTIONS,
-  CS_GROUPS,
-  DOMAIN_VENUES,
-  NON_CS_KEYS,
   RANK_OPTIONS,
+  TOOL_ERROR_STYLE,
   computeStaticVenues,
   type RankKey,
 } from "./shared";
 import { PaperDiscoveryCollapsibleSection } from "./PaperDiscoveryCollapsibleSection";
+import { PaperDiscoveryDomainPicker } from "./PaperDiscoveryDomainPicker";
 import { PaperSearchDepthControl } from "./PaperSearchDepthControl";
 
 const insetShadow = "var(--rc-inset-shadow)";
@@ -250,130 +249,14 @@ export function PaperDiscoveryPanel({
         description="可选；按研究领域、刊会类型和等级自动补充检索范围。"
         status={selectedDomains.length > 0 ? `已选 ${selectedDomains.length} 个领域` : undefined}
       >
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold tracking-wide text-ink-tertiary">
-              步骤 1 · 研究领域
-              <span className="ml-1 font-normal">（可多选）</span>
-            </label>
-            {selectedDomains.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  onDomainsChange([]);
-                  onRanksChange([]);
-                }}
-                className="text-[11px] text-ink-tertiary transition-colors hover:text-apple-red"
-              >
-                清空筛选
-              </button>
-            ) : null}
-          </div>
-
-          <div className="space-y-2 rounded-xl p-2.5" style={{ background: "var(--rc-elevated)", boxShadow: insetShadow }}>
-            <p className="px-0.5 text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">计算机科学</p>
-            {CS_GROUPS.map((group) => {
-              const groupKeys = group.keys;
-              const allSelected = groupKeys.every((key) => selectedDomains.includes(key));
-              const someSelected = groupKeys.some((key) => selectedDomains.includes(key));
-              return (
-                <div key={group.label} className="flex flex-wrap items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onDomainsChange(
-                        allSelected
-                          ? selectedDomains.filter((key) => !groupKeys.includes(key))
-                          : [...new Set([...selectedDomains, ...groupKeys])]
-                      )
-                    }
-                    className="shrink-0 rounded-lg px-2 py-0.5 text-[10px] font-semibold transition-all duration-100 active:scale-95"
-                    style={
-                      allSelected
-                        ? { background: "#0062CC", color: "#fff" }
-                        : someSelected
-                          ? {
-                              background: "rgba(0,122,255,0.15)",
-                              color: "var(--apple-blue,#007AFF)",
-                              border: "1px solid rgba(0,122,255,0.3)",
-                            }
-                          : { background: "var(--rc-surface)", color: "var(--rc-text-muted)", boxShadow: raisedShadow }
-                    }
-                  >
-                    {group.label}
-                  </button>
-                  <span className="text-ink-tertiary" style={{ fontSize: 10 }}>
-                    ›
-                  </span>
-                  {groupKeys.map((key) => {
-                    const domain = DOMAIN_VENUES[key];
-                    const selected = selectedDomains.includes(key);
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() =>
-                          onDomainsChange(
-                            selected
-                              ? selectedDomains.filter((value) => value !== key)
-                              : [...selectedDomains, key]
-                          )
-                        }
-                        className="rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-100 active:scale-95"
-                        style={
-                          selected
-                            ? {
-                                background: "var(--rc-button-primary-bg)",
-                                color: "#fff",
-                                boxShadow: "var(--rc-button-primary-shadow)",
-                              }
-                            : { background: "var(--rc-surface)", color: "var(--rc-text-soft)", boxShadow: raisedShadow }
-                        }
-                      >
-                        {domain?.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="space-y-1.5">
-            <p className="px-0.5 text-[10px] font-semibold uppercase tracking-widest text-ink-tertiary">其他领域</p>
-            <div className="flex flex-wrap gap-1.5">
-              {NON_CS_KEYS.map((key) => {
-                const domain = DOMAIN_VENUES[key];
-                const selected = selectedDomains.includes(key);
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() =>
-                      onDomainsChange(
-                        selected
-                          ? selectedDomains.filter((value) => value !== key)
-                          : [...selectedDomains, key]
-                      )
-                    }
-                    className="rounded-xl px-2.5 py-1 text-xs font-medium transition-all duration-100 active:scale-95"
-                    style={
-                      selected
-                        ? {
-                            background: "var(--rc-button-primary-bg)",
-                            color: "#fff",
-                            boxShadow: "var(--rc-button-primary-shadow)",
-                          }
-                        : { background: "var(--rc-elevated)", color: "var(--rc-text-soft)", boxShadow: raisedShadow }
-                    }
-                  >
-                    {domain?.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        <PaperDiscoveryDomainPicker
+          selectedDomains={selectedDomains}
+          onDomainsChange={onDomainsChange}
+          onClear={() => {
+            onDomainsChange([]);
+            onRanksChange([]);
+          }}
+        />
 
         {selectedDomains.length > 0 ? (
           <>
@@ -520,7 +403,7 @@ export function PaperDiscoveryPanel({
       </div>
 
       {error ? (
-        <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
+        <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 px-3 py-2 text-sm" style={TOOL_ERROR_STYLE}>
           <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>{error}</span>
         </div>

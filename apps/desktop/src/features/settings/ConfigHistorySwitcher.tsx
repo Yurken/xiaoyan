@@ -250,7 +250,7 @@ export default function ConfigHistorySwitcher({
                     onClick={handleSave}
                     disabled={saving || busy}
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
-                    style={{ background: "var(--rc-button-primary-bg)" }}
+                    style={{ background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)" }}
                   >
                     {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                     {saving ? "保存中…" : "保存"}

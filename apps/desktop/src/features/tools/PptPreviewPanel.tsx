@@ -39,11 +39,11 @@ export function PptPreviewPanel({ data, fileBaseName }: PptPreviewPanelProps) {
           <div className="min-w-0">
             <p className="text-sm font-semibold text-ink-primary">生成预览</p>
             <h3 className="mt-1 truncate text-lg font-semibold text-ink-primary">{data.title}</h3>
-            <p className="mt-1 text-xs text-ink-muted">先确认页面结构，再下载 PowerPoint 文件。</p>
+            <p className="mt-1 text-xs text-ink-tertiary">先确认页面结构，再下载 PowerPoint 文件。</p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-tertiary">
           <Badge variant="info">{data.slides.length} 页</Badge>
           <Badge variant="default" className="max-w-full">
             <FileText className="mr-1 h-3.5 w-3.5" />
@@ -72,7 +72,7 @@ export function PptPreviewPanel({ data, fileBaseName }: PptPreviewPanelProps) {
             }}
           >
             <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-semibold tracking-[0.14em] text-ink-muted">
+              <span className="text-xs font-semibold tracking-[0.14em] text-ink-tertiary">
                 {String(index + 1).padStart(2, "0")}
               </span>
               <Badge variant={layoutBadgeVariant[slide.layout]}>
@@ -80,11 +80,11 @@ export function PptPreviewPanel({ data, fileBaseName }: PptPreviewPanelProps) {
               </Badge>
             </div>
             <p className="mt-3 break-words text-sm font-semibold leading-6 text-ink-primary">{slide.title}</p>
-            <p className="mt-2 break-words text-xs leading-6 text-ink-muted">
+            <p className="mt-2 break-words text-xs leading-6 text-ink-tertiary">
               {summarizeSlideContent(slide) || "该页将由小妍自动补齐内容。"}
             </p>
             {slide.note && (
-              <p className="mt-2 break-words text-[11px] leading-5 text-ink-muted/80" title={slide.note}>
+              <p className="mt-2 break-words text-[11px] leading-5 text-ink-tertiary/80" title={slide.note}>
                 <span className="font-medium">备注：</span>
                 {slide.note}
               </p>

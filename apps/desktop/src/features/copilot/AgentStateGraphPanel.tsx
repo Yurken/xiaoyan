@@ -98,14 +98,14 @@ export default function AgentStateGraphPanel({
                 height: layout.viewportHeight,
                 borderColor: "var(--rc-border)",
                 background:
-                  "radial-gradient(circle at top left, rgba(0,122,255,0.05), transparent 30%), linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.64))",
+                  "var(--rc-card-inset-bg)",
                 cursor: dragStateRef.current ? "grabbing" : "grab",
               }
             : undefined
         }
       >
         {interactive ? (
-          <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-full px-2.5 py-1 text-[11px] text-ink-tertiary" style={{ background: "rgba(255,255,255,0.84)", boxShadow: "0 8px 20px rgba(15,23,42,0.08)" }}>
+          <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-full px-2.5 py-1 text-[11px] text-ink-tertiary" style={{ background: "var(--rc-elevated)", boxShadow: "var(--rc-dropdown-menu-shadow)" }}>
             拖动画布，滚轮缩放
           </div>
         ) : null}
