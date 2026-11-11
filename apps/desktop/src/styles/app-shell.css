@@ -7,6 +7,8 @@
     --rc-page-bottom-gap: 24px;
     position: relative;
     display: flex;
+    min-width: 0;
+    min-height: 0;
     height: 100%;
     box-sizing: border-box;
     background: transparent;
@@ -21,6 +23,9 @@
     flex-direction: column;
     align-items: stretch;
     gap: 2px;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
     padding: var(--rc-shell-sidebar-top-gap) 8px 12px;
     border-right: 1px solid var(--rc-border);
     background: var(--rc-sidebar-bg);
@@ -48,6 +53,7 @@
 
   .app-nav-link {
     width: 100%;
+    flex-shrink: 0;
     display: block;
     text-decoration: none;
     user-select: none;
@@ -162,12 +168,14 @@
     padding-top: 4px;
     display: flex;
     justify-content: center;
+    flex-shrink: 0;
   }
 
   .app-main {
     position: relative;
     flex: 1;
     min-width: 0;
+    min-height: 0;
     box-sizing: border-box;
     padding-top: var(--rc-window-drag-height);
     overflow: hidden;

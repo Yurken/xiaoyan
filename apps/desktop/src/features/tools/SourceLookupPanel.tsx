@@ -3,6 +3,7 @@ import { Badge, Button, Card, Input } from "@research-copilot/ui";
 import type { SourceLookupSection } from "@research-copilot/types";
 import { CasQuartileBadge, CasTopBadge, CcfRatingBadge, JcrQuartileBadge, VenueTypeBadge, WosIndexBadge } from "../../components/CcfBadges";
 import ExternalLink from "../../components/ExternalLink";
+import { TOOL_ERROR_STYLE } from "./shared";
 
 interface SourceLookupPanelProps {
   query: string;
@@ -59,7 +60,7 @@ export function SourceLookupPanel({
         </div>
 
         {error ? (
-          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
+          <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 px-3 py-2 text-sm" style={TOOL_ERROR_STYLE}>
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <span>{error}</span>
           </div>

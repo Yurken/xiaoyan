@@ -93,7 +93,7 @@ export default function SkillVariableFillModal({
             onClick={() => onConfirm(values)}
             className="px-5 py-2 rounded-2xl text-sm font-semibold text-white transition-all active:scale-95"
             style={{
-              background: "var(--rc-button-primary-bg)",
+              background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)",
               boxShadow: "var(--rc-button-primary-shadow)",
             }}
           >

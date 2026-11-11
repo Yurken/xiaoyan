@@ -1,0 +1,330 @@
+/* Flat workbench tokens and compatibility rules. Keep neumorphic defaults in theme.css. */
+
+html[data-style="modern-minimal"] {
+  color-scheme: dark;
+  --rc-bg: #0d1014;
+  --rc-bg-rgb: 13 16 20;
+  --rc-surface: #13171d;
+  --rc-surface-rgb: 19 23 29;
+  --rc-elevated: #171b21;
+  --rc-elevated-rgb: 23 27 33;
+  --rc-border: rgba(42, 47, 57, 0.92);
+  --rc-border-rgb: 42 47 57;
+  --rc-border-strong-rgb: 67 74 87;
+  --rc-sidebar-divider-rgb: 42 47 57;
+  --rc-sidebar-shadow-rgb: 0 0 0;
+  --rc-text: #f5f3ee;
+  --rc-text-rgb: 245 243 238;
+  --rc-text-soft: #bcc3cf;
+  --rc-text-soft-rgb: 188 195 207;
+  --rc-text-muted: #929caa;
+  --rc-text-muted-rgb: 146 156 170;
+  --rc-chat-user-bg: #1f252e;
+  --rc-chat-user-text: var(--rc-text);
+  --rc-chat-user-shadow: none;
+  --rc-code-block-bg: #0d1014;
+  --rc-code-block-border: var(--rc-border);
+  --rc-code-block-text: var(--rc-text-soft);
+  --rc-page-wash: none;
+  --rc-inset-shadow: inset 0 0 0 1px var(--rc-border);
+  --rc-raised-shadow: 0 4px 12px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --rc-flat-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --rc-card-bg: var(--rc-surface);
+  --rc-card-inset-bg: #13171d;
+  --rc-chip-bg: var(--rc-surface);
+  --rc-chip-shadow: none;
+  --rc-chip-inset-bg: var(--rc-bg);
+  --rc-chip-inset-shadow: none;
+  --rc-header-bg: #0d1014;
+  --rc-sidebar-bg: #0d1014;
+  --rc-card-outline: var(--rc-border);
+  --rc-card-inset-outline: var(--rc-border);
+  --rc-card-shadow: none;
+  --rc-card-raised-shadow: none;
+  --rc-card-flat-shadow: none;
+  --rc-card-flat-shadow-sm: none;
+  --rc-card-inset-shadow: none;
+  --rc-panel-bg-soft: #0d1014;
+  --rc-panel-border: var(--rc-border);
+  --rc-panel-shadow: none;
+  --rc-control-bg: var(--rc-surface);
+  --rc-control-border: rgba(255, 255, 255, 0.1);
+  --rc-control-shadow: none;
+  --rc-control-focus-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+  --rc-dropdown-trigger-bg: transparent;
+  --rc-dropdown-trigger-border: var(--rc-control-border);
+  --rc-dropdown-trigger-shadow: none;
+  --rc-dropdown-trigger-shadow-active: none;
+  --rc-dropdown-menu-bg: #13171d;
+  --rc-dropdown-menu-border: var(--rc-border);
+  --rc-dropdown-menu-shadow: var(--rc-raised-shadow);
+  --rc-button-primary-bg: #ffffff;
+  --rc-button-primary-text: #0d1014;
+  --rc-button-primary-bg-hover: #e0e0e0;
+  --rc-button-primary-border: transparent;
+  --rc-button-primary-shadow: none;
+  --rc-button-primary-shadow-hover: none;
+  --rc-button-secondary-bg: transparent;
+  --rc-button-secondary-bg-hover: #1f252e;
+  --rc-button-secondary-border: rgba(255, 255, 255, 0.1);
+  --rc-button-secondary-shadow: none;
+  --rc-button-secondary-shadow-hover: none;
+  --rc-button-secondary-text: var(--rc-text-soft);
+  --rc-button-ghost-bg-hover: #1f252e;
+  --rc-button-ghost-text: var(--rc-text-muted);
+  --rc-icon-button-bg: transparent;
+  --rc-icon-button-border: transparent;
+  --rc-icon-button-shadow: none;
+  --rc-icon-button-shadow-hover: none;
+  --rc-icon-button-shadow-active: none;
+  --rc-icon-button-color: var(--rc-text-soft);
+  --rc-badge-bg: #1f252e;
+  --rc-badge-text: var(--rc-text-soft);
+  --rc-badge-shadow: none;
+  --rc-badge-border: transparent;
+  --rc-badge-outline: transparent;
+  --rc-info-chip-bg: #1f252e;
+  --rc-info-chip-text: #f5f3ee;
+  --rc-info-chip-border: transparent;
+  --rc-info-chip-shadow: none;
+  --rc-info-chip-bg-hover: #2a313d;
+  --rc-info-chip-shadow-hover: none;
+  --rc-nav-item-hover-bg: #1f252e;
+  --rc-nav-item-active-text: var(--rc-text);
+  --rc-nav-item-active-bg: #1f252e;
+  --rc-nav-item-active-border: transparent;
+  --rc-nav-item-active-shadow: none;
+  --rc-modal-backdrop: rgba(0, 0, 0, 0.78);
+  --rc-text-secondary: var(--rc-text-soft);
+  --rc-modal-bg: var(--rc-elevated);
+  --rc-modal-shadow: var(--rc-card-shadow);
+  --rc-button-danger-bg: linear-gradient(180deg, #ff655b, #d92b21);
+  --rc-button-danger-shadow: none;
+  --rc-badge-success-bg: rgba(52, 199, 89, 0.16);
+  --rc-badge-success-text: #3DDC74;
+  --rc-badge-warning-bg: rgba(255, 149, 0, 0.16);
+  --rc-badge-warning-text: #FFB340;
+  --rc-badge-danger-bg: rgba(255, 59, 48, 0.16);
+  --rc-badge-danger-text: #FF6961;
+  --rc-badge-purple-bg: rgba(175, 82, 222, 0.18);
+  --rc-badge-purple-text: #C77DFF;
+  --rc-toggle-on-bg: #30D158;
+  --rc-toggle-knob-bg: #FFFFFF;
+  --rc-toggle-knob-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  --rc-list-item-hover-bg: var(--rc-nav-item-hover-bg);
+  --rc-chart-grid: rgba(255, 255, 255, 0.08);
+  /* These aliases feed Tailwind background-image, so they must be images. */
+  --rc-nm-card-bg: linear-gradient(var(--rc-surface), var(--rc-surface));
+  --rc-nm-surface-bg: linear-gradient(var(--rc-bg), var(--rc-bg));
+  --rc-nm-elevated-bg: linear-gradient(var(--rc-elevated), var(--rc-elevated));
+}
+
+html[data-style="modern-minimal"][data-theme="light"] {
+  color-scheme: light;
+  --rc-bg: #fdfdfc;
+  --rc-bg-rgb: 253 253 252;
+  --rc-surface: #ffffff;
+  --rc-surface-rgb: 255 255 255;
+  --rc-elevated: #ffffff;
+  --rc-elevated-rgb: 255 255 255;
+  --rc-border: rgba(0, 0, 0, 0.08);
+  --rc-border-rgb: 235 235 235;
+  --rc-border-strong-rgb: 200 200 200;
+  --rc-sidebar-divider-rgb: 235 235 235;
+  --rc-sidebar-shadow-rgb: 0 0 0;
+  --rc-text: #111827;
+  --rc-text-rgb: 17 24 39;
+  --rc-text-soft: #4b5563;
+  --rc-text-soft-rgb: 75 85 99;
+  --rc-text-muted: #687180;
+  --rc-text-muted-rgb: 104 113 128;
+  --rc-chat-user-bg: #f3f4f6;
+  --rc-chat-user-text: var(--rc-text);
+  --rc-chat-user-shadow: none;
+  --rc-code-block-bg: #f3f4f6;
+  --rc-code-block-border: var(--rc-border);
+  --rc-code-block-text: var(--rc-text-soft);
+  --rc-page-wash: none;
+  --rc-inset-shadow: inset 0 0 0 1px var(--rc-border);
+  --rc-raised-shadow: 0 4px 12px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  --rc-flat-shadow: 0 2px 6px rgba(0, 0, 0, 0.03), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  --rc-card-bg: #ffffff;
+  --rc-card-inset-bg: #f9fafb;
+  --rc-chip-bg: var(--rc-surface);
+  --rc-chip-shadow: none;
+  --rc-chip-inset-bg: #f3f4f6;
+  --rc-chip-inset-shadow: none;
+  --rc-header-bg: #ffffff;
+  --rc-sidebar-bg: #ffffff;
+  --rc-card-outline: var(--rc-border);
+  --rc-card-inset-outline: var(--rc-border);
+  --rc-card-shadow: none;
+  --rc-card-raised-shadow: none;
+  --rc-card-flat-shadow: none;
+  --rc-card-flat-shadow-sm: none;
+  --rc-card-inset-shadow: none;
+  --rc-panel-bg-soft: rgba(255, 255, 255, 0.95);
+  --rc-panel-border: var(--rc-border);
+  --rc-panel-shadow: none;
+  --rc-control-bg: var(--rc-surface);
+  --rc-control-border: rgba(0, 0, 0, 0.1);
+  --rc-control-shadow: none;
+  --rc-control-focus-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
+  --rc-dropdown-trigger-bg: transparent;
+  --rc-dropdown-trigger-border: var(--rc-control-border);
+  --rc-dropdown-trigger-shadow: none;
+  --rc-dropdown-trigger-shadow-active: none;
+  --rc-dropdown-menu-bg: #ffffff;
+  --rc-dropdown-menu-border: var(--rc-border);
+  --rc-dropdown-menu-shadow: var(--rc-raised-shadow);
+  --rc-button-primary-bg: #000000;
+  --rc-button-primary-text: #ffffff;
+  --rc-button-primary-bg-hover: #333333;
+  --rc-button-primary-border: transparent;
+  --rc-button-primary-shadow: none;
+  --rc-button-primary-shadow-hover: none;
+  --rc-button-secondary-bg: transparent;
+  --rc-button-secondary-bg-hover: #f3f4f6;
+  --rc-button-secondary-border: rgba(0, 0, 0, 0.1);
+  --rc-button-secondary-shadow: none;
+  --rc-button-secondary-shadow-hover: none;
+  --rc-button-secondary-text: var(--rc-text-soft);
+  --rc-button-ghost-bg-hover: #f3f4f6;
+  --rc-button-ghost-text: var(--rc-text-muted);
+  --rc-icon-button-bg: transparent;
+  --rc-icon-button-border: transparent;
+  --rc-icon-button-shadow: none;
+  --rc-icon-button-shadow-hover: none;
+  --rc-icon-button-shadow-active: none;
+  --rc-icon-button-color: var(--rc-text-soft);
+  --rc-badge-bg: #f3f4f6;
+  --rc-badge-text: var(--rc-text-soft);
+  --rc-badge-shadow: none;
+  --rc-badge-border: transparent;
+  --rc-badge-outline: transparent;
+  --rc-info-chip-bg: #f3f4f6;
+  --rc-info-chip-text: #111827;
+  --rc-info-chip-border: transparent;
+  --rc-info-chip-shadow: none;
+  --rc-info-chip-bg-hover: #e5e7eb;
+  --rc-info-chip-shadow-hover: none;
+  --rc-nav-item-hover-bg: #f3f4f6;
+  --rc-nav-item-active-text: var(--rc-text);
+  --rc-nav-item-active-bg: #f3f4f6;
+  --rc-nav-item-active-border: transparent;
+  --rc-nav-item-active-shadow: none;
+  --rc-modal-backdrop: rgba(245, 245, 245, 0.65);
+  --rc-text-secondary: var(--rc-text-soft);
+  --rc-modal-bg: var(--rc-elevated);
+  --rc-modal-shadow: var(--rc-card-shadow);
+  --rc-button-danger-bg: linear-gradient(180deg, #ff655b, #d92b21);
+  --rc-button-danger-shadow: none;
+  --rc-badge-success-bg: rgba(52, 199, 89, 0.14);
+  --rc-badge-success-text: #1A9E3F;
+  --rc-badge-warning-bg: rgba(255, 149, 0, 0.14);
+  --rc-badge-warning-text: #C07000;
+  --rc-badge-danger-bg: rgba(255, 59, 48, 0.14);
+  --rc-badge-danger-text: #D92B21;
+  --rc-badge-purple-bg: rgba(175, 82, 222, 0.14);
+  --rc-badge-purple-text: #8B32C2;
+  --rc-toggle-on-bg: #34C759;
+  --rc-toggle-knob-bg: #FFFFFF;
+  --rc-toggle-knob-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  --rc-list-item-hover-bg: var(--rc-nav-item-hover-bg);
+  --rc-chart-grid: rgba(0, 0, 0, 0.06);
+  --rc-nm-card-bg: linear-gradient(var(--rc-surface), var(--rc-surface));
+  --rc-nm-surface-bg: linear-gradient(#f3f4f6, #f3f4f6);
+  --rc-nm-elevated-bg: linear-gradient(var(--rc-elevated), var(--rc-elevated));
+}
+
+@layer components {
+  /* Only recolor existing borders; never add a box around every translucent span. */
+  html[data-style="modern-minimal"] .border-nm-dark\/10,
+  html[data-style="modern-minimal"] .border-nm-dark\/15,
+  html[data-style="modern-minimal"] .border-nm-dark\/20,
+  html[data-style="modern-minimal"] .border-black\/30,
+  html[data-style="modern-minimal"] .border-white\/50,
+  html[data-style="modern-minimal"] .border-white\/55,
+  html[data-style="modern-minimal"] .border-white\/60,
+  html[data-style="modern-minimal"] .border-white\/70,
+  html[data-style="modern-minimal"] .border-white\/80 {
+    border-color: var(--rc-border) !important;
+  }
+
+  html[data-style="modern-minimal"] .shadow-apple-blue,
+  html[data-style="modern-minimal"] .shadow-apple-blue-pressed {
+    box-shadow: none !important;
+  }
+
+  /* Token-based controls already supply borders, focus and validation states.
+     Leave checkbox/range inputs and borderless editors to their own component. */
+  html[data-style="modern-minimal"] :is(input, textarea, select)[aria-invalid="true"] {
+    border-color: #d92b21;
+  }
+
+  html[data-style="modern-minimal"] .rc-capsule-tabs {
+    background: var(--rc-chip-inset-bg);
+    box-shadow: var(--rc-inset-shadow);
+  }
+
+  html[data-style="modern-minimal"] .rc-capsule-tabs__indicator {
+    box-shadow: inset 0 0 0 1px var(--rc-border);
+  }
+
+  html[data-style="modern-minimal"][data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: #c8c0b4;
+    border-radius: 999px;
+  }
+
+  html[data-style="modern-minimal"][data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+    background: #b5ac9e;
+  }
+
+  html[data-style="modern-minimal"] .rc-focus-header {
+    box-shadow: none;
+  }
+
+  html[data-style="modern-minimal"] .rc-focus-card {
+    box-shadow: none;
+    border: 1px solid var(--rc-card-outline);
+  }
+
+  html[data-style="modern-minimal"] .rc-focus-card-inset {
+    box-shadow: none;
+    border: 1px solid var(--rc-card-inset-outline);
+  }
+
+  html[data-style="modern-minimal"] .rc-focus-cta {
+    color: #ffffff;
+    background: var(--rc-accent);
+    box-shadow: none;
+    border-radius: 0.75rem;
+  }
+
+  html[data-style="modern-minimal"] .rc-focus-btn-secondary {
+    background: transparent;
+    box-shadow: none;
+    border: 1px solid var(--rc-control-border);
+    border-radius: 0.75rem;
+  }
+
+  html[data-style="modern-minimal"] .rc-focus-back-btn {
+    background: var(--rc-elevated);
+    box-shadow: none;
+    border: 1px solid var(--rc-border);
+    color: var(--rc-text-soft);
+    border-radius: 0.75rem;
+  }
+
+  html[data-style="modern-minimal"] .rc-focus-tab--active {
+    background: var(--rc-accent);
+    box-shadow: none;
+    color: #ffffff;
+  }
+
+  html[data-style="modern-minimal"] .rc-focus-stat-chip {
+    box-shadow: none;
+    border: 1px solid var(--rc-card-inset-outline);
+  }
+
+}

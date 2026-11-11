@@ -85,7 +85,7 @@ export default function VersionWorkspace({
               className="flex-shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold"
               style={
                 active
-                  ? { background: "rgba(255,255,255,0.22)", color: "#fff" }
+                  ? { background: "color-mix(in srgb, var(--rc-button-primary-text) 14%, transparent)", color: "var(--rc-button-primary-text)" }
                   : { background: statusStyle.bg, color: statusStyle.color }
               }
             >
@@ -188,7 +188,7 @@ export default function VersionWorkspace({
                             className="text-[10px] font-medium px-2 py-0.5 rounded-lg transition-colors"
                             style={
                               compareIds?.[slot] === version.id
-                                ? { background: "var(--rc-button-primary-bg)", color: "#fff" }
+                                ? { background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)" }
                                 : {
                                     background: "var(--rc-card-inset-bg)",
                                     color: "var(--rc-text-muted)",

@@ -24,6 +24,7 @@ import Writing from "../../pages/Writing";
 import Tools from "../../pages/Tools";
 import Code from "../../pages/Code";
 import Submission from "../../pages/Submission";
+import FocusSettingsLink from "./FocusSettingsLink";
 import {
   BASE_INTEREST_TABS,
   FREE_TABS,
@@ -231,6 +232,7 @@ export default function FocusWorkbench() {
               自由主题
             </button>
           )}
+          <FocusSettingsLink />
         </div>
 
         {/* 导航行：tab 横向滚动 */}

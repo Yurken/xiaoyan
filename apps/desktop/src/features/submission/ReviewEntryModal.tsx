@@ -124,7 +124,7 @@ export default function ReviewEntryModal({
                     className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150"
                     style={
                       active
-                        ? { background: "var(--rc-button-primary-bg)", color: "#fff" }
+                        ? { background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)" }
                         : { background: "var(--rc-card-inset-bg)", color: "var(--rc-text-secondary)" as string }
                     }
                   >
@@ -150,7 +150,7 @@ export default function ReviewEntryModal({
               onClick={() => void onSubmit()}
               disabled={!reviewForm.reviewer.trim() || !reviewForm.content.trim()}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 disabled:opacity-40"
-              style={{ background: "var(--rc-button-primary-bg)", color: "#fff" }}
+              style={{ background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)" }}
             >
               <Check className="w-4 h-4" />
               保存并继续

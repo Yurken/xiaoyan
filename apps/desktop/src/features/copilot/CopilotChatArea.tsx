@@ -228,7 +228,7 @@ export function CopilotChatArea(props: CopilotChatAreaProps) {
                           style={{ color: "var(--rc-text-tertiary)" }}>取消</button>
                         <button type="button" onClick={onSaveEdit} disabled={!editText.trim()}
                           className="rounded-lg px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-40"
-                          style={{ color: "#FFFFFF", background: "var(--rc-button-primary-bg)", boxShadow: "var(--rc-button-primary-shadow)" }}>保存并发送</button>
+                          style={{ color: "var(--rc-button-primary-text)", background: "var(--rc-button-primary-bg)", boxShadow: "var(--rc-button-primary-shadow)" }}>保存并发送</button>
                       </div>
                     </div>
                   ) : (

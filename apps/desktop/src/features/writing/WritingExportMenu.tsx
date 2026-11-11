@@ -48,6 +48,7 @@ export default function WritingExportMenu({ exportingTarget, onExport }: Writing
         className="px-2.5"
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label="导出项目"
       >
         <Archive className="h-3.5 w-3.5 text-ink-tertiary" />
         <span className="hidden lg:inline">导出</span>

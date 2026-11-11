@@ -191,7 +191,7 @@ export default function RolesSection({
                     ? {
                         background:
                           "var(--rc-button-primary-bg)",
-                        color: "#FFFFFF",
+                        color: "var(--rc-button-primary-text)",
                         boxShadow:
                           "var(--rc-button-primary-shadow)",
                       }

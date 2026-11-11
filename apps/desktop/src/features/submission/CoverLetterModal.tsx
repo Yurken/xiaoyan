@@ -68,7 +68,7 @@ export default function CoverLetterModal({
           >
             复制
           </button>
-          <button onClick={onClose} className="px-5 py-2 rounded-xl text-sm font-medium" style={{ background: "var(--rc-button-primary-bg)", color: "#fff" }}>
+          <button onClick={onClose} className="px-5 py-2 rounded-xl text-sm font-medium" style={{ background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)" }}>
             关闭
           </button>
         </div>

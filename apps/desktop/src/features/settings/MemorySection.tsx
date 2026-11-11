@@ -194,7 +194,7 @@ export default function MemorySection({
                     <span className="text-[11px] text-ink-tertiary">{formatTimestamp(memory.created_at)}</span>
                   </div>
                   {memory.detail ? (
-                    <p className="mt-1.5 break-all rounded-xl px-2.5 py-2 text-[11px] leading-5 text-ink-tertiary" style={{ background: "rgba(255,255,255,0.48)" }}>
+                    <p className="mt-1.5 break-all rounded-xl px-2.5 py-2 text-[11px] leading-5 text-ink-tertiary" style={{ background: "var(--rc-card-inset-bg)" }}>
                       {memory.detail}
                     </p>
                   ) : null}

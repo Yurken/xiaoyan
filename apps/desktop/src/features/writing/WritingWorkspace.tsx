@@ -1,21 +1,11 @@
 import { useState } from "react";
 import { clsx } from "clsx";
-import {
-  ChevronLeft,
-  Eye,
-  FileText,
-  FolderOpen,
-  LayoutPanelLeft,
-  PenLine,
-  Plus,
-  Upload,
-} from "lucide-react";
-import { Button, CapsuleTabs } from "@research-copilot/ui";
+import { ChevronLeft } from "lucide-react";
+import WritingToolbar from "./WritingToolbar";
+import { useWritingPanelLayout } from "./useWritingPanelLayout";
 import WritingAssistantPanel from "./WritingAssistantPanel";
-import WritingCompileButton from "./WritingCompileButton";
 import WritingDraftManagerModal from "./WritingDraftManagerModal";
 import WritingEditorPanel from "./WritingEditorPanel";
-import WritingExportMenu from "./WritingExportMenu";
 import WritingLatexInstallNotice from "./WritingLatexInstallNotice";
 import WritingLibraryStatus from "./WritingLibraryStatus";
 import WritingNewDraftModal from "./WritingNewDraftModal";
@@ -25,16 +15,9 @@ import WritingVersionHistoryModal from "./WritingVersionHistoryModal";
 import {
   isLatexCompilerMissing,
   type WritingAssistantActionId,
-  type WritingViewMode,
 } from "./shared";
 import { useWritingWorkspace } from "./useWritingWorkspace";
 import "./writing-sidebar.css";
-
-const VIEW_OPTIONS = [
-  { value: "split", label: "分栏", icon: <LayoutPanelLeft className="h-3.5 w-3.5" /> },
-  { value: "editor", label: "源码", icon: <FileText className="h-3.5 w-3.5" /> },
-  { value: "preview", label: "预览", icon: <Eye className="h-3.5 w-3.5" /> },
-] as const;
 
 export default function WritingWorkspace({
   defaultResearchInterestId,
@@ -49,7 +32,7 @@ export default function WritingWorkspace({
   const [newDraftModalOpen, setNewDraftModalOpen] = useState(false);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { layoutRef, compact, sidebarCollapsed, setSidebarCollapsed } = useWritingPanelLayout(workspace.libraryReady);
   const [assistantRequest, setAssistantRequest] = useState<{
     actionId: WritingAssistantActionId;
     nonce: number;
@@ -79,81 +62,23 @@ export default function WritingWorkspace({
   }
 
   return (
-    <div className="writing-workspace-frame">
+    <div ref={layoutRef} className="writing-workspace-frame">
       <div className="writing-workspace flex min-h-0 flex-1 flex-col">
       <header className="shrink-0 border-b px-4 py-3 app-header" style={{ borderColor: "var(--rc-border)", background: "var(--rc-header-bg)" }}>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-apple-blue/10 text-apple-blue">
-              <PenLine className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="truncate text-lg font-bold tracking-tight text-ink-primary">论文撰写</h1>
-              <div className="flex items-center gap-2 text-xs text-ink-tertiary">
-                {libraryStatus}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => setNewDraftModalOpen(true)}
-              title="新增文稿"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              新增文稿
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => setDraftManagerOpen(true)}
-              title="打开文稿管理"
-            >
-              <FolderOpen className="h-3.5 w-3.5" />
-              文稿管理
-            </Button>
-
-            <div>
-              <CapsuleTabs
-                value={workspace.viewMode}
-                onChange={(v) => workspace.setViewMode(v as WritingViewMode)}
-                options={VIEW_OPTIONS}
-                compact
-              />
-            </div>
-
-            <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: "var(--rc-border)" }}>
-              <Button type="button" size="sm" variant="secondary" onClick={() => void workspace.importTexFile()} title="导入 .tex">
-                <Upload className="h-3.5 w-3.5" />
-                <span className="hidden lg:inline">导入</span>
-              </Button>
-              <Button type="button" size="sm" variant="secondary" onClick={() => void workspace.importTexProject()} title="导入包含章节文件的 LaTeX 项目目录">
-                <FolderOpen className="h-3.5 w-3.5" />
-                <span className="hidden xl:inline">导入项目</span>
-              </Button>
-
-              <div className="flex items-center gap-1 rounded-xl bg-apple-blue/5 p-1">
-                <WritingCompileButton
-                  draftId={workspace.compileDraftId}
-                  compileStatus={workspace.compileStatus}
-                  exportingTarget={workspace.exportingTarget}
-                  onCompile={() => void workspace.compilePdf()}
-                />
-              </div>
-
-              <div className="ml-1 flex items-center gap-1.5">
-                <WritingExportMenu
-                  exportingTarget={workspace.exportingTarget}
-                  onExport={(target) => void workspace.exportProject(target)}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        <WritingToolbar
+          libraryStatus={libraryStatus}
+          viewMode={workspace.viewMode}
+          onViewModeChange={workspace.setViewMode}
+          compileDraftId={workspace.compileDraftId}
+          compileStatus={workspace.compileStatus}
+          exportingTarget={workspace.exportingTarget}
+          onNewDraft={() => setNewDraftModalOpen(true)}
+          onManageDrafts={() => setDraftManagerOpen(true)}
+          onImportFile={() => void workspace.importTexFile()}
+          onImportProject={() => void workspace.importTexProject()}
+          onCompile={() => void workspace.compilePdf()}
+          onExport={(target) => void workspace.exportProject(target)}
+        />
 
         {(workspace.message || workspace.error) && (
           <div
@@ -188,22 +113,23 @@ export default function WritingWorkspace({
       </header>
 
       <div
-        className="grid min-h-0 flex-1 gap-3 px-4 py-3"
+        className="relative grid min-h-0 flex-1 gap-3 px-4 py-3"
         style={{
           gridTemplateColumns:
             workspace.viewMode === "split"
-              ? sidebarCollapsed
-                ? "minmax(0,1fr) 24rem"
+              ? sidebarCollapsed || compact
+                ? "minmax(0,1fr) minmax(0,1fr)"
                 : "18rem minmax(0,1fr) 24rem"
               : workspace.viewMode === "editor"
-                ? sidebarCollapsed
+                ? sidebarCollapsed || compact
                   ? "minmax(0,1fr)"
                   : "18rem minmax(0,1fr)"
                 : "1fr",
         }}
       >
         {workspace.viewMode !== "preview" && !sidebarCollapsed && (
-          <div className="relative min-h-0">
+          <div className={clsx("min-h-0", compact ? "absolute bottom-3 left-4 top-3 z-20 w-72 rounded-2xl border" : "relative")}
+            style={compact ? { background: "var(--rc-surface)", borderColor: "var(--rc-border)", boxShadow: "var(--rc-dropdown-menu-shadow)" } : undefined}>
             <WritingSidebar
               outline={workspace.outline}
               diagnostics={workspace.diagnostics}

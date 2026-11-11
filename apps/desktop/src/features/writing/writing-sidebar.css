@@ -1,12 +1,14 @@
 .writing-workspace-frame {
   display: flex;
   height: 100%;
+  min-width: 0;
   min-height: 0;
   padding: 0.75rem;
   box-sizing: border-box;
 }
 
 .writing-workspace {
+  min-width: 0;
   overflow: hidden;
   border-radius: 1.25rem;
   background: transparent;

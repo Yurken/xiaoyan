@@ -2,7 +2,7 @@ import { AlertCircle, Globe } from "lucide-react";
 import { Badge, Card } from "@research-copilot/ui";
 import type { WebSearchOutcome } from "@research-copilot/types";
 import ExternalLink from "../../components/ExternalLink";
-import { truncateText } from "./shared";
+import { TOOL_ERROR_STYLE, truncateText } from "./shared";
 
 interface WebSupplementResultsProps {
   outcome: WebSearchOutcome | null;
@@ -33,7 +33,7 @@ export function WebSupplementResults({ outcome, error, cutoffDate }: WebSuppleme
       </div>
 
       {error ? (
-        <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 bg-[#F7ECEA] px-3 py-2 text-sm text-apple-red">
+        <div className="flex items-start gap-2 rounded-2xl border border-apple-red/10 px-3 py-2 text-sm" style={TOOL_ERROR_STYLE}>
           <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>{error}</span>
         </div>

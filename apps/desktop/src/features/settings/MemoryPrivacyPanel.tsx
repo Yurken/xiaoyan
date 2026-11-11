@@ -147,7 +147,7 @@ export default function MemoryPrivacyPanel({ privacy }: MemoryPrivacyPanelProps)
             className="flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
             style={{
               background: "var(--rc-button-primary-bg)",
-              color: "#fff",
+              color: "var(--rc-button-primary-text)",
               boxShadow: "var(--rc-button-primary-shadow)",
             }}
           >

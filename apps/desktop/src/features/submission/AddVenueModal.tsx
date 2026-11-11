@@ -92,7 +92,7 @@ export default function AddVenueModal({
                   className="px-3 py-2 rounded-xl text-xs font-medium transition-all duration-150"
                   style={
                     typeFilter === venueType
-                      ? { background: "var(--rc-button-primary-bg)", color: "#fff" }
+                      ? { background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)" }
                       : {
                           background: "var(--rc-card-bg)",
                           color: "var(--rc-text-secondary)" as string,
@@ -153,10 +153,10 @@ export default function AddVenueModal({
                         style={
                           added
                             ? { background: "rgba(52,199,89,0.15)", cursor: "default" }
-                            : { background: "var(--rc-button-primary-bg)", boxShadow: "var(--rc-button-primary-shadow)" }
+                            : { background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)", boxShadow: "var(--rc-button-primary-shadow)" }
                         }
                       >
-                        {added ? <Check className="w-4 h-4" style={{ color: "#34C759" }} /> : <Plus className="w-4 h-4 text-white" />}
+                        {added ? <Check className="w-4 h-4" style={{ color: "#34C759" }} /> : <Plus className="w-4 h-4" />}
                       </button>
                     </div>
 

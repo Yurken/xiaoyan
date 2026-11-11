@@ -368,7 +368,7 @@ export default function PaperCard({
             <Button size="sm" variant="secondary" onClick={() => setConfirmReanalyze(false)}>取消</Button>
             <button type="button" onClick={() => { onAnalyze(paper.id); setConfirmReanalyze(false); }}
               className="inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-medium text-white transition-colors"
-              style={{ background: "var(--rc-button-primary-bg)" }}>确认重新解读</button>
+              style={{ background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)" }}>确认重新解读</button>
           </div>
         </div>
       )}

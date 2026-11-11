@@ -210,7 +210,7 @@ export default function TaskSetupSection({
                   finally { setLockBusy(false); }
                 }}
                 className="w-full rounded-xl py-2 text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
-                style={{ background: "var(--rc-button-primary-bg)" }}
+                style={{ background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)" }}
               >
                 {lockBusy ? "设置中…" : "确认设置"}
               </button>
@@ -285,7 +285,7 @@ export default function TaskSetupSection({
                         finally { setLockBusy(false); }
                       }}
                       className="w-full rounded-xl py-2 text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
-                      style={{ background: "var(--rc-button-primary-bg)" }}
+                      style={{ background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)" }}
                     >
                       {lockBusy ? "保存中…" : appLockHasSecurity ? "更新密保" : "保存密保"}
                     </button>

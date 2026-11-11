@@ -16,9 +16,8 @@ import {
   applyInterestPlanSnapshots,
   useInterestPlanSnapshots,
 } from "../knowledge/useInterestPlanRuns";
-import MacWindowDragStrip from "../../components/MacWindowDragStrip";
 import { safeListen } from "../../lib/tauriEvent";
-import { MACOS_WINDOW_DRAG_HEIGHT } from "../../lib/windowChrome";
+import FocusPageFrame from "./FocusPageFrame";
 
 function InterestCard({
   interest,
@@ -41,8 +40,8 @@ function InterestCard({
         : "default";
 
   return (
-    <div className="rc-focus-card rounded-2xl p-5 flex items-center justify-between gap-4">
-      <div className="min-w-0 flex-1">
+    <div className="rc-focus-card flex flex-wrap items-center justify-between gap-4 rounded-2xl p-5">
+      <div className="min-w-0 flex-1 basis-56">
         <div className="flex items-center gap-2 mb-1">
           <Microscope className="w-4 h-4 text-apple-blue flex-shrink-0" />
           <p className="text-sm font-semibold text-ink-primary truncate">
@@ -54,7 +53,7 @@ function InterestCard({
             {interest.keywords.slice(0, 6).map((kw) => (
               <span
                 key={kw}
-                className="rc-accent-chip rounded-full px-2 py-0.5 text-[11px]"
+                className="rc-accent-chip max-w-full break-words rounded-full px-2 py-0.5 text-[11px]"
               >
                 {kw}
               </span>
@@ -66,7 +65,7 @@ function InterestCard({
           </p>
         )}
       </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
+      <div className="flex flex-shrink-0 flex-wrap items-center gap-3">
         <Badge variant={statusVariant}>{statusLabel}</Badge>
         <button type="button" onClick={onEnter} className="rc-focus-cta">
           工作台
@@ -79,8 +78,8 @@ function InterestCard({
 
 function FreeTopicCard({ onEnter }: { onEnter: () => void }) {
   return (
-    <div className="rc-focus-card rounded-2xl p-5 flex items-center justify-between gap-4">
-      <div className="min-w-0 flex-1">
+    <div className="rc-focus-card flex flex-wrap items-center justify-between gap-4 rounded-2xl p-5">
+      <div className="min-w-0 flex-1 basis-56">
         <div className="flex items-center gap-2 mb-1">
           <Sparkles className="w-4 h-4 text-ink-tertiary flex-shrink-0" />
           <p className="text-sm font-semibold text-ink-secondary">自由主题</p>
@@ -142,13 +141,9 @@ export default function FocusHome() {
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-nm-bg">
-      <div className="rc-focus-header flex-shrink-0">
-        <MacWindowDragStrip style={{ height: `${MACOS_WINDOW_DRAG_HEIGHT}px` }} />
-      </div>
-
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="mx-auto max-w-4xl p-6 space-y-5">
+    <FocusPageFrame title="研究主题" home>
+      <div className="h-full min-h-0 overflow-y-auto">
+        <div className="rc-focus-home-content space-y-5">
           {loading ? (
             <div className="flex items-center justify-center py-20 gap-2 text-ink-tertiary">
               <Loader2 className="w-5 h-5 animate-spin" />
@@ -161,16 +156,16 @@ export default function FocusHome() {
               {/* 规划入口 */}
               <div className="rc-focus-card rounded-2xl overflow-hidden">
                 {!creating && !discovering && (
-                  <div className="flex items-center justify-between gap-4 px-5 py-4">
+                  <div className="flex flex-col items-start justify-between gap-4 px-5 py-4 sm:flex-row sm:items-center">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-ink-primary">
                         研究路线设计器
                       </p>
-                      <p className="text-xs text-ink-tertiary mt-0.5 truncate">
+                      <p className="mt-0.5 text-xs leading-5 text-ink-tertiary">
                         把研究主题转成阶段化学习路线、经典论文和潜在切入方向。
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => setDiscovering(true)}
@@ -279,6 +274,6 @@ export default function FocusHome() {
           )}
         </div>
       </div>
-    </div>
+    </FocusPageFrame>
   );
 }

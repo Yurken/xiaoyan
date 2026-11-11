@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderWithRouter as render, screen, fireEvent, waitFor } from "../helpers/render";
 import { resetInvokeMock } from "../mocks/tauri";
-import { DEFAULT_SETTINGS } from "../../features/settings/pageConfig";
+import { DEFAULT_SETTINGS, SETTINGS_ACTIVE_SECTION_STORAGE_KEY } from "../../features/settings/pageConfig";
 import Settings from "../../pages/Settings";
 
 const persistenceMock = vi.hoisted(() => ({ saveState: "idle", saveError: "", loadError: "", retry: vi.fn(), retryLoad: vi.fn() }));
 
-// Settings.tsx 内联渲染胶囊导航并直接消费 SETTINGS_SECTIONS，因此 pageConfig 不做
+// SettingsTabBar 消费 SETTINGS_SECTIONS，因此 pageConfig 不做
 // mock，让真实的分区元数据（标签/key/默认 assistant）参与渲染；下面只 mock 重型
 // section 组件与依赖后端的 feature hook，避免触发真实网络/Tauri 调用。
 
@@ -99,9 +99,11 @@ vi.mock("../../features/settings/useSettingsMemories", () => ({
 vi.mock("../../features/settings/useLayoutSettingsController", () => ({
   useLayoutSettingsController: () => ({
     currentTheme: "light",
+    currentStyle: "neumorphic",
     pendingLayout: "landscape",
     changeLayout: vi.fn(),
     changeTheme: vi.fn(),
+    changeStyle: vi.fn(),
   }),
 }));
 
@@ -134,9 +136,6 @@ vi.mock("../../features/settings/AssistantSettingsSection", () => ({
 }));
 vi.mock("../../features/settings/LayoutSettingsSection", () => ({
   default: () => <div data-testid="layout-settings">布局设置</div>,
-}));
-vi.mock("../../features/settings/SkillsSection", () => ({
-  default: () => <div data-testid="skills-section">技能管理</div>,
 }));
 vi.mock("../../features/settings/MemorySection", () => ({
   default: () => <div data-testid="memory-section">记忆管理</div>,
@@ -187,6 +186,22 @@ describe("Settings 页面", () => {
     expect(screen.getByText("界面布局")).toBeInTheDocument();
     expect(screen.getByText("数据与配置")).toBeInTheDocument();
     expect(screen.getByText("升级与日志")).toBeInTheDocument();
+  });
+
+  it("设置中不再提供技能库入口", () => {
+    render(<Settings />);
+    expect(screen.queryByRole("button", { name: /技能模板|技能库/ })).not.toBeInTheDocument();
+  });
+
+  it("历史技能分区选择应回退到小妍分区并保存有效选择", async () => {
+    localStorage.setItem(SETTINGS_ACTIVE_SECTION_STORAGE_KEY, "skills");
+    render(<Settings />);
+
+    expect(screen.getByTestId("assistant-settings")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "小妍" })).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => {
+      expect(localStorage.getItem(SETTINGS_ACTIVE_SECTION_STORAGE_KEY)).toBe("assistant");
+    });
   });
 
   it("点击「桌面助手」分区应切换到桌面助手设置内容", async () => {

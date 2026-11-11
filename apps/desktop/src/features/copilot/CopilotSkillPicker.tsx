@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Lock, LockOpen, Wrench, X, Zap } from "lucide-react";
+import { Lock, LockOpen, Settings2, Wrench, X, Zap } from "lucide-react";
 import type { Skill } from "@research-copilot/types";
 
 interface CopilotSkillPickerProps {
@@ -8,6 +8,7 @@ interface CopilotSkillPickerProps {
   onSelectedSkillChange: (skillId: string | null) => void;
   skillLocked: boolean;
   onSkillLockedChange: (locked: boolean) => void;
+  onManageSkills?: () => void;
 }
 
 export default function CopilotSkillPicker({
@@ -16,6 +17,7 @@ export default function CopilotSkillPicker({
   onSelectedSkillChange,
   skillLocked,
   onSkillLockedChange,
+  onManageSkills,
 }: CopilotSkillPickerProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [hoveredSkillId, setHoveredSkillId] = useState<string | null>(null);
@@ -164,6 +166,18 @@ export default function CopilotSkillPicker({
           </div>
         )}
       </div>
+
+      {onManageSkills && (
+        <button
+          type="button"
+          onClick={() => { setPickerOpen(false); onManageSkills(); }}
+          aria-label="管理技能库"
+          className="inline-flex items-center gap-1 rounded-xl px-2 py-1 text-xs text-ink-secondary transition-colors hover:text-ink-primary"
+        >
+          <Settings2 className="h-3 w-3" />
+          管理
+        </button>
+      )}
 
       {selectedSkill && (
         <div className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium flex-shrink-0"

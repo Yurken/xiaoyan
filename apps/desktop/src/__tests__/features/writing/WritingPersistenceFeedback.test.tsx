@@ -34,6 +34,7 @@ describe("写作保存反馈", () => {
       throw new Error(`Unexpected command: ${command}`);
     });
     render(<WritingWorkspace />);
+    fireEvent.click(await screen.findByRole("button", { name: "展开侧栏" }));
     const notes = await screen.findByPlaceholderText("记录审稿要求、待补实验、下一轮修改计划...");
     fireEvent.change(notes, { target: { value: "新的分析" } });
     expect(await screen.findByRole("alert")).toHaveTextContent("文稿尚未保存：磁盘写入失败");

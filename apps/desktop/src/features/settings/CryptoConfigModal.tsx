@@ -131,7 +131,7 @@ export default function CryptoConfigModal({
             onClick={() => void onSubmit()}
             disabled={busy || interactionLocked || submitDisabled || !password.trim()}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-2xl text-sm font-semibold text-white transition-all duration-150 active:scale-95 disabled:opacity-50"
-            style={{ background: "var(--rc-button-primary-bg)", boxShadow: "var(--rc-button-primary-shadow)" }}
+            style={{ background: "var(--rc-button-primary-bg)", color: "var(--rc-button-primary-text)", boxShadow: "var(--rc-button-primary-shadow)" }}
           >
             {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
             {busy ? "处理中…" : submitLabel ?? (modal.mode === "export" ? "加密并保存" : "解密并导入")}

@@ -3,6 +3,7 @@ import { Card } from "@research-copilot/ui";
 import { LayoutDashboard, Monitor, Moon, Sun } from "lucide-react";
 import type { LayoutMode } from "../../lib/layoutMode";
 import type { ThemePreference } from "../../lib/themeMode";
+import type { ThemeStyle } from "../../lib/themeStyle";
 import { SectionIcon } from "./shared";
 import ModuleVisibilitySettingsPanel from "../module-visibility/ModuleVisibilitySettingsPanel";
 // import CodeHarnessSettingsPanel from "../code-harness/CodeHarnessSettingsPanel";
@@ -26,13 +27,14 @@ function OptionCard({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-[24px] p-4 text-left transition-all duration-150"
+      aria-pressed={selected}
+      className="min-w-0 rounded-[24px] p-4 text-left transition-colors duration-150"
       style={
         selected
           ? {
               background: "color-mix(in srgb, var(--rc-accent) 10%, var(--rc-elevated))",
               border: "1px solid color-mix(in srgb, var(--rc-accent) 28%, var(--rc-border))",
-              boxShadow: "0 14px 28px rgb(var(--rc-sidebar-shadow-rgb) / 0.1)",
+              boxShadow: "var(--rc-card-flat-shadow)",
             }
           : {
               background: "var(--rc-elevated)",
@@ -42,7 +44,7 @@ function OptionCard({
       }
     >
       <div className="mb-2 flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
           {preview ?? icon}
           <div>
             <p className="text-sm font-semibold text-ink-primary">{title}</p>
@@ -90,13 +92,17 @@ function ThemeSwatch({ mode }: { mode: "light" | "dark" | "auto" }) {
 
 export default function LayoutSettingsSection({
   currentTheme,
+  currentStyle,
   pendingLayout,
   onThemeChange,
+  onStyleChange,
   onLayoutChange,
 }: {
   currentTheme: ThemePreference;
+  currentStyle: ThemeStyle;
   pendingLayout: LayoutMode;
   onThemeChange: (mode: ThemePreference) => void;
+  onStyleChange: (style: ThemeStyle) => void;
   onLayoutChange: (mode: LayoutMode) => void;
 }) {
   return (
@@ -150,6 +156,32 @@ export default function LayoutSettingsSection({
       </div>
 
       <div>
+        <p className="mb-2 ml-1 text-xs font-medium text-ink-tertiary">页面风格</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {([
+            {
+              style: "neumorphic",
+              label: "柔和拟态",
+              description: "用柔和阴影区分卡片与操作区域，保留研究桌面的层次感。",
+            },
+            {
+              style: "modern-minimal",
+              label: "极简工作台",
+              description: "用清晰边界与留白组织内容，让论文、笔记和任务成为视觉中心。",
+            },
+          ] as const).map(({ style, label, description }) => (
+            <OptionCard
+              key={style}
+              selected={currentStyle === style}
+              title={label}
+              description={description}
+              onClick={() => onStyleChange(style)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div>
         <p className="mb-2 ml-1 text-xs font-medium text-ink-tertiary">布局模式</p>
         <div className="grid gap-3 sm:grid-cols-2">
           {([
@@ -185,7 +217,7 @@ export default function LayoutSettingsSection({
         className="rounded-2xl px-4 py-3 text-xs leading-5 text-ink-tertiary"
         style={{ background: "var(--rc-card-inset-bg)", border: "1px solid var(--rc-card-inset-outline)" }}
       >
-        切换布局后应用会自动重启。主题会立即保存并作用到当前窗口。
+        切换布局后应用会自动重启。页面风格和主题会立即保存并作用到当前窗口。
       </div>
     </Card>
   );

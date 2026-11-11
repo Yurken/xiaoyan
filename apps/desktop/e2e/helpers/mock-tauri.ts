@@ -121,6 +121,9 @@ const MOCK_INVOKE_RESULTS = {
   // Survey / Planner
   survey_list: [],
 
+  // Tools
+  github_project_get_search_history: [],
+
   // Experiment / Submission
   experiment_list: { experiments: [] },
   submission_list: { submissions: [] },

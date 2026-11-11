@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   Layers3,
   MonitorDot,
-  Zap,
 } from "lucide-react";
 import type { AppSettings } from "@research-copilot/types";
 import { DEFAULT_PAPER_TAG_VISIBILITY_VALUE } from "../../lib/paperTags";
@@ -18,7 +17,6 @@ export type SettingsSectionKey =
   | "assistant"
   | "desktop_assistant"
   | "paper_tags"
-  | "skills"
   | "history"
   | "memory"
   | "about"
@@ -51,13 +49,6 @@ export const SETTINGS_SECTIONS: Array<{
     description: "自动识别与标签展示",
     icon: Layers3,
     color: "#FF9F0A",
-  },
-  {
-    key: "skills",
-    label: "技能模板",
-    description: "提示词技能管理",
-    icon: Zap,
-    color: "#FF375F",
   },
   {
     key: "layout",
