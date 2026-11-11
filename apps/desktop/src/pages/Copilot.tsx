@@ -7,6 +7,8 @@ import CopilotOverviewSidebar from "../features/copilot/CopilotOverviewSidebar";
 import { CopilotChatArea } from "../features/copilot/CopilotChatArea";
 import { CopilotSessionSidebar } from "../features/copilot/CopilotSessionSidebar";
 import SkillVariableFillModal from "../features/copilot/SkillVariableFillModal";
+import CopilotSkillLibraryModal from "../features/copilot/CopilotSkillLibraryModal";
+import { useCopilotSkills } from "../features/copilot/useCopilotSkills";
 import { COPILOT_LAST_SESSION_KEY, useCopilotSessions } from "../features/copilot/useCopilotSessions";
 import { useCopilotChat } from "../features/copilot/useCopilotChat";
 import { useCopilotAttachments } from "../features/copilot/useCopilotAttachments";
@@ -16,7 +18,7 @@ import { parseCopilotMessageContent } from "../features/copilot/shared";
 import { clearPersistentValue, readPersistentValue, usePersistentStringState, writePersistentValue } from "../hooks/usePersistentStringState";
 import { apiClient, formatErrorMessage } from "../lib/client";
 import { openLink } from "../lib/links";
-import type { AgentRun, ChatSession, Skill } from "@research-copilot/types";
+import type { AgentRun, ChatSession } from "@research-copilot/types";
 import { interestFolderName } from "../lib/interestUtils";
 import CopilotContextBar from "../features/copilot/CopilotContextBar";
 import {
@@ -53,10 +55,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
   } = useCopilotCheckpointHandoffState(location.state);
   const { chatMode, setChatMode } = useCopilotChatMode();
 
-  const [skills, setSkills] = useState<Skill[]>([]);
-  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
-  // 技能锁定：关闭时（默认）发完一条即清除选中（one-shot）；开启时连续生效。
-  const [skillLocked, setSkillLocked] = useState(false);
+  const skillLibrary = useCopilotSkills();
+  const { skills, selectedSkillId, setSelectedSkillId, skillLocked, setSkillLocked } = skillLibrary;
   const [memoryInput, setMemoryInput] = useState("");
   const [savingMemory, setSavingMemory] = useState(false);
   const [memorySaved, setMemorySaved] = useState(false);
@@ -97,9 +97,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
     selectedSkillId,
     attachments,
     clearAttachments,
-    onSkillConsumed: () => {
-      if (!skillLocked) setSelectedSkillId(null);
-    },
+    onSkillConsumed: skillLibrary.onSkillConsumed,
     onSessionCreated: async (sessionId: string) => {
       writePersistentValue(COPILOT_LAST_SESSION_KEY, sessionId);
       try {
@@ -232,14 +230,6 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
       return next;
     });
   }, [chat]);
-
-  // Skills
-  useEffect(() => {
-    apiClient.skills.list().then((data) => {
-      // 对话技能选择器展示所有已启用技能；工具技能（如 PPT 生成）走 Tool Registry 执行真实工具。
-      setSkills(data.filter((s) => s.is_enabled));
-    }).catch((err) => { console.warn("Failed to load skills:", err); });
-  }, []);
 
   // Cleanup：仅在卸载时取消进行中的流。
   // 注意 deps 必须是稳定的 cancelActiveStream，不能用整个 chat 对象——
@@ -443,6 +433,7 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
                   onSelectedSkillChange={setSelectedSkillId}
                   skillLocked={skillLocked}
                   onSkillLockedChange={setSkillLocked}
+                  onManageSkills={skillLibrary.openLibrary}
                 />
               }
             />
@@ -465,6 +456,8 @@ export default function Copilot({ hideFolders = false }: { hideFolders?: boolean
           onCollapsedChange={chat.setSidebarCollapsed}
         />
       </div>
+
+      <CopilotSkillLibraryModal open={skillLibrary.libraryOpen} onClose={skillLibrary.closeLibrary} onSkillsChange={skillLibrary.updateSkills} />
 
       {chat.pendingSkillFill && (
         <SkillVariableFillModal

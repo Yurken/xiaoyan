@@ -26,6 +26,7 @@ interface CopilotComposerProps {
   onSelectedSkillChange: (skillId: string | null) => void;
   skillLocked: boolean;
   onSkillLockedChange: (locked: boolean) => void;
+  onManageSkills?: () => void;
 }
 
 const MODE_ICON = {
@@ -50,6 +51,7 @@ export default function CopilotComposer({
   onSelectedSkillChange,
   skillLocked,
   onSkillLockedChange,
+  onManageSkills,
 }: CopilotComposerProps) {
   const [slashIndex, setSlashIndex] = useState(0);
   const { height: composerHeight, onDragStart } = useResizableHeight({
@@ -300,6 +302,7 @@ export default function CopilotComposer({
                 onSelectedSkillChange={onSelectedSkillChange}
                 skillLocked={skillLocked}
                 onSkillLockedChange={onSkillLockedChange}
+                onManageSkills={onManageSkills}
               />
             </div>
 

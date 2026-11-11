@@ -9,7 +9,6 @@ import CryptoConfigModal from "../features/settings/CryptoConfigModal";
 import MemorySection from "../features/settings/MemorySection";
 import SettingsHistorySection from "../features/settings/SettingsHistorySection";
 import ConfigHistoryManageModal from "../features/settings/ConfigHistoryManageModal";
-import SkillsSection from "../features/settings/SkillsSection";
 import SettingsChangelogCard, { formatUpdateDate, getChangelogReleaseDate } from "../features/settings/SettingsChangelogCard";
 import FeedbackSection from "../features/settings/FeedbackSection";
 import DesktopAssistantSettingsSection from "../features/settings/DesktopAssistantSettingsSection";
@@ -412,10 +411,6 @@ export default function Settings() {
             onSaveCurrent={settingsHistory.saveCurrent}
             onManageHistory={() => setConfigManageOpen(true)}
           />
-        ) : null}
-
-        {activeSection === "skills" ? (
-          <SkillsSection />
         ) : null}
 
         {activeSection === "memory" ? (
