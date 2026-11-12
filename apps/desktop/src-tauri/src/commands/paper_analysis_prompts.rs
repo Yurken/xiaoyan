@@ -478,3 +478,18 @@ pub(crate) fn polish_system() -> String {
         Some("只输出合法 JSON，不要任何解释、总结或 Markdown 代码块包裹。"),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn polish_system_inherits_translation_quality_requirements() {
+        let prompt = polish_system();
+
+        assert!(prompt.contains("中译英"));
+        assert!(prompt.contains("涉及翻译任务时"));
+        assert!(prompt.contains(crate::assistant_prompts::TRANSLATION_QUALITY_REQUIREMENTS));
+        assert!(prompt.contains("只输出合法 JSON"));
+    }
+}

@@ -33,12 +33,19 @@ async fn extract_text_rejects_non_image_content() {
         chat_model: "test-model".to_string(),
         embed_model: "test-embed".to_string(),
     };
-    assert!(ActionService::extract_text(&llm, None, "session-1", "纯文本内容")
-        .await
-        .is_err());
-    assert!(ActionService::extract_text(&llm, None, "session-1", "data:text/plain;base64,SGVsbG8=")
-        .await
-        .is_err());
+    assert!(
+        ActionService::extract_text(&llm, None, "session-1", "纯文本内容")
+            .await
+            .is_err()
+    );
+    assert!(ActionService::extract_text(
+        &llm,
+        None,
+        "session-1",
+        "data:text/plain;base64,SGVsbG8="
+    )
+    .await
+    .is_err());
 }
 
 #[test]
@@ -74,7 +81,7 @@ fn removed_capture_context_never_enters_the_follow_up_message() {
 }
 
 #[test]
-fn translation_prompt_prioritizes_saved_term_mappings_as_data() {
+fn translation_prompt_combines_quality_requirements_and_saved_terms() {
     let prompt = build_translation_system_prompt(
         "简体中文",
         "术语首次出现时保留原文。",
@@ -87,6 +94,8 @@ fn translation_prompt_prioritizes_saved_term_mappings_as_data() {
     )
     .unwrap();
 
+    assert!(prompt.contains(crate::assistant_prompts::TRANSLATION_QUALITY_REQUIREMENTS));
+    assert!(prompt.contains("先显示译文，然后列出关键术语对照表"));
     assert!(prompt.contains("固定术语映射"));
     assert!(prompt.contains(r#""source":"agent""#));
     assert!(prompt.contains(r#""preferred":"智能体""#));
